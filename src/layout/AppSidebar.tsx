@@ -63,6 +63,7 @@ const userNavItems: NavItem[] = [
       { name: "New Ticket", path: "/issues/new" },
     ],
   },
+  { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects" },
   { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
   { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
