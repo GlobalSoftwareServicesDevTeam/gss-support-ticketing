@@ -24,6 +24,8 @@ import {
   ScrollText,
   Globe,
   CalendarClock,
+  Building2,
+  Bell,
 } from "lucide-react";
 
 type NavItem = {
@@ -55,6 +57,7 @@ const adminNavItems: NavItem[] = [
 ];
 
 const adminOtherItems: NavItem[] = [
+  { icon: <Building2 size={24} />, name: "Customers", path: "/customers" },
   { icon: <Users size={24} />, name: "Users", path: "/users" },
   { icon: <ShieldCheck size={24} />, name: "Hosting Admin", path: "/hosting-admin" },
   { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule" },
@@ -82,6 +85,7 @@ const userNavItems: NavItem[] = [
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
+  { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 
 const AppSidebar: React.FC = () => {
