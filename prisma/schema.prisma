@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  username        String    @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  phoneNumber     String?
+  company         String?
+  companyRegNo    String?
+  companyVatNo    String?
+  companyAddress  String?   @db.NVarChar(Max)
+  position        String?
+  role            String    @default("USER") // ADMIN, USER, EDITOR
+  emailConfirmed  Boolean   @default(false)
+  activationCode  String?
+  passwordReset   Boolean   @default(false)
+  inviteToken     String?
+  inviteExpiresAt DateTime?
+  legalAcceptedAt DateTime?
+  legalDocVersion String?
+  isDeleted       Boolean   @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  invoiceNinjaClientId String?
+
+  issues              Issue[]
+  messages            Message[]
+  assignments         TaskAssignment[]
+  projectAssignments  ProjectAssignment[]
+  hostingOrders       HostingOrder[]
+
+  @@map("users")
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  company       String
+  phoneNumber   String?
+  contactPerson String
+  emailAddress  String   @unique
+  createdAt     DateTime @default(now())
+
+  issues Issue[]
+
+  @@map("customers")
+}
+
+model Project {
+  id                    String    @id @default(uuid())
+  projectName           String
+  dateCreated           DateTime  @default(now())
+  proposalDate          DateTime?
+  estimatedCompleteDate DateTime?
+  onMaintenance         Boolean   @default(false)
+  maintAmount           Decimal?
+  contract              Bytes?
+  dateStarted           DateTime?
+  companyId             String?
+  githubRepo            String?
+  description           String?   @db.NVarChar(Max)
+  status                String    @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED, ARCHIVED
+
+  issues      Issue[]
+  tasks       Task[]
+  documents   Document[]
+  assignments ProjectAssignment[]
+
+  @@map("projects")
+}
+
+model ProjectAssignment {
+  id         String   @id @default(uuid())
+  assignedAt DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, userId])
+  @@map("project_assignments")
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.NVarChar(Max)
+  status      String    @default("TODO") // TODO, IN_PROGRESS, IN_REVIEW, DONE
+  priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  dueDate     DateTime?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  assignments TaskAssignment[]
+
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id         String   @id @default(uuid())
+  assignedAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([taskId, userId])
+  @@map("task_assignments")
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  name       String
+  fileName   String
+  fileExt    String
+  fileBase64 String   @db.NVarChar(Max)
+  fileSize   Int      @default(0)
+  category   String   // LEGAL, PROJECT, RESOURCE, CODE, INVOICE, QUOTE, STATEMENT, CREDIT_NOTE, PAYMENT_NOTE, OTHER
+  notes      String?  @db.NVarChar(Max)
+  uploadedAt DateTime @default(now())
+
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploadedBy String?
+
+  @@map("documents")
+}
+
+model Issue {
+  id           String   @id @default(uuid())
+  subject      String
+  initialNotes String?  @db.NVarChar(Max)
+  status       String   @default("OPEN") // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
+  priority     String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  kind         String?
+  projectName  String?
+  company      String?
+  emailThreadId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId       String?
+  user         User?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId   String?
+  customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projectId    String?
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  messages     Message[]
+  fileUploads  FileUpload[]
+
+  @@map("issues")
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  content     String   @db.NVarChar(Max)
+  dateCreated DateTime @default(now())
+  isFromEmail Boolean  @default(false)
+
+  userId  String?
+  user    User?   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  issueId String
+  issue   Issue   @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("messages")
+}
+
+model FileUpload {
+  id         String   @id @default(uuid())
+  fileName   String
+  fileExt    String
+  fileBase64 String   @db.NVarChar(Max)
+  dateAdded  DateTime @default(now())
+  publicDoc  Boolean  @default(false)
+
+  issueId String
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("file_uploads")
+}
+
+model MailSetting {
+  id        String   @id @default(uuid())
+  host      String
+  port      Int
+  ssl       Boolean  @default(true)
+  fromEmail String
+  password  String
+  subject   String?
+  createdAt DateTime @default(now())
+
+  @@map("mail_settings")
+}
+
+model Quote {
+  id          String   @id @default(uuid())
+  quoteNo     String?
+  amount      Decimal?
+  paid        Boolean  @default(false)
+  amountPaid  Decimal?
+  dueDate     DateTime?
+  invoiceNo   String?
+  quoteStatus String?
+  createdAt   DateTime @default(now())
+
+  @@map("quotes")
+}
+
+model IncomingEmail {
+  id          String   @id @default(uuid())
+  messageId   String   @unique
+  fromEmail   String
+  fromName    String?
+  subject     String
+  bodyText    String?  @db.NVarChar(Max)
+  bodyHtml    String?  @db.NVarChar(Max)
+  receivedAt  DateTime @default(now())
+  processed   Boolean  @default(false)
+  issueId     String?
+
+  @@map("incoming_emails")
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  gateway         String   // PAYFAST, OZOW, EFT
+  gatewayRef      String?  // external payment ID from gateway
+  amount          Decimal
+  currency        String   @default("ZAR")
+  status          String   @default("PENDING") // PENDING, PROCESSING, COMPLETE, FAILED, CANCELLED, REFUNDED
+  description     String?
+  invoiceNumber   String?
+  customerEmail   String?
+  customerName    String?
+  metadata        String?  @db.NVarChar(Max) // JSON blob for gateway-specific data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId          String?
+
+  @@map("payments")
+}
+
+model EftBankDetail {
+  id          String   @id @default(uuid())
+  bankName    String
+  accountName String
+  accountNumber String
+  branchCode  String
+  accountType String?  // SAVINGS, CHEQUE, CURRENT
+  swiftCode   String?
+  reference   String?  // e.g. "Use your invoice number"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@map("eft_bank_details")
+}
+
+model FlaggedEmail {
+  id          String   @id @default(uuid())
+  messageId   String   @unique
+  fromEmail   String
+  fromName    String?
+  subject     String
+  bodyText    String?  @db.NVarChar(Max)
+  bodyHtml    String?  @db.NVarChar(Max)
+  reason      String   // BOUNCE, NOREPLY, BLOCKED_SENDER, SUSPICIOUS
+  status      String   @default("PENDING") // PENDING, ASSIGNED, IGNORED
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  assignedToIssueId String?
+  receivedAt  DateTime @default(now())
+
+  @@map("flagged_emails")
+}
+
+model BlockedSender {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  pattern    String?  // optional regex/glob pattern like *@mailer-daemon.*
+  reason     String?
+  blockedBy  String?
+  createdAt  DateTime @default(now())
+
+  @@map("blocked_senders")
+}
+
+model SigningRequest {
+  id              String    @id @default(uuid())
+  documentId      String
+  documentName    String
+  status          String    @default("PENDING_SIGNER") // PENDING_SIGNER, PENDING_WITNESS, PENDING_ADMIN, COMPLETED, CANCELLED
+  signerName      String
+  signerEmail     String
+  signerSignature String?   @db.NVarChar(Max) // base64 PNG
+  signerSignedAt  DateTime?
+  signerToken     String    @unique @default(uuid())
+  witnessName     String?
+  witnessEmail    String?
+  witnessSignature String?  @db.NVarChar(Max) // base64 PNG
+  witnessSignedAt DateTime?
+  witnessToken    String?   @unique
+  adminSignature  String?   @db.NVarChar(Max) // base64 PNG
+  adminSignedAt   DateTime?
+  adminToken      String?   @unique
+  createdBy       String    // userId who initiated
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("signing_requests")
+}
+
+model HostingProduct {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // HOSTING, SSL, DOMAIN
+  description String?  @db.NVarChar(Max)
+  monthlyPrice Decimal
+  setupFee    Decimal  @default(0)
+  features    String?  @db.NVarChar(Max) // JSON array of feature strings
+  pleskPlanName String? // Plesk service plan name for auto-provisioning
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  orders HostingOrder[]
+
+  @@map("hosting_products")
+}
+
+model HostingOrder {
+  id              String    @id @default(uuid())
+  orderType       String    // HOSTING, DOMAIN_REGISTER, DOMAIN_TRANSFER, DOMAIN_CHECK, SSL, ADDITIONAL_HOSTING, QUOTE_REQUEST
+  status          String    @default("PENDING") // PENDING, QUOTED, PROFORMA_SENT, PAID, PROVISIONING, ACTIVE, FAILED, CANCELLED
+  domain          String?
+  notes           String?   @db.NVarChar(Max)
+  amount          Decimal?
+  period          Int       @default(1) // months
+  pleskSubscriptionId String?
+  invoiceNinjaInvoiceId String?
+  recurringInvoiceId String?
+  provisionedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId String?
+  product   HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("hosting_orders")
+}

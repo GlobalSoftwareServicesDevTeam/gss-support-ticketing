@@ -1,0 +1,629 @@
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+import { CreditCard, Landmark, Building2 } from "lucide-react";
+
+interface Payment {
+  id: string;
+  gateway: string;
+  gatewayRef: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  invoiceNumber: string | null;
+  customerName: string | null;
+  customerEmail: string | null;
+  createdAt: string;
+}
+
+interface EftDetail {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  branchCode: string;
+  accountType: string | null;
+  swiftCode: string | null;
+  reference: string | null;
+}
+
+interface Gateways {
+  payfast: boolean;
+  ozow: boolean;
+}
+
+type Tab = "pay" | "history" | "eft-settings";
+
+const statusColors: Record<string, string> = {
+  PENDING: "bg-yellow-100 text-yellow-800",
+  PROCESSING: "bg-blue-100 text-blue-800",
+  COMPLETE: "bg-green-100 text-green-800",
+  FAILED: "bg-red-100 text-red-800",
+  CANCELLED: "bg-gray-100 text-gray-800",
+  REFUNDED: "bg-purple-100 text-purple-800",
+};
+
+const gatewayColors: Record<string, string> = {
+  PAYFAST: "bg-blue-50 text-blue-700",
+  OZOW: "bg-teal-50 text-teal-700",
+  EFT: "bg-orange-50 text-orange-700",
+};
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(amount);
+}
+
+export default function PaymentsPage() {
+  const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  const [tab, setTab] = useState<Tab>("pay");
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [eftDetails, setEftDetails] = useState<EftDetail[]>([]);
+  const [gateways, setGateways] = useState<Gateways>({ payfast: false, ozow: false });
+  const [loading, setLoading] = useState(true);
+  const resultMessage = useMemo(() => {
+    const result = searchParams.get("result");
+    if (result === "success") return "Payment completed successfully!";
+    if (result === "cancelled") return "Payment was cancelled.";
+    if (result === "error") return "There was an error processing your payment.";
+    return "";
+  }, [searchParams]);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Payment form state
+  const [payForm, setPayForm] = useState({
+    gateway: "PAYFAST",
+    amount: "",
+    description: "",
+    invoiceNumber: "",
+  });
+  const [paying, setPaying] = useState(false);
+
+  // EFT form state (admin)
+  const [showEftForm, setShowEftForm] = useState(false);
+  const [eftForm, setEftForm] = useState({
+    bankName: "",
+    accountName: "",
+    accountNumber: "",
+    branchCode: "",
+    accountType: "CHEQUE",
+    swiftCode: "",
+    reference: "",
+  });
+  const [savingEft, setSavingEft] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/payments")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setPayments(data.payments || []);
+        setGateways(data.gateways || { payfast: false, ozow: false });
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/payments/eft")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setEftDetails(Array.isArray(data) ? data : []);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  function refreshPayments() {
+    fetch("/api/payments")
+      .then((r) => r.json())
+      .then((data) => {
+        setPayments(data.payments || []);
+        setGateways(data.gateways || { payfast: false, ozow: false });
+      });
+  }
+
+  function refreshEft() {
+    fetch("/api/payments/eft")
+      .then((r) => r.json())
+      .then((data) => setEftDetails(Array.isArray(data) ? data : []));
+  }
+
+  async function handlePay(e: React.FormEvent) {
+    e.preventDefault();
+    setPaying(true);
+
+    const res = await fetch("/api/payments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gateway: payForm.gateway,
+        amount: parseFloat(payForm.amount),
+        description: payForm.description || undefined,
+        invoiceNumber: payForm.invoiceNumber || undefined,
+      }),
+    });
+
+    const data = await res.json();
+    setPaying(false);
+
+    if (!res.ok) {
+      alert(data.error || "Failed to initiate payment");
+      return;
+    }
+
+    if (data.redirect) {
+      // Build and submit a form for PayFast / Ozow
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = data.redirect.url;
+      for (const [key, value] of Object.entries(data.redirect.params)) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      }
+      document.body.appendChild(form);
+      form.submit();
+      return;
+    }
+
+    // EFT — just show confirmation and switch to history
+    alert("EFT payment recorded. Please transfer the funds using the bank details shown.");
+    setPayForm({ gateway: "PAYFAST", amount: "", description: "", invoiceNumber: "" });
+    refreshPayments();
+    setTab("history");
+  }
+
+  async function handleSaveEft(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEft(true);
+    const res = await fetch("/api/payments/eft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(eftForm),
+    });
+    setSavingEft(false);
+
+    if (res.ok) {
+      setShowEftForm(false);
+      setEftForm({ bankName: "", accountName: "", accountNumber: "", branchCode: "", accountType: "CHEQUE", swiftCode: "", reference: "" });
+      refreshEft();
+    }
+  }
+
+  async function handleDeleteEft(id: string) {
+    if (!confirm("Delete this bank account?")) return;
+    await fetch(`/api/payments/eft/${id}`, { method: "DELETE" });
+    refreshEft();
+  }
+
+  const tabs: { key: Tab; label: string; adminOnly?: boolean }[] = [
+    { key: "pay", label: "Make Payment" },
+    { key: "history", label: "Payment History" },
+    { key: "eft-settings", label: "EFT Bank Details", adminOnly: true },
+  ];
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-slate-900 mb-6">Payments</h1>
+
+      {resultMessage && !dismissed && (
+        <div className={`mb-6 p-4 rounded-lg border text-sm ${
+          resultMessage.includes("success") ? "bg-green-50 border-green-200 text-green-800" :
+          resultMessage.includes("cancel") ? "bg-yellow-50 border-yellow-200 text-yellow-800" :
+          "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          {resultMessage}
+          <button onClick={() => setDismissed(true)} className="ml-3 underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="border-b border-slate-200 mb-6">
+        <nav className="flex gap-6">
+          {tabs.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`pb-3 text-sm font-medium border-b-2 transition ${
+                tab === t.key
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Make Payment Tab */}
+      {tab === "pay" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Payment form */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Make a Payment</h2>
+            <form onSubmit={handlePay}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Gateway *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: "PAYFAST", label: "PayFast", icon: <CreditCard size={24} />, enabled: gateways.payfast },
+                      { key: "OZOW", label: "Ozow", icon: <Landmark size={24} />, enabled: gateways.ozow },
+                      { key: "EFT", label: "EFT / Bank", icon: <Building2 size={24} />, enabled: true },
+                    ].map((gw) => (
+                      <button
+                        key={gw.key}
+                        type="button"
+                        onClick={() => setPayForm({ ...payForm, gateway: gw.key })}
+                        disabled={!gw.enabled && gw.key !== "EFT"}
+                        className={`p-3 rounded-lg border-2 text-center transition ${
+                          payForm.gateway === gw.key
+                            ? "border-blue-500 bg-blue-50"
+                            : gw.enabled || gw.key === "EFT"
+                            ? "border-slate-200 hover:border-slate-300 bg-white"
+                            : "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
+                        }`}
+                      >
+                        <span className="flex justify-center mb-1">{gw.icon}</span>
+                        <span className="text-xs font-medium text-slate-700">{gw.label}</span>
+                        {!gw.enabled && gw.key !== "EFT" && (
+                          <span className="block text-xs text-slate-400 mt-0.5">Not configured</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount (ZAR) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">R</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      value={payForm.amount}
+                      onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Invoice Number</label>
+                  <input
+                    type="text"
+                    value={payForm.invoiceNumber}
+                    onChange={(e) => setPayForm({ ...payForm, invoiceNumber: e.target.value })}
+                    placeholder="e.g. INV-001"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={payForm.description}
+                    onChange={(e) => setPayForm({ ...payForm, description: e.target.value })}
+                    placeholder="What is this payment for?"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={paying || !payForm.amount}
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium"
+                >
+                  {paying ? "Processing..." :
+                    payForm.gateway === "PAYFAST" ? "Pay with PayFast" :
+                    payForm.gateway === "OZOW" ? "Pay with Ozow" :
+                    "Record EFT Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* EFT Bank Details (always visible when EFT selected or when details exist) */}
+          <div>
+            {eftDetails.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">EFT / Bank Transfer Details</h2>
+                <p className="text-sm text-slate-500 mb-4">Use the following bank details to make a direct transfer:</p>
+                <div className="space-y-4">
+                  {eftDetails.map((detail) => (
+                    <div key={detail.id} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-slate-500">Bank:</span>
+                          <span className="ml-2 font-medium text-slate-900">{detail.bankName}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Account Name:</span>
+                          <span className="ml-2 font-medium text-slate-900">{detail.accountName}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Account Number:</span>
+                          <span className="ml-2 font-mono font-medium text-slate-900">{detail.accountNumber}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Branch Code:</span>
+                          <span className="ml-2 font-mono font-medium text-slate-900">{detail.branchCode}</span>
+                        </div>
+                        {detail.accountType && (
+                          <div>
+                            <span className="text-slate-500">Account Type:</span>
+                            <span className="ml-2 font-medium text-slate-900">{detail.accountType}</span>
+                          </div>
+                        )}
+                        {detail.swiftCode && (
+                          <div>
+                            <span className="text-slate-500">SWIFT:</span>
+                            <span className="ml-2 font-mono font-medium text-slate-900">{detail.swiftCode}</span>
+                          </div>
+                        )}
+                      </div>
+                      {detail.reference && (
+                        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                          <strong>Reference:</strong> {detail.reference}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {eftDetails.length === 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                <span className="text-4xl block mb-2"><Building2 size={40} className="mx-auto text-slate-400" /></span>
+                No bank details configured yet.
+                {isAdmin && <p className="text-sm mt-1">Go to the EFT Bank Details tab to add bank accounts.</p>}
+              </div>
+            )}
+
+            {/* Gateway info cards */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className={`rounded-lg border p-4 ${gateways.payfast ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1"><CreditCard size={14} /> PayFast</span></h3>
+                <p className="text-xs mt-1 text-slate-500">Credit/Debit cards, Instant EFT, SnapScan</p>
+                <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${gateways.payfast ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                  {gateways.payfast ? "Connected" : "Not configured"}
+                </span>
+              </div>
+              <div className={`rounded-lg border p-4 ${gateways.ozow ? "border-teal-200 bg-teal-50" : "border-slate-200 bg-slate-50"}`}>
+                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1"><Landmark size={14} /> Ozow</span></h3>
+                <p className="text-xs mt-1 text-slate-500">Instant EFT via all major SA banks</p>
+                <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${gateways.ozow ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                  {gateways.ozow ? "Connected" : "Not configured"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment History Tab */}
+      {tab === "history" && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Date</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Gateway</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Description</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Invoice</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Amount</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Status</th>
+                {isAdmin && <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Customer</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-8 text-center text-slate-400">Loading...</td></tr>
+              ) : payments.length === 0 ? (
+                <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-8 text-center text-slate-400">No payments yet.</td></tr>
+              ) : (
+                payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm text-slate-600">{new Date(p.createdAt).toLocaleDateString()}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${gatewayColors[p.gateway] || "bg-gray-100 text-gray-700"}`}>
+                        {p.gateway}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-900">{p.description || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 font-mono">{p.invoiceNumber || "—"}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(Number(p.amount))}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[p.status] || "bg-gray-100 text-gray-700"}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-sm text-slate-600">{p.customerName || p.customerEmail || "—"}</td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* EFT Settings Tab (admin) */}
+      {tab === "eft-settings" && isAdmin && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">Manage EFT Bank Details</h2>
+            <button
+              onClick={() => setShowEftForm(!showEftForm)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+            >
+              {showEftForm ? "Cancel" : "+ Add Bank Account"}
+            </button>
+          </div>
+
+          {showEftForm && (
+            <form onSubmit={handleSaveEft} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name *</label>
+                  <input
+                    type="text"
+                    value={eftForm.bankName}
+                    onChange={(e) => setEftForm({ ...eftForm, bankName: e.target.value })}
+                    placeholder="e.g. FNB, Standard Bank, Nedbank"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Account Name *</label>
+                  <input
+                    type="text"
+                    value={eftForm.accountName}
+                    onChange={(e) => setEftForm({ ...eftForm, accountName: e.target.value })}
+                    placeholder="Account holder name"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Account Number *</label>
+                  <input
+                    type="text"
+                    value={eftForm.accountNumber}
+                    onChange={(e) => setEftForm({ ...eftForm, accountNumber: e.target.value })}
+                    placeholder="Account number"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Branch Code *</label>
+                  <input
+                    type="text"
+                    value={eftForm.branchCode}
+                    onChange={(e) => setEftForm({ ...eftForm, branchCode: e.target.value })}
+                    placeholder="Branch/universal code"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Account Type</label>
+                  <select
+                    title="Account type"
+                    value={eftForm.accountType}
+                    onChange={(e) => setEftForm({ ...eftForm, accountType: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
+                  >
+                    <option value="CHEQUE">Cheque/Current</option>
+                    <option value="SAVINGS">Savings</option>
+                    <option value="CURRENT">Current</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">SWIFT Code</label>
+                  <input
+                    type="text"
+                    value={eftForm.swiftCode}
+                    onChange={(e) => setEftForm({ ...eftForm, swiftCode: e.target.value })}
+                    placeholder="e.g. FIRNZAJJ"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Reference Instructions</label>
+                  <input
+                    type="text"
+                    value={eftForm.reference}
+                    onChange={(e) => setEftForm({ ...eftForm, reference: e.target.value })}
+                    placeholder="e.g. Use your invoice number as reference"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button type="submit" disabled={savingEft} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm">
+                  {savingEft ? "Saving..." : "Save Bank Details"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Existing bank details */}
+          {eftDetails.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center text-slate-400">
+              No bank accounts configured. Click the button above to add one.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {eftDetails.map((detail) => (
+                <div key={detail.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 text-sm flex-1">
+                      <div>
+                        <span className="text-slate-500 block">Bank</span>
+                        <span className="font-medium text-slate-900">{detail.bankName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Account Name</span>
+                        <span className="font-medium text-slate-900">{detail.accountName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Account Number</span>
+                        <span className="font-mono font-medium text-slate-900">{detail.accountNumber}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Branch Code</span>
+                        <span className="font-mono font-medium text-slate-900">{detail.branchCode}</span>
+                      </div>
+                      {detail.accountType && (
+                        <div>
+                          <span className="text-slate-500 block">Account Type</span>
+                          <span className="font-medium text-slate-900">{detail.accountType}</span>
+                        </div>
+                      )}
+                      {detail.swiftCode && (
+                        <div>
+                          <span className="text-slate-500 block">SWIFT Code</span>
+                          <span className="font-mono font-medium text-slate-900">{detail.swiftCode}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDeleteEft(detail.id)}
+                      className="text-sm px-3 py-1 text-red-600 hover:bg-red-50 rounded transition ml-4"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  {detail.reference && (
+                    <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                      <strong>Reference:</strong> {detail.reference}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
