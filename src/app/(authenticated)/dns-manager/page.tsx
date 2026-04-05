@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useEffect, useState, useCallback } from "react";
 import {
   Globe,
@@ -66,8 +65,6 @@ const RECORD_DESCRIPTIONS: Record<string, string> = {
 // ─── Component ──────────────────────────────────────────
 
 export default function DnsManagerPage() {
-  const { data: session } = useSession();
-
   // Domain selection
   const [domains, setDomains] = useState<DomainOrder[]>([]);
   const [selectedDomain, setSelectedDomain] = useState("");
