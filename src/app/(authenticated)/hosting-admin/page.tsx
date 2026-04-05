@@ -853,8 +853,9 @@ export default function HostingAdminPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Sort Order</label>
+                      <label htmlFor="new-sort-order" className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Sort Order</label>
                       <input
+                        id="new-sort-order"
                         type="number"
                         value={newForm.sortOrder}
                         onChange={(e) => setNewForm({ ...newForm, sortOrder: e.target.value })}
@@ -934,6 +935,7 @@ export default function HostingAdminPage() {
                             <td className="px-4 py-3">
                               <input
                                 type="text"
+                                title="Product name"
                                 value={editForm.name || ""}
                                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                                 className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm dark:bg-slate-700 dark:text-white"
@@ -963,6 +965,7 @@ export default function HostingAdminPage() {
                             <td className="px-4 py-3 text-right">
                               <input
                                 type="number"
+                                title="Monthly price"
                                 value={editForm.monthlyPrice || ""}
                                 onChange={(e) => setEditForm({ ...editForm, monthlyPrice: Number(e.target.value) })}
                                 className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right dark:bg-slate-700 dark:text-white"
@@ -971,6 +974,7 @@ export default function HostingAdminPage() {
                             <td className="px-4 py-3 text-right">
                               <input
                                 type="number"
+                                title="Setup fee"
                                 value={editForm.setupFee ?? ""}
                                 onChange={(e) => setEditForm({ ...editForm, setupFee: Number(e.target.value) })}
                                 className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right dark:bg-slate-700 dark:text-white"

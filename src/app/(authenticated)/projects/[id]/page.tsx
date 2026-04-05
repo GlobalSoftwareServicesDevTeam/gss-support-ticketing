@@ -430,8 +430,9 @@ export default function ProjectDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">File (zip/tar.gz) *</label>
+                      <label htmlFor="release-file" className="block text-sm font-medium text-slate-700 mb-1">File (zip/tar.gz) *</label>
                       <input
+                        id="release-file"
                         type="file"
                         accept=".zip,.tar,.tar.gz,.gz,.rar,.7z"
                         onChange={handleFileSelect}

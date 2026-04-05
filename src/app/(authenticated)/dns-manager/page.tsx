@@ -15,8 +15,6 @@ import {
   CheckCircle2,
   Server,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
   Info,
 } from "lucide-react";
 
@@ -69,7 +67,6 @@ const RECORD_DESCRIPTIONS: Record<string, string> = {
 
 export default function DnsManagerPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
 
   // Domain selection
   const [domains, setDomains] = useState<DomainOrder[]>([]);
