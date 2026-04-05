@@ -26,6 +26,7 @@ import {
   ChevronUp,
   User,
   AlertTriangle,
+  Plus,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────
@@ -104,6 +105,18 @@ export default function HostingAdminPage() {
   const [creditDescription, setCreditDescription] = useState("");
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<HostingProduct>>({});
+  const [newProduct, setNewProduct] = useState(false);
+  const [newForm, setNewForm] = useState({
+    name: "",
+    type: "HOSTING" as string,
+    description: "",
+    monthlyPrice: "",
+    setupFee: "0",
+    features: "",
+    pleskPlanName: "",
+    sortOrder: "0",
+  });
+  const [productTypeFilter, setProductTypeFilter] = useState<"" | "HOSTING" | "SSL" | "DOMAIN">("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const showMessage = useCallback((type: "success" | "error", text: string) => {
@@ -300,6 +313,48 @@ export default function HostingAdminPage() {
       } else {
         const data = await res.json();
         showMessage("error", data.error || "Failed to update");
+      }
+    } catch {
+      showMessage("error", "Network error");
+    }
+    setActionLoading("");
+  }
+
+  async function createProduct() {
+    if (!newForm.name || !newForm.monthlyPrice) {
+      showMessage("error", "Name and monthly price are required");
+      return;
+    }
+    setActionLoading("new-product");
+    try {
+      const payload: Record<string, unknown> = {
+        name: newForm.name,
+        type: newForm.type,
+        description: newForm.description || null,
+        monthlyPrice: Number(newForm.monthlyPrice),
+        setupFee: Number(newForm.setupFee) || 0,
+        pleskPlanName: newForm.pleskPlanName || null,
+        sortOrder: Number(newForm.sortOrder) || 0,
+        features: newForm.features
+          ? newForm.features
+              .split("\n")
+              .map((f) => f.trim())
+              .filter(Boolean)
+          : null,
+      };
+      const res = await fetch("/api/hosting/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        showMessage("success", `Product "${newForm.name}" created`);
+        setNewProduct(false);
+        setNewForm({ name: "", type: "HOSTING", description: "", monthlyPrice: "", setupFee: "0", features: "", pleskPlanName: "", sortOrder: "0" });
+        fetchData();
+      } else {
+        const data = await res.json();
+        showMessage("error", data.error || "Failed to create product");
       }
     } catch {
       showMessage("error", "Network error");
@@ -635,21 +690,187 @@ export default function HostingAdminPage() {
           {/* ─── Products Tab ──────────────────────────── */}
           {tab === "products" && (
             <div className="space-y-4">
+              {/* Product type filter + add button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                  {([
+                    { key: "", label: "All" },
+                    { key: "HOSTING", label: "Hosting" },
+                    { key: "DOMAIN", label: "Domains" },
+                    { key: "SSL", label: "SSL" },
+                  ] as { key: "" | "HOSTING" | "SSL" | "DOMAIN"; label: string }[]).map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setProductTypeFilter(f.key)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                        productTypeFilter === f.key
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                          : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      {f.label}
+                      <span className="ml-1 text-[10px] opacity-60">
+                        ({f.key ? products.filter((p) => p.type === f.key).length : products.length})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    setNewProduct(!newProduct);
+                    if (productTypeFilter) {
+                      setNewForm((prev) => ({ ...prev, type: productTypeFilter }));
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+                >
+                  <Plus size={14} />
+                  Add Product
+                </button>
+              </div>
+
+              {/* New product form */}
+              {newProduct && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    New {newForm.type === "DOMAIN" ? "Domain" : newForm.type === "SSL" ? "SSL Certificate" : "Hosting"} Product
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
+                      <input
+                        type="text"
+                        value={newForm.name}
+                        onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
+                        placeholder={newForm.type === "DOMAIN" ? "e.g. .co.za Domain" : newForm.type === "SSL" ? "e.g. Standard SSL" : "e.g. Starter Hosting"}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Type *</label>
+                      <select
+                        title="Product type"
+                        value={newForm.type}
+                        onChange={(e) => setNewForm({ ...newForm, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      >
+                        <option value="HOSTING">Hosting</option>
+                        <option value="DOMAIN">Domain</option>
+                        <option value="SSL">SSL Certificate</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        {newForm.type === "DOMAIN" ? "Annual Price (ZAR) *" : "Monthly Price (ZAR) *"}
+                      </label>
+                      <input
+                        type="number"
+                        value={newForm.monthlyPrice}
+                        onChange={(e) => setNewForm({ ...newForm, monthlyPrice: e.target.value })}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Setup Fee (ZAR)</label>
+                      <input
+                        type="number"
+                        value={newForm.setupFee}
+                        onChange={(e) => setNewForm({ ...newForm, setupFee: e.target.value })}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Plesk Plan Name</label>
+                      <input
+                        type="text"
+                        value={newForm.pleskPlanName}
+                        onChange={(e) => setNewForm({ ...newForm, pleskPlanName: e.target.value })}
+                        placeholder="e.g. Basic Hosting"
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Sort Order</label>
+                      <input
+                        type="number"
+                        value={newForm.sortOrder}
+                        onChange={(e) => setNewForm({ ...newForm, sortOrder: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={newForm.description}
+                      onChange={(e) => setNewForm({ ...newForm, description: e.target.value })}
+                      placeholder={newForm.type === "DOMAIN" ? "e.g. South African .co.za domain registration" : "Brief product description"}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Features (one per line)</label>
+                    <textarea
+                      value={newForm.features}
+                      onChange={(e) => setNewForm({ ...newForm, features: e.target.value })}
+                      placeholder={
+                        newForm.type === "DOMAIN"
+                          ? "WHOIS Privacy\nDNS Management\nEmail Forwarding"
+                          : newForm.type === "SSL"
+                          ? "256-bit Encryption\nDomain Validation\n$10,000 Warranty"
+                          : "10GB SSD Storage\n100GB Bandwidth\n5 Email Accounts"
+                      }
+                      rows={4}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-700 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setNewProduct(false)}
+                      className="px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={createProduct}
+                      disabled={actionLoading === "new-product"}
+                      className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50"
+                    >
+                      {actionLoading === "new-product" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Create Product
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Products table */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-700/50">
                     <tr>
                       <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Name</th>
                       <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Type</th>
-                      <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Monthly</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 hidden md:table-cell">Description</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Price</th>
                       <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Setup Fee</th>
-                      <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Plesk Plan</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 hidden lg:table-cell">Features</th>
                       <th className="text-center px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Status</th>
                       <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {products.map((p) => (
+                    {products
+                      .filter((p) => !productTypeFilter || p.type === productTypeFilter)
+                      .map((p) => {
+                        const features = p.features ? (() => { try { return JSON.parse(p.features!) as string[]; } catch { return []; } })() : [];
+                        return (
                       <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                         {editingProduct === p.id ? (
                           <>
@@ -673,6 +894,15 @@ export default function HostingAdminPage() {
                                 <option value="DOMAIN">Domain</option>
                               </select>
                             </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <input
+                                type="text"
+                                value={editForm.description || ""}
+                                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                                placeholder="Description"
+                                className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm dark:bg-slate-700 dark:text-white"
+                              />
+                            </td>
                             <td className="px-4 py-3 text-right">
                               <input
                                 type="number"
@@ -689,12 +919,13 @@ export default function HostingAdminPage() {
                                 className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right dark:bg-slate-700 dark:text-white"
                               />
                             </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={editForm.pleskPlanName || ""}
-                                onChange={(e) => setEditForm({ ...editForm, pleskPlanName: e.target.value })}
-                                className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm dark:bg-slate-700 dark:text-white"
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              <textarea
+                                value={typeof editForm.features === "string" ? editForm.features : ""}
+                                onChange={(e) => setEditForm({ ...editForm, features: e.target.value })}
+                                placeholder="One per line"
+                                rows={3}
+                                className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs dark:bg-slate-700 dark:text-white"
                               />
                             </td>
                             <td className="px-4 py-3 text-center">—</td>
@@ -730,9 +961,30 @@ export default function HostingAdminPage() {
                                 {p.type}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.monthlyPrice).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs hidden md:table-cell max-w-[200px] truncate" title={p.description || ""}>
+                              {p.description || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
+                              R{Number(p.monthlyPrice).toFixed(2)}
+                              <span className="text-[10px] text-slate-400 ml-0.5">{p.type === "DOMAIN" ? "/yr" : "/mo"}</span>
+                            </td>
                             <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.setupFee).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-slate-500">{p.pleskPlanName || "—"}</td>
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              {features.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {features.slice(0, 3).map((f, i) => (
+                                    <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded">
+                                      {f}
+                                    </span>
+                                  ))}
+                                  {features.length > 3 && (
+                                    <span className="text-[10px] text-slate-400">+{features.length - 3} more</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-center">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                                 p.isActive !== false
@@ -753,8 +1005,8 @@ export default function HostingAdminPage() {
                                       monthlyPrice: p.monthlyPrice,
                                       setupFee: p.setupFee,
                                       pleskPlanName: p.pleskPlanName || "",
-                                      description: p.description,
-                                      features: p.features ? JSON.parse(p.features).join("\n") : "",
+                                      description: p.description || "",
+                                      features: features.join("\n"),
                                     });
                                   }}
                                   className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition"
@@ -779,10 +1031,14 @@ export default function HostingAdminPage() {
                           </>
                         )}
                       </tr>
-                    ))}
-                    {products.length === 0 && (
+                        );
+                      })}
+                    {products.filter((p) => !productTypeFilter || p.type === productTypeFilter).length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">No products</td>
+                        <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                          No {productTypeFilter ? productTypeFilter.toLowerCase() : ""} products found.
+                          <button onClick={() => { setNewProduct(true); if (productTypeFilter) setNewForm((prev) => ({ ...prev, type: productTypeFilter })); }} className="ml-1 text-brand-500 hover:underline">Add one</button>
+                        </td>
                       </tr>
                     )}
                   </tbody>
