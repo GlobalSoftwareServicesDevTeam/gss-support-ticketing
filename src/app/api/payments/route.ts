@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { buildPayfastForm, isPayfastConfigured } from "@/lib/payfast";
 import { buildOzowPaymentUrl, isOzowConfigured } from "@/lib/ozow";
+import { logAudit } from "@/lib/audit";
 
 // GET: list payments for current user (or all for admin)
 export async function GET(req: NextRequest) {
@@ -74,6 +75,16 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       metadata,
     },
+  });
+
+  logAudit({
+    action: "PAYMENT",
+    entity: "PAYMENT",
+    entityId: payment.id,
+    description: `Initiated ${gateway} payment of R${amount}${invoiceNumber ? ` for invoice ${invoiceNumber}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { gateway, amount, invoiceNumber },
   });
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";

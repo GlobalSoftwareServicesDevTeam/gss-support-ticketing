@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // GET: list code releases for a project
 export async function GET(
@@ -79,6 +80,16 @@ export async function POST(
         fileSize: sizeBytes,
         uploadedBy: session.user.id,
       },
+    });
+
+    logAudit({
+      action: "UPLOAD",
+      entity: "CODE_RELEASE",
+      entityId: release.id,
+      description: `Uploaded code release v${version} (${fileName}) for project ${id.slice(0, 8)}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { version, fileName, projectId: id },
     });
 
     return NextResponse.json(release, { status: 201 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import {
   isInvoiceNinjaConfigured,
   cancelInvoice,
@@ -85,6 +86,16 @@ export async function POST(
     });
 
     results.orderCancelled = true;
+
+    logAudit({
+      action: "CANCEL",
+      entity: "HOSTING_ORDER",
+      entityId: id,
+      description: `Cancelled order #${id.slice(0, 8)}${order.domain ? ` (${order.domain})` : ""} with invoice cancellation`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { suspendHosting, removeHosting, ...results },
+    });
 
     return NextResponse.json({
       message: "Order cancelled and invoice cancelled",

@@ -26,7 +26,7 @@ export default auth((req) => {
   }
 
   // Admin-only routes
-  const adminRoutes = ["/users", "/email-settings", "/flagged-emails", "/signing", "/task-schedule", "/code-downloads", "/hosting-admin"];
+  const adminRoutes = ["/users", "/email-settings", "/flagged-emails", "/signing", "/task-schedule", "/code-downloads", "/hosting-admin", "/audit-logs"];
   const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
 
   if (isAdminRoute && req.auth.user?.role !== "ADMIN") {

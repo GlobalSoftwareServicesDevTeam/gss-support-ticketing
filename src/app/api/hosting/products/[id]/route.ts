@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // PATCH: update a hosting product (admin only)
 export async function PATCH(
@@ -43,6 +44,16 @@ export async function PATCH(
       data,
     });
 
+    logAudit({
+      action: "UPDATE",
+      entity: "HOSTING_PRODUCT",
+      entityId: id,
+      description: `Updated hosting product "${product.name}"`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: data,
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
@@ -71,6 +82,15 @@ export async function DELETE(
     await prisma.hostingProduct.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    logAudit({
+      action: "DELETE",
+      entity: "HOSTING_PRODUCT",
+      entityId: id,
+      description: `Deactivated hosting product "${product.name}"`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
     });
 
     return NextResponse.json({ message: "Product deactivated" });

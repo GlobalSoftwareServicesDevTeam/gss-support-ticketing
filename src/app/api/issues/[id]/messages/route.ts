@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, issueUpdateTemplate } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(
   req: NextRequest,
@@ -40,6 +41,16 @@ export async function POST(
       userId: session.user.id,
     },
     include: { user: { select: { firstName: true, lastName: true } } },
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "MESSAGE",
+    entityId: message.id,
+    description: `Added message to ticket #${id.slice(0, 8)} — ${issue.subject}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { issueId: id },
   });
 
   // Update issue timestamp

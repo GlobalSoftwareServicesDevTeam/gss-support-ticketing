@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // GET: list orders for current user (or all for admin)
 export async function GET(req: NextRequest) {
@@ -73,6 +74,16 @@ export async function POST(req: NextRequest) {
     include: {
       product: { select: { name: true, type: true, monthlyPrice: true } },
     },
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "HOSTING_ORDER",
+    entityId: order.id,
+    description: `Created ${orderType} order${domain ? ` for ${domain}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { orderType, domain, amount },
   });
 
   return NextResponse.json(order, { status: 201 });

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { sendEmail } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 // POST: invite a new user by email
 export async function POST(req: NextRequest) {
@@ -91,6 +92,16 @@ export async function POST(req: NextRequest) {
   } catch {
     // Email send failed but user was created — admin can resend
   }
+
+  logAudit({
+    action: "INVITE",
+    entity: "USER",
+    entityId: user.id,
+    description: `Invited user: ${firstName} ${lastName} (${email})`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { email, role: role || "USER" },
+  });
 
   return NextResponse.json(
     { id: user.id, email: user.email, message: "Invitation sent" },

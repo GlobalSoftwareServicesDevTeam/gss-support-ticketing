@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import {
   isPleskConfigured,
   findCustomerByEmail,
@@ -172,6 +173,16 @@ export async function POST(req: NextRequest) {
       data: { status: "PROVISIONING" },
     });
   }
+
+  logAudit({
+    action: "PROVISION",
+    entity: "HOSTING_ORDER",
+    entityId: order.id,
+    description: `Provisioned order #${order.id.slice(0, 8)}${order.domain ? ` for ${order.domain}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: results,
+  });
 
   return NextResponse.json({
     message: "Provisioning initiated",

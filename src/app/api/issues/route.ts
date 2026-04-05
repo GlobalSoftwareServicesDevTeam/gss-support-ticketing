@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, issueUpdateTemplate } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -90,6 +91,16 @@ export async function POST(req: NextRequest) {
       html: issueUpdateTemplate(issue.id, initialNotes || subject, `${user.firstName} ${user.lastName}`),
     });
   }
+
+  logAudit({
+    action: "CREATE",
+    entity: "ISSUE",
+    entityId: issue.id,
+    description: `Created ticket: ${subject}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { priority: priority || "MEDIUM", kind },
+  });
 
   return NextResponse.json(issue, { status: 201 });
 }

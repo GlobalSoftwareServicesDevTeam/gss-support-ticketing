@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { sendEmail } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   _req: NextRequest,
@@ -105,6 +106,16 @@ export async function PATCH(
     data,
   });
 
+  logAudit({
+    action: "UPDATE",
+    entity: "USER",
+    entityId: id,
+    description: `Updated user: ${updated.firstName} ${updated.lastName}${body.role ? ` — role → ${body.role}` : ""}${body.newPassword ? " — password changed" : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { changedFields: Object.keys(data) },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -139,6 +150,16 @@ export async function DELETE(
     },
   });
 
+  logAudit({
+    action: "DELETE",
+    entity: "USER",
+    entityId: id,
+    description: `Deleted user: ${user.firstName} ${user.lastName} (${user.email})`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { email: user.email },
+  });
+
   return NextResponse.json({ message: "User deleted" });
 }
 
@@ -169,6 +190,15 @@ export async function POST(
     await prisma.user.update({
       where: { id },
       data: { passwordHash, passwordReset: true },
+    });
+
+    logAudit({
+      action: "UPDATE",
+      entity: "USER",
+      entityId: id,
+      description: `Admin reset password for user: ${user.firstName} ${user.lastName} (${user.email})`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
     });
 
     const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";

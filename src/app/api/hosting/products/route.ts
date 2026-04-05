@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // GET: list hosting products (active only for users, all for admin)
 export async function GET() {
@@ -48,6 +49,16 @@ export async function POST(req: NextRequest) {
       pleskPlanName: pleskPlanName || null,
       sortOrder: sortOrder || 0,
     },
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "HOSTING_PRODUCT",
+    entityId: product.id,
+    description: `Created hosting product "${name}" (${type}, R${monthlyPrice}/mo)`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { name, type, monthlyPrice },
   });
 
   return NextResponse.json(product, { status: 201 });

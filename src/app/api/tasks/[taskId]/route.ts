@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   _req: NextRequest,
@@ -73,6 +74,16 @@ export async function PUT(
     },
   });
 
+  logAudit({
+    action: "UPDATE",
+    entity: "TASK",
+    entityId: taskId,
+    description: `Updated task "${title || updated?.title || taskId}"${status ? ` — status → ${status}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { title, status, priority },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -88,6 +99,15 @@ export async function DELETE(
   const { taskId } = await params;
 
   await prisma.task.delete({ where: { id: taskId } });
+
+  logAudit({
+    action: "DELETE",
+    entity: "TASK",
+    entityId: taskId,
+    description: `Deleted task #${taskId.slice(0, 8)}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+  });
 
   return NextResponse.json({ success: true });
 }

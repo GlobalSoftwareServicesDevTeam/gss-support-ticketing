@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   req: NextRequest
@@ -71,6 +72,16 @@ export async function POST(
       projectId: projectId || null,
       uploadedBy: session.user.id,
     },
+  });
+
+  logAudit({
+    action: "UPLOAD",
+    entity: "DOCUMENT",
+    entityId: document.id,
+    description: `Uploaded document: ${name} (${category})`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { fileName, category, fileSize },
   });
 
   return NextResponse.json({ id: document.id, name: document.name, category: document.category }, { status: 201 });

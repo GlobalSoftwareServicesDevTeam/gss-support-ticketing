@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // GET: download a code release (tracks download)
 export async function GET(
@@ -35,6 +36,16 @@ export async function GET(
       },
     });
 
+    logAudit({
+      action: "DOWNLOAD",
+      entity: "CODE_RELEASE",
+      entityId: release.id,
+      description: `Downloaded code release v${release.version} (${release.fileName})`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { version: release.version, fileName: release.fileName },
+    });
+
     // Return file as download
     const buffer = Buffer.from(release.fileBase64, "base64");
     return new NextResponse(buffer, {
@@ -65,6 +76,15 @@ export async function DELETE(
     const { releaseId } = await params;
 
     await prisma.codeRelease.delete({ where: { id: releaseId } });
+
+    logAudit({
+      action: "DELETE",
+      entity: "CODE_RELEASE",
+      entityId: releaseId,
+      description: `Deleted code release #${releaseId.slice(0, 8)}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

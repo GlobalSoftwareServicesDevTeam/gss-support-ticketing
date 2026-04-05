@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const session = await auth();
@@ -69,6 +70,16 @@ export async function POST(req: NextRequest) {
       activationCode,
       emailConfirmed: true, // Admin-created users are pre-verified
     },
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "USER",
+    entityId: user.id,
+    description: `Admin created user: ${firstName} ${lastName} (${email})`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { email, role: role || "USER" },
   });
 
   return NextResponse.json(

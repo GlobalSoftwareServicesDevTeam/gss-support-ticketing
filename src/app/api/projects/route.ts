@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const session = await auth();
@@ -49,6 +50,15 @@ export async function POST(req: NextRequest) {
       status: status || "ACTIVE",
       githubRepo: githubRepo || null,
     },
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "PROJECT",
+    entityId: project.id,
+    description: `Created project: ${projectName}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
   });
 
   return NextResponse.json(project, { status: 201 });

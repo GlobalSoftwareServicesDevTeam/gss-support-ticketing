@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, signingRequestTemplate } from "@/lib/email";
 import crypto from "crypto";
+import { logAudit } from "@/lib/audit";
 
 // GET /api/signing – list signing requests
 export async function GET() {
@@ -62,6 +63,16 @@ export async function POST(req: NextRequest) {
     to: signerEmail,
     subject: `Please sign: ${documentName}`,
     html: signingRequestTemplate(signerName, documentName, signingUrl, "signer"),
+  });
+
+  logAudit({
+    action: "CREATE",
+    entity: "SIGNING_REQUEST",
+    entityId: signing.id,
+    description: `Created signing request for "${documentName}" — signer: ${signerName} (${signerEmail})`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { documentName, signerEmail, witnessEmail },
   });
 
   return NextResponse.json(signing, { status: 201 });

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { sendEmail } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -41,6 +42,14 @@ export async function POST(req: NextRequest) {
       activationCode,
       emailConfirmed: false,
     },
+  });
+
+  logAudit({
+    action: "REGISTER",
+    entity: "AUTH",
+    entityId: email,
+    description: `New user registration: ${firstName} ${lastName} (${email})`,
+    metadata: { username, email },
   });
 
   // Send verification email

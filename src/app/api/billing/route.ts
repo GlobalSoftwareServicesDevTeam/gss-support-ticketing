@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import {
   isInvoiceNinjaConfigured,
   listClients,
@@ -80,6 +81,16 @@ export async function POST(req: NextRequest) {
       data: { invoiceNinjaClientId: clientId },
     });
 
+    logAudit({
+      action: "LINK",
+      entity: "BILLING",
+      entityId: userId,
+      description: `Linked billing account ${clientId} to user ${userId}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { clientId, targetUserId: userId },
+    });
+
     return NextResponse.json({ message: "Billing account linked" });
   }
 
@@ -116,6 +127,16 @@ export async function POST(req: NextRequest) {
       await prisma.user.update({
         where: { id: user.id },
         data: { invoiceNinjaClientId: client.id },
+      });
+
+      logAudit({
+        action: "CREATE",
+        entity: "BILLING",
+        entityId: user.id,
+        description: `Created billing account for ${user.firstName} ${user.lastName} (${user.email})`,
+        userId: session.user.id,
+        userName: session.user.name || undefined,
+        metadata: { clientId: client.id, targetUserId: user.id },
       });
 
       return NextResponse.json({ message: "Billing account created", clientId: client.id });

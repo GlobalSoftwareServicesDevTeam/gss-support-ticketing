@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import {
   isInvoiceNinjaConfigured,
   createCredit,
@@ -51,6 +52,16 @@ export async function POST(
       clientId,
       amount: Number(amount),
       description: desc,
+    });
+
+    logAudit({
+      action: "CREDIT",
+      entity: "HOSTING_ORDER",
+      entityId: id,
+      description: `Issued credit of R${amount} for order #${id.slice(0, 8)}${order.domain ? ` (${order.domain})` : ""}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { amount, creditId: credit.id, creditNumber: credit.number },
     });
 
     return NextResponse.json({

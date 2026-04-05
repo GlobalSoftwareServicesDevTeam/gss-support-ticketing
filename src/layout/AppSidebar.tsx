@@ -21,6 +21,8 @@ import {
   Server,
   Download,
   ShieldCheck,
+  ClipboardList,
+  ScrollText,
 } from "lucide-react";
 
 type NavItem = {
@@ -46,13 +48,14 @@ const adminNavItems: NavItem[] = [
   { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
-  { icon: <CalendarDays size={24} />, name: "Task Schedule", path: "/task-schedule" },
 ];
 
 const adminOtherItems: NavItem[] = [
   { icon: <Users size={24} />, name: "Users", path: "/users" },
   { icon: <ShieldCheck size={24} />, name: "Hosting Admin", path: "/hosting-admin" },
+  { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule" },
   { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads" },
+  { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
 ];

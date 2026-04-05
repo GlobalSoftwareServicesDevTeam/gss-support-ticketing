@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // PATCH: update order status (admin only)
 export async function PATCH(
@@ -41,6 +42,16 @@ export async function PATCH(
     },
   });
 
+  logAudit({
+    action: "STATUS_CHANGE",
+    entity: "HOSTING_ORDER",
+    entityId: id,
+    description: `Updated hosting order #${id.slice(0, 8)}${status ? ` — status → ${status}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { status, amount, notes },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -72,6 +83,15 @@ export async function DELETE(
   await prisma.hostingOrder.update({
     where: { id },
     data: { status: "CANCELLED" },
+  });
+
+  logAudit({
+    action: "CANCEL",
+    entity: "HOSTING_ORDER",
+    entityId: id,
+    description: `Cancelled hosting order #${id.slice(0, 8)}${order.domain ? ` (${order.domain})` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
   });
 
   return NextResponse.json({ message: "Order cancelled" });

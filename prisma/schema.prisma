@@ -402,3 +402,23 @@ model CodeDownloadLog {
 
   @@map("code_download_logs")
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, DOWNLOAD, PROVISION, CANCEL, CREDIT, etc.
+  entity      String   // USER, ISSUE, PROJECT, DOCUMENT, HOSTING_ORDER, HOSTING_PRODUCT, PAYMENT, etc.
+  entityId    String?  // ID of the affected entity
+  description String   @db.NVarChar(Max)
+  metadata    String?  @db.NVarChar(Max) // JSON blob with additional context
+  ipAddress   String?
+  userAgent   String?  @db.NVarChar(Max)
+  userId      String?  // who performed the action
+  userName    String?  // denormalized for display when user is deleted
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}

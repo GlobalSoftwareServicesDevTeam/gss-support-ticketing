@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, issueUpdateTemplate } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   _req: NextRequest,
@@ -85,6 +86,16 @@ export async function PATCH(
     }
   }
 
+  logAudit({
+    action: "UPDATE",
+    entity: "ISSUE",
+    entityId: id,
+    description: `Updated ticket: ${issue.subject}${status ? ` — status → ${status}` : ""}${priority ? ` — priority → ${priority}` : ""}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+    metadata: { status, priority, kind, projectId },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -100,5 +111,15 @@ export async function DELETE(
   const { id } = await params;
 
   await prisma.issue.delete({ where: { id } });
+
+  logAudit({
+    action: "DELETE",
+    entity: "ISSUE",
+    entityId: id,
+    description: `Deleted ticket #${id.slice(0, 8)}`,
+    userId: session.user.id,
+    userName: session.user.name || undefined,
+  });
+
   return NextResponse.json({ success: true });
 }
