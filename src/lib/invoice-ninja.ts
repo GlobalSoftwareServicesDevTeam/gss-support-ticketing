@@ -151,3 +151,69 @@ export async function createProformaInvoice(params: {
 
   return { id: data.data.id, number: data.data.number };
 }
+
+// ─── Invoice Actions ─────────────────────────────────
+
+export async function getInvoice(invoiceId: string) {
+  const data = await ninjaFetch(`invoices/${invoiceId}`);
+  return data.data;
+}
+
+export async function cancelInvoice(invoiceId: string) {
+  const data = await ninjaFetch(`invoices/${invoiceId}?action=cancel`, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+  return data.data;
+}
+
+export async function deleteInvoice(invoiceId: string) {
+  const data = await ninjaFetch(`invoices/${invoiceId}`, {
+    method: "DELETE",
+  });
+  return data.data;
+}
+
+// ─── Credit Notes ────────────────────────────────────
+
+export async function createCredit(params: {
+  clientId: string;
+  amount: number;
+  description: string;
+}): Promise<{ id: string; number: string }> {
+  const body = {
+    client_id: params.clientId,
+    line_items: [
+      {
+        product_key: "Credit",
+        notes: params.description,
+        cost: params.amount,
+        quantity: 1,
+      },
+    ],
+  };
+
+  const data = await ninjaFetch("credits", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  return { id: data.data.id, number: data.data.number };
+}
+
+// ─── Recurring Invoice Actions ───────────────────────
+
+export async function stopRecurringInvoice(recurringInvoiceId: string) {
+  const data = await ninjaFetch(
+    `recurring_invoices/${recurringInvoiceId}?stop=true`,
+    { method: "PUT", body: JSON.stringify({}) }
+  );
+  return data.data;
+}
+
+export async function getRecurringInvoice(recurringInvoiceId: string) {
+  const data = await ninjaFetch(`recurring_invoices/${recurringInvoiceId}`);
+  return data.data;
+
+  return { id: data.data.id, number: data.data.number };
+}

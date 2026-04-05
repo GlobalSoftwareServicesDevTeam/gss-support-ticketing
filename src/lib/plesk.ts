@@ -125,6 +125,28 @@ export async function listSubscriptions(customerId?: number) {
   return pleskFetch(endpoint);
 }
 
+export async function getSubscription(subscriptionId: number) {
+  return pleskFetch(`subscriptions/${subscriptionId}`);
+}
+
+export async function suspendSubscription(subscriptionId: number) {
+  return pleskFetch(`subscriptions/${subscriptionId}/suspend`, {
+    method: "PUT",
+  });
+}
+
+export async function activateSubscription(subscriptionId: number) {
+  return pleskFetch(`subscriptions/${subscriptionId}/activate`, {
+    method: "PUT",
+  });
+}
+
+export async function removeSubscription(subscriptionId: number) {
+  return pleskFetch(`subscriptions/${subscriptionId}`, {
+    method: "DELETE",
+  });
+}
+
 function generatePassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
   let pass = "";

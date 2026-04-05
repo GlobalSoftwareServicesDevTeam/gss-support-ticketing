@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-// GET: list active hosting products
+// GET: list hosting products (active only for users, all for admin)
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const where = session.user.role === "ADMIN" ? {} : { isActive: true };
+
   const products = await prisma.hostingProduct.findMany({
-    where: { isActive: true },
+    where,
     orderBy: [{ type: "asc" }, { sortOrder: "asc" }, { monthlyPrice: "asc" }],
   });
 

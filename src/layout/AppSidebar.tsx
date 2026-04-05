@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   Server,
   Download,
+  ShieldCheck,
 } from "lucide-react";
 
 type NavItem = {
@@ -50,6 +51,7 @@ const adminNavItems: NavItem[] = [
 
 const adminOtherItems: NavItem[] = [
   { icon: <Users size={24} />, name: "Users", path: "/users" },
+  { icon: <ShieldCheck size={24} />, name: "Hosting Admin", path: "/hosting-admin" },
   { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
