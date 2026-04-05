@@ -360,6 +360,8 @@ model HostingOrder {
   invoiceNinjaInvoiceId String?
   recurringInvoiceId String?
   provisionedAt   DateTime?
+  expiryDate      DateTime? // domain expiry date
+  reminderSentAt  DateTime? // last reminder email sent
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

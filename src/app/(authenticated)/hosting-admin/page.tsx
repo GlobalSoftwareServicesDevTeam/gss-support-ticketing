@@ -27,6 +27,8 @@ import {
   User,
   AlertTriangle,
   Plus,
+  CalendarClock,
+  Bell,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────
@@ -56,6 +58,8 @@ interface HostingOrder {
   invoiceNinjaInvoiceId: string | null;
   recurringInvoiceId: string | null;
   provisionedAt: string | null;
+  expiryDate: string | null;
+  reminderSentAt: string | null;
   createdAt: string;
   product: { name: string; type: string; monthlyPrice: number } | null;
   user?: { firstName: string; lastName: string; email: string };
@@ -382,14 +386,33 @@ export default function HostingAdminPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Hosting Administration</h1>
           <p className="text-sm text-slate-500 mt-1">Manage hosting packages, services, invoices and domains</p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition text-slate-700 dark:text-slate-300"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (!confirm("Send renewal invoices and email reminders for all domains expiring within 30 days?")) return;
+              try {
+                const res = await fetch("/api/hosting/domain-reminders", { method: "POST" });
+                const data = await res.json();
+                showMessage("success", `Invoices: ${data.invoicesCreated}, Reminders: ${data.remindersSent} of ${data.processed} domains`);
+                fetchData();
+              } catch {
+                showMessage("error", "Failed to send domain reminders");
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
+          >
+            <Bell size={14} />
+            Domain Reminders
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition text-slate-700 dark:text-slate-300"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Message */}
@@ -577,6 +600,40 @@ export default function HostingAdminPage() {
                               <div>
                                 <p className="text-xs text-slate-400 uppercase">Provisioned</p>
                                 <p className="text-slate-700 dark:text-slate-300 text-xs mt-0.5">{new Date(order.provisionedAt).toLocaleString()}</p>
+                              </div>
+                            )}
+                            {(order.orderType === "DOMAIN_REGISTER" || order.orderType === "DOMAIN_TRANSFER") && (
+                              <div>
+                                <p className="text-xs text-slate-400 uppercase flex items-center gap-1">
+                                  <CalendarClock size={10} /> Expiry Date
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <input
+                                    type="date"
+                                    title="Domain expiry date"
+                                    defaultValue={order.expiryDate ? order.expiryDate.split("T")[0] : ""}
+                                    onBlur={async (e) => {
+                                      const val = e.target.value;
+                                      try {
+                                        await fetch(`/api/hosting/orders/${order.id}`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ expiryDate: val || null }),
+                                        });
+                                        showMessage("success", val ? `Expiry date set to ${val}` : "Expiry date cleared");
+                                        fetchData();
+                                      } catch {
+                                        showMessage("error", "Failed to update expiry date");
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300 dark:bg-slate-700 w-32"
+                                  />
+                                  {order.reminderSentAt && (
+                                    <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded flex items-center gap-0.5" title={`Reminder sent ${new Date(order.reminderSentAt).toLocaleString()}`}>
+                                      <Bell size={8} /> Reminded
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             )}
                             {order.notes && (

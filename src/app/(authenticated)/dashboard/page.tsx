@@ -4,7 +4,19 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Globe, AlertTriangle, Bell } from "lucide-react";
+
+interface ExpiringDomain {
+  id: string;
+  domain: string;
+  expiryDate: string;
+  daysLeft: number;
+  expired: boolean;
+  amount: number | null;
+  user?: { firstName: string; lastName: string; email: string };
+  reminderSentAt: string | null;
+  invoiceId: string | null;
+}
 
 interface DashboardStats {
   totalIssues: number;
@@ -65,7 +77,9 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recurringInvoices, setRecurringInvoices] = useState<RecurringInvoice[]>([]);
+  const [expiringDomains, setExpiringDomains] = useState<ExpiringDomain[]>([]);
   const [polling, setPolling] = useState(false);
+  const [sendingReminders, setSendingReminders] = useState(false);
   const isAdmin = session?.user?.role === "ADMIN";
 
   useEffect(() => {
@@ -88,6 +102,16 @@ export default function DashboardPage() {
           });
         });
     }
+    // Fetch expiring domains
+    fetch("/api/hosting/domain-reminders")
+      .then(async (r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) setExpiringDomains(data);
+      })
+      .catch(() => {});
     // Fetch recurring invoices for all users
     fetch("/api/invoices?type=recurring_invoices")
       .then(async (r) => {
@@ -119,6 +143,25 @@ export default function DashboardPage() {
     setPolling(false);
   }
 
+  async function handleSendDomainReminders() {
+    if (!confirm("This will send renewal invoices and emails for all domains expiring within 30 days. Continue?")) return;
+    setSendingReminders(true);
+    try {
+      const res = await fetch("/api/hosting/domain-reminders", { method: "POST" });
+      const data = await res.json();
+      alert(`Domain reminders processed.\nInvoices created: ${data.invoicesCreated}\nReminders sent: ${data.remindersSent}`);
+      // Refresh expiring domains
+      const r2 = await fetch("/api/hosting/domain-reminders");
+      if (r2.ok) {
+        const refreshed = await r2.json();
+        if (Array.isArray(refreshed)) setExpiringDomains(refreshed);
+      }
+    } catch {
+      alert("Failed to send domain reminders.");
+    }
+    setSendingReminders(false);
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -129,13 +172,23 @@ export default function DashboardPage() {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={handlePollEmails}
-            disabled={polling}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-          >
-            {polling ? "Checking..." : "Check Emails"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSendDomainReminders}
+              disabled={sendingReminders}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition disabled:opacity-50 flex items-center gap-2 text-sm"
+            >
+              <Bell size={14} />
+              {sendingReminders ? "Sending..." : "Domain Reminders"}
+            </button>
+            <button
+              onClick={handlePollEmails}
+              disabled={polling}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+            >
+              {polling ? "Checking..." : "Check Emails"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -254,6 +307,60 @@ export default function DashboardPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Expiring Domains */}
+      {expiringDomains.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mt-6">
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Globe size={18} className="text-amber-600" /> Expiring Domains
+            </h2>
+            <Link href="/hosting" className="text-sm text-blue-600 hover:underline">
+              View hosting
+            </Link>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {expiringDomains.map((d) => {
+              const urgency = d.expired
+                ? "bg-red-50 border-l-4 border-l-red-500"
+                : d.daysLeft <= 7
+                ? "bg-red-50 border-l-4 border-l-red-400"
+                : d.daysLeft <= 14
+                ? "bg-orange-50 border-l-4 border-l-orange-400"
+                : "bg-yellow-50 border-l-4 border-l-yellow-400";
+              return (
+                <div key={d.id} className={`flex items-center justify-between px-6 py-3 ${urgency}`}>
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle size={16} className={d.expired || d.daysLeft <= 7 ? "text-red-500" : d.daysLeft <= 14 ? "text-orange-500" : "text-yellow-500"} />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{d.domain}</p>
+                      {isAdmin && d.user && (
+                        <p className="text-xs text-slate-500">{d.user.firstName} {d.user.lastName} · {d.user.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {d.amount && (
+                      <span className="text-xs font-medium text-slate-600">R{d.amount.toFixed(2)}/yr</span>
+                    )}
+                    <div className="text-right">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        d.expired ? "bg-red-100 text-red-700" : d.daysLeft <= 7 ? "bg-red-100 text-red-700" : d.daysLeft <= 14 ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {d.expired ? "Expired" : `${d.daysLeft}d left`}
+                      </span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{new Date(d.expiryDate).toLocaleDateString()}</p>
+                    </div>
+                    {d.invoiceId && (
+                      <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Invoiced</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

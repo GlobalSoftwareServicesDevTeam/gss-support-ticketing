@@ -193,3 +193,49 @@ export function signingCompleteTemplate(documentName: string, signerName: string
     </html>
   `;
 }
+
+export function domainExpiryReminderTemplate(
+  recipientName: string,
+  domain: string,
+  expiryDate: string,
+  daysLeft: number,
+  invoiceNumber: string | null,
+  amount: string | null
+): string {
+  const urgencyColor = daysLeft <= 7 ? "#c53030" : daysLeft <= 14 ? "#c05621" : "#2b6cb0";
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: ${urgencyColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center; }
+        .domain-box { background-color: #edf2f7; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid ${urgencyColor}; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;">Domain Renewal Reminder</h1>
+          <p style="margin:5px 0 0;">GSS Support</p>
+        </div>
+        <p>Dear ${recipientName},</p>
+        <p>Your domain name is approaching its expiry date and needs to be renewed to avoid loss of service.</p>
+        <div class="domain-box">
+          <p style="margin:0;"><strong>Domain:</strong> ${domain}</p>
+          <p style="margin:5px 0 0;"><strong>Expiry Date:</strong> ${expiryDate}</p>
+          <p style="margin:5px 0 0;color:${urgencyColor};font-weight:bold;">${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining</p>
+        </div>
+        ${invoiceNumber ? `<p>An invoice <strong>#${invoiceNumber}</strong>${amount ? ` for <strong>R${amount}</strong>` : ""} has been generated for the domain renewal. Please arrange payment at your earliest convenience.</p>` : ""}
+        <p>If you have already arranged payment or wish to discuss your domain, please contact our support team.</p>
+        <p>Best regards,<br/>GSS Support Team</p>
+        <div class="footer">
+          <p>This is an automated reminder from GSS Support. If your domain expires, associated services (email, website) may be interrupted.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
