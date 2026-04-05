@@ -1,10 +1,20 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
+import Facebook from "next-auth/providers/facebook";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    Facebook({
+      clientId: process.env.FACEBOOK_CLIENT_ID!,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+    }),
     Credentials({
       name: "credentials",
       credentials: {
@@ -47,6 +57,57 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      // For OAuth providers, find or create user in our database
+      if (account?.provider === "google" || account?.provider === "facebook") {
+        const email = user.email;
+        if (!email) return false;
+
+        // Look for existing user by email
+        let dbUser = await prisma.user.findFirst({
+          where: { email, isDeleted: false },
+        });
+
+        if (dbUser) {
+          // Link OAuth if not already linked
+          if (!dbUser.oauthProvider) {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                oauthProvider: account.provider,
+                oauthProviderId: account.providerAccountId,
+                emailConfirmed: true,
+              },
+            });
+          }
+        } else {
+          // Create new user from OAuth profile
+          const nameParts = (user.name || "").split(" ");
+          const firstName = nameParts[0] || email.split("@")[0];
+          const lastName = nameParts.slice(1).join(" ") || "";
+
+          dbUser = await prisma.user.create({
+            data: {
+              email,
+              username: email,
+              passwordHash: "", // OAuth users don't have a password
+              firstName,
+              lastName,
+              role: "USER",
+              emailConfirmed: true,
+              oauthProvider: account.provider,
+              oauthProviderId: account.providerAccountId,
+            },
+          });
+        }
+
+        // Attach our DB user ID and role so the jwt callback can use them
+        user.id = dbUser.id;
+        (user as { role?: string }).role = dbUser.role;
+        (user as { company?: string }).company = dbUser.company || undefined;
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as { role: string }).role;
