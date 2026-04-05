@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface User {
   id: string;
@@ -452,7 +453,9 @@ export default function UsersPage() {
                 return (
                 <tr key={user.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 text-sm text-slate-900">
-                    {user.firstName} {user.lastName}
+                    <Link href={`/users/${user.id}`} className="text-brand-600 hover:underline font-medium">
+                      {user.firstName} {user.lastName}
+                    </Link>
                     <p className="text-xs text-slate-400">@{user.username}</p>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{user.email}</td>
