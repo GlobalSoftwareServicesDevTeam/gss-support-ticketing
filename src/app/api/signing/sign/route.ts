@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signing link" }, { status: 404 });
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://support.globaltest.net.za";
+  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://support.globalsoftwareservices.co.za";
   const now = new Date();
 
   // Determine role and validate correct step

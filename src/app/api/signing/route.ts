@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Send email to the signer
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://support.globaltest.net.za";
+  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://support.globalsoftwareservices.co.za";
   const signingUrl = `${baseUrl}/sign?token=${signerToken}`;
 
   await sendEmail({

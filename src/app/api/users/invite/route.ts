@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";
+  const baseUrl = process.env.NEXTAUTH_URL || "https://support.globalsoftwareservices.co.za";
   const acceptUrl = `${baseUrl}/invite?token=${inviteToken}`;
 
   // Assign projects to user if provided

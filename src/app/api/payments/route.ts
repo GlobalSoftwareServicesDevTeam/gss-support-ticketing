@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     metadata: { gateway, amount, invoiceNumber },
   });
 
-  const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";
+  const baseUrl = process.env.NEXTAUTH_URL || "https://support.globalsoftwareservices.co.za";
 
   if (gateway === "PAYFAST") {
     if (!isPayfastConfigured()) {

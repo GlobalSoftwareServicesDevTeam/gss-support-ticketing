@@ -3,7 +3,7 @@
     "name": "gss-support",
     "script": "node_modules/.bin/next",
     "args": "start -p 3000",
-    "cwd": "/var/www/support.globaltest.net.za",
+    "cwd": "/home/u523126354/domains/support.globalsoftwareservices.co.za/nodejs",
     "env": {
       "NODE_ENV": "production",
       "PORT": "3000"

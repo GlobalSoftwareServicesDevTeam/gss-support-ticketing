@@ -201,7 +201,7 @@ export async function POST(
       userName: session.user.name || undefined,
     });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://support.globalsoftwareservices.co.za";
 
     try {
       await sendEmail({
@@ -251,7 +251,7 @@ export async function POST(
       data: { inviteToken, inviteExpiresAt },
     });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "https://support.globaltest.net.za";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://support.globalsoftwareservices.co.za";
     const acceptUrl = `${baseUrl}/invite?token=${inviteToken}`;
 
     try {
