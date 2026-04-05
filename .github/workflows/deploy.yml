@@ -62,15 +62,39 @@ jobs:
             # Restart the Node.js process
             # Kill existing server if running
             if [ -f tmp/server.pid ]; then
-              kill "$(cat tmp/server.pid)" 2>/dev/null || true
-              sleep 2
+              PID=$(cat tmp/server.pid)
+              if kill -0 "$PID" 2>/dev/null; then
+                kill "$PID" 2>/dev/null || true
+                sleep 3
+                # Force kill if still running
+                kill -9 "$PID" 2>/dev/null || true
+              fi
             fi
             pkill -f "node .next/standalone/server.js" 2>/dev/null || true
-            sleep 1
+            pkill -f "node server.js" 2>/dev/null || true
+            sleep 2
 
             mkdir -p tmp
+
+            # Source port from .env if available
+            PORT=3000
+            if [ -f .env ]; then
+              ENV_PORT=$(grep -E '^PORT=' .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+              [ -n "$ENV_PORT" ] && PORT="$ENV_PORT"
+            fi
+
             cd .next/standalone
-            nohup node server.js > ../../tmp/server.log 2>&1 &
+            HOSTNAME="0.0.0.0" PORT="$PORT" nohup node server.js > ../../tmp/server.log 2>&1 &
             echo $! > ../../tmp/server.pid
-            echo "Server restarted with PID $(cat ../../tmp/server.pid)"
+            sleep 3
+
+            # Verify the server started
+            NEW_PID=$(cat ../../tmp/server.pid)
+            if kill -0 "$NEW_PID" 2>/dev/null; then
+              echo "Server restarted successfully with PID $NEW_PID on port $PORT"
+            else
+              echo "ERROR: Server failed to start. Last 20 lines of log:"
+              tail -20 ../../tmp/server.log
+              exit 1
+            fi
           ENDSSH
