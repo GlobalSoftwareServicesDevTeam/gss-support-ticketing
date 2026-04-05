@@ -19,6 +19,7 @@ import {
   ChevronDown,
   MoreHorizontal,
   Server,
+  Download,
 } from "lucide-react";
 
 type NavItem = {
@@ -49,6 +50,7 @@ const adminNavItems: NavItem[] = [
 
 const adminOtherItems: NavItem[] = [
   { icon: <Users size={24} />, name: "Users", path: "/users" },
+  { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
 ];

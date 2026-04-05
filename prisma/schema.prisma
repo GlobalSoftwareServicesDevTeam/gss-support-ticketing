@@ -40,6 +40,7 @@ model User {
   assignments         TaskAssignment[]
   projectAssignments  ProjectAssignment[]
   hostingOrders       HostingOrder[]
+  codeDownloads       CodeDownloadLog[]
 
   @@map("users")
 }
@@ -76,6 +77,7 @@ model Project {
   tasks       Task[]
   documents   Document[]
   assignments ProjectAssignment[]
+  codeReleases CodeRelease[]
 
   @@map("projects")
 }
@@ -367,4 +369,36 @@ model HostingOrder {
   product   HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("hosting_orders")
+}
+
+model CodeRelease {
+  id          String   @id @default(uuid())
+  version     String   // e.g. "1.0.0", "2.3.1"
+  notes       String?  @db.NVarChar(Max) // changelog / release notes
+  fileName    String
+  fileExt     String
+  fileBase64  String   @db.NVarChar(Max) // base64 encoded zip/tar
+  fileSize    Int      @default(0)
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  downloads   CodeDownloadLog[]
+
+  @@map("code_releases")
+}
+
+model CodeDownloadLog {
+  id            String   @id @default(uuid())
+  downloadedAt  DateTime @default(now())
+  ipAddress     String?
+
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  codeReleaseId String
+  codeRelease   CodeRelease  @relation(fields: [codeReleaseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("code_download_logs")
 }
