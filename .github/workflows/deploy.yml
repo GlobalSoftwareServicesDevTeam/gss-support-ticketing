@@ -37,64 +37,80 @@ jobs:
 
       - name: Deploy to server
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass > /dev/null
 
-          scp -o StrictHostKeyChecking=no deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
-          ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
-            cd httpdocs
+          export SSHPASS="$DEPLOY_PASSWORD"
+          SSH_OPTS="-o StrictHostKeyChecking=no -p $DEPLOY_PORT"
+
+          sshpass -e scp $SSH_OPTS deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
+          sshpass -e ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
+            set -e
+            NODE_BIN="/opt/alt/alt-nodejs22/root/usr/bin/node"
+            DOMAIN_DIR="$HOME/domains/support.globalsoftwareservices.co.za"
+            APP_DIR="$DOMAIN_DIR/app"
+
+            mkdir -p "$APP_DIR/tmp"
+
+            # Extract build to temp location
+            rm -rf /tmp/nextjs-deploy
+            mkdir -p /tmp/nextjs-deploy
+            cd /tmp/nextjs-deploy
             tar -xzf ~/deploy.tar.gz
             rm ~/deploy.tar.gz
 
-            # Copy static assets into standalone
-            cp -r .next/static .next/standalone/.next/static
-            cp -r public .next/standalone/public 2>/dev/null || true
+            # Clean old app files (preserve .env and tmp)
+            cd "$APP_DIR"
+            find . -mindepth 1 -maxdepth 1 ! -name '.env' ! -name 'tmp' -exec rm -rf {} +
 
-            # Copy environment file
-            cp .env .next/standalone/.env 2>/dev/null || true
+            # Copy standalone build contents to app root
+            cp -a /tmp/nextjs-deploy/.next/standalone/. "$APP_DIR/"
 
-            # Restart the Node.js process
-            # Kill existing server if running
-            if [ -f tmp/server.pid ]; then
-              PID=$(cat tmp/server.pid)
-              if kill -0 "$PID" 2>/dev/null; then
-                kill "$PID" 2>/dev/null || true
-                sleep 3
-                # Force kill if still running
-                kill -9 "$PID" 2>/dev/null || true
-              fi
+            # Copy static assets into .next directory
+            mkdir -p "$APP_DIR/.next/static"
+            cp -a /tmp/nextjs-deploy/.next/static/. "$APP_DIR/.next/static/"
+
+            # Copy public directory
+            mkdir -p "$APP_DIR/public"
+            cp -a /tmp/nextjs-deploy/public/. "$APP_DIR/public/" 2>/dev/null || true
+
+            # Ensure .env exists in app directory
+            if [ ! -f "$APP_DIR/.env" ] && [ -f "$DOMAIN_DIR/.env" ]; then
+              cp "$DOMAIN_DIR/.env" "$APP_DIR/.env"
             fi
-            pkill -f "node .next/standalone/server.js" 2>/dev/null || true
-            pkill -f "node server.js" 2>/dev/null || true
+
+            # Clean up temp files
+            rm -rf /tmp/nextjs-deploy
+
+            # Restart: try Passenger touch-restart first
+            touch "$APP_DIR/tmp/restart.txt"
+
+            # Also kill any manually-started node processes and restart
+            pkill -u "$(whoami)" -f "node.*server.js" 2>/dev/null || true
             sleep 2
 
-            mkdir -p tmp
-
-            # Source port from .env if available
+            # Source port from .env
             PORT=3000
-            if [ -f .env ]; then
-              ENV_PORT=$(grep -E '^PORT=' .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            if [ -f "$APP_DIR/.env" ]; then
+              ENV_PORT=$(grep -E '^PORT=' "$APP_DIR/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
               [ -n "$ENV_PORT" ] && PORT="$ENV_PORT"
             fi
 
-            cd .next/standalone
-            HOSTNAME="0.0.0.0" PORT="$PORT" nohup node server.js > ../../tmp/server.log 2>&1 &
-            echo $! > ../../tmp/server.pid
+            # Start server as fallback (Passenger may manage this instead)
+            cd "$APP_DIR"
+            HOSTNAME="0.0.0.0" PORT="$PORT" nohup "$NODE_BIN" server.js > "$DOMAIN_DIR/tmp/server.log" 2>&1 &
+            echo $! > "$DOMAIN_DIR/tmp/server.pid"
             sleep 3
 
-            # Verify the server started
-            NEW_PID=$(cat ../../tmp/server.pid)
+            NEW_PID=$(cat "$DOMAIN_DIR/tmp/server.pid")
             if kill -0 "$NEW_PID" 2>/dev/null; then
-              echo "Server restarted successfully with PID $NEW_PID on port $PORT"
+              echo "Deploy complete. Server running with PID $NEW_PID on port $PORT"
             else
-              echo "ERROR: Server failed to start. Last 20 lines of log:"
-              tail -20 ../../tmp/server.log
-              exit 1
+              echo "WARNING: Manual server start failed. Check Passenger/hPanel."
+              tail -20 "$DOMAIN_DIR/tmp/server.log" 2>/dev/null || true
             fi
           ENDSSH
