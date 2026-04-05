@@ -47,5 +47,30 @@ jobs:
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
           scp -o StrictHostKeyChecking=no deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
-          ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "cd httpdocs && tar -xzf ~/deploy.tar.gz && touch tmp/restart.txt && rm ~/deploy.tar.gz"
+          ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
+            cd httpdocs
+            tar -xzf ~/deploy.tar.gz
+            rm ~/deploy.tar.gz
+
+            # Copy static assets into standalone
+            cp -r .next/static .next/standalone/.next/static
+            cp -r public .next/standalone/public 2>/dev/null || true
+
+            # Copy environment file
+            cp .env .next/standalone/.env 2>/dev/null || true
+
+            # Restart the Node.js process
+            # Kill existing server if running
+            if [ -f tmp/server.pid ]; then
+              kill "$(cat tmp/server.pid)" 2>/dev/null || true
+              sleep 2
+            fi
+            pkill -f "node .next/standalone/server.js" 2>/dev/null || true
+            sleep 1
+
+            mkdir -p tmp
+            cd .next/standalone
+            nohup node server.js > ../../tmp/server.log 2>&1 &
+            echo $! > ../../tmp/server.pid
+            echo "Server restarted with PID $(cat ../../tmp/server.pid)"
+          ENDSSH
