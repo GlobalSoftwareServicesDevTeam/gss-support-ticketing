@@ -50,6 +50,7 @@ const adminNavItems: NavItem[] = [
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
+  { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
 ];
 
@@ -80,6 +81,7 @@ const userNavItems: NavItem[] = [
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
+  { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
 ];
 
 const AppSidebar: React.FC = () => {
