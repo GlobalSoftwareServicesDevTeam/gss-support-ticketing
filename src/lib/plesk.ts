@@ -147,6 +147,75 @@ export async function removeSubscription(subscriptionId: number) {
   });
 }
 
+// ─── DNS Zone Management ─────────────────────────────
+
+export interface DnsRecord {
+  id?: number;
+  type: string; // A, AAAA, CNAME, MX, TXT, NS, SRV, CAA
+  host: string;
+  value: string;
+  opt?: string; // priority for MX, weight/port for SRV
+}
+
+export async function getDnsRecords(domain: string): Promise<DnsRecord[]> {
+  const data = await pleskFetch(`dns?domain=${encodeURIComponent(domain)}`);
+  if (!Array.isArray(data)) return [];
+  return data.map((r: { id: number; type: string; host: string; value: string; opt?: string }) => ({
+    id: r.id,
+    type: r.type,
+    host: r.host,
+    value: r.value,
+    opt: r.opt || undefined,
+  }));
+}
+
+export async function addDnsRecord(domain: string, record: Omit<DnsRecord, "id">): Promise<DnsRecord> {
+  const body: Record<string, unknown> = {
+    domain,
+    type: record.type,
+    host: record.host,
+    value: record.value,
+  };
+  if (record.opt) body.opt = record.opt;
+
+  const data = await pleskFetch("dns", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data;
+}
+
+export async function updateDnsRecord(recordId: number, record: Partial<DnsRecord>): Promise<DnsRecord> {
+  const body: Record<string, unknown> = {};
+  if (record.type) body.type = record.type;
+  if (record.host !== undefined) body.host = record.host;
+  if (record.value !== undefined) body.value = record.value;
+  if (record.opt !== undefined) body.opt = record.opt;
+
+  const data = await pleskFetch(`dns/${recordId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return data;
+}
+
+export async function deleteDnsRecord(recordId: number): Promise<void> {
+  await pleskFetch(`dns/${recordId}`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Domain / Site Info ──────────────────────────────
+
+export async function getDomainInfo(domain: string) {
+  try {
+    const data = await pleskFetch(`domains?name=${encodeURIComponent(domain)}`);
+    return Array.isArray(data) ? data[0] || null : data;
+  } catch {
+    return null;
+  }
+}
+
 function generatePassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
   let pass = "";
