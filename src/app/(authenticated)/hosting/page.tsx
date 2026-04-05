@@ -94,6 +94,16 @@ export default function HostingPage() {
     domain: string;
     available: boolean;
     message: string;
+    results?: {
+      domain: string;
+      tld: string;
+      available: boolean;
+      registered: boolean;
+      price: number | null;
+      productId: string | null;
+      productName: string | null;
+      message: string;
+    }[];
   } | null>(null);
   const [domainChecking, setDomainChecking] = useState(false);
   const [domainAction, setDomainAction] = useState<"register" | "transfer">("register");
@@ -268,6 +278,7 @@ export default function HostingPage() {
 
   const hostingProducts = products.filter((p) => p.type === "HOSTING");
   const sslProducts = products.filter((p) => p.type === "SSL");
+  const domainProducts = products.filter((p) => p.type === "DOMAIN");
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: "orders", label: "My Orders", icon: <Package size={16} /> },
@@ -495,14 +506,18 @@ export default function HostingPage() {
         <div className="space-y-6">
           {/* Domain Availability Check */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Check Domain Availability</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Check Domain Availability</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Enter a domain name to check availability across all extensions.
+              {domainProducts.length === 0 && " Configure domain products in Hosting Admin to show pricing."}
+            </p>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={domainQuery}
                 onChange={(e) => setDomainQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && checkDomain()}
-                placeholder="e.g. example.co.za"
+                placeholder="e.g. mybusiness or mybusiness.co.za"
                 className="flex-1 px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white dark:bg-slate-700"
               />
               <button
@@ -514,7 +529,65 @@ export default function HostingPage() {
                 Check
               </button>
             </div>
-            {domainResult && (
+
+            {/* Multi-TLD Results */}
+            {domainResult?.results && domainResult.results.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {domainResult.results.map((r) => (
+                  <div
+                    key={r.domain}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      r.available
+                        ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                        : "bg-slate-50 border-slate-200 dark:bg-slate-700/30 dark:border-slate-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {r.available ? (
+                        <CheckCircle2 size={18} className="text-green-600 shrink-0" />
+                      ) : (
+                        <XCircle size={18} className="text-slate-400 shrink-0" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-medium ${r.available ? "text-green-800 dark:text-green-300" : "text-slate-500 dark:text-slate-400"}`}>
+                          {r.domain}
+                        </p>
+                        <p className={`text-xs ${r.available ? "text-green-600 dark:text-green-400" : "text-slate-400"}`}>
+                          {r.available ? "Available" : "Already registered"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {r.price !== null && (
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          R{r.price.toFixed(2)}<span className="text-xs font-normal text-slate-400">/yr</span>
+                        </span>
+                      )}
+                      {r.available ? (
+                        <button
+                          onClick={() => submitOrder("DOMAIN_REGISTER", r.domain, r.productId || orderProduct || undefined)}
+                          disabled={orderSubmitting}
+                          className="px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                        >
+                          {orderSubmitting ? "..." : "Register"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => submitOrder("DOMAIN_TRANSFER", r.domain, r.productId || orderProduct || undefined)}
+                          disabled={orderSubmitting}
+                          className="px-4 py-1.5 border border-slate-300 dark:border-slate-500 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition disabled:opacity-50"
+                        >
+                          Transfer
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Backward-compat single result (no multi results) */}
+            {domainResult && !domainResult.results && (
               <div className={`mt-4 p-4 rounded-lg border ${
                 domainResult.available
                   ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
@@ -539,23 +612,52 @@ export default function HostingPage() {
                     {orderSubmitting ? "Submitting..." : "Register This Domain"}
                   </button>
                 )}
-                {!domainResult.available && (
-                  <button
-                    onClick={() => submitOrder("DOMAIN_TRANSFER", domainResult.domain, orderProduct || undefined)}
-                    disabled={orderSubmitting}
-                    className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                  >
-                    {orderSubmitting ? "Submitting..." : "Request Domain Transfer"}
-                  </button>
-                )}
               </div>
             )}
           </div>
 
+          {/* Domain Pricing Table */}
+          {domainProducts.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Domain Pricing</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {domainProducts.map((product) => {
+                  const features: string[] = product.features ? (() => { try { return JSON.parse(product.features!); } catch { return []; } })() : [];
+                  return (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 transition"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{product.name}</p>
+                        {product.description && (
+                          <p className="text-xs text-slate-400 mt-0.5">{product.description}</p>
+                        )}
+                        {features.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {features.slice(0, 2).map((f, i) => (
+                              <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded">{f}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right ml-3">
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">
+                          R{Number(product.monthlyPrice).toFixed(0)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">/year</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Quick Order: domain + hosting */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-              {orderProduct ? "Complete Your Hosting Order" : "Order Hosting with Domain"}
+              {orderProduct ? "Complete Your Hosting Order" : "Order Domain with Hosting"}
             </h2>
             <div className="space-y-4">
               <div>
@@ -595,14 +697,14 @@ export default function HostingPage() {
               </div>
               {!orderProduct && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hosting Plan</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Add Hosting Plan (optional)</label>
                   <select
                     title="Select hosting plan"
                     value={orderProduct}
                     onChange={(e) => setOrderProduct(e.target.value)}
                     className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white dark:bg-slate-700"
                   >
-                    <option value="">Select a plan (optional)</option>
+                    <option value="">Domain only</option>
                     {hostingProducts.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} — R{Number(p.monthlyPrice).toFixed(0)}/mo
@@ -614,6 +716,7 @@ export default function HostingPage() {
               {orderProduct && (
                 <p className="text-sm text-blue-600">
                   Selected plan: {products.find((p) => p.id === orderProduct)?.name}
+                  <button onClick={() => setOrderProduct("")} className="ml-2 text-xs text-slate-400 hover:text-red-500">(remove)</button>
                 </p>
               )}
               <div>
