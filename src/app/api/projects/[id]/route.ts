@@ -35,6 +35,10 @@ export async function GET(
         orderBy: { uploadedAt: "desc" },
       },
       _count: { select: { issues: true, tasks: true, documents: true } },
+      repos: {
+        select: { id: true, fullName: true, htmlUrl: true, isPrivate: true, language: true },
+        orderBy: { fullName: "asc" },
+      },
     },
   });
 

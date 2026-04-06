@@ -16,6 +16,9 @@ import {
   Package,
   Clock,
   Eye,
+  GitBranch,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 interface Assignment {
@@ -73,6 +76,14 @@ interface CodeDownloadLogEntry {
   user: { id: string; firstName: string; lastName: string; email: string; company: string | null };
 }
 
+interface LinkedRepo {
+  id: string;
+  fullName: string;
+  htmlUrl: string;
+  isPrivate: boolean;
+  language: string | null;
+}
+
 interface Project {
   id: string;
   projectName: string;
@@ -88,6 +99,7 @@ interface Project {
   tasks: Task[];
   documents: Document[];
   issues: Issue[];
+  repos: LinkedRepo[];
   _count: { issues: number; tasks: number; documents: number };
 }
 
@@ -358,6 +370,51 @@ export default function ProjectDetailPage() {
             <div className="col-span-1 md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-2">Description</h2>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.description}</p>
+            </div>
+          )}
+
+          {/* Linked Repos */}
+          {project.repos && project.repos.length > 0 && (
+            <div className="col-span-1 md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <GitBranch size={20} className="text-slate-500" />
+                Linked Repositories ({project.repos.length})
+              </h2>
+              <div className="space-y-3">
+                {project.repos.map((repo) => (
+                  <div key={repo.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Code2 size={16} className="text-slate-400" />
+                      <a
+                        href={repo.htmlUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-600 hover:underline"
+                      >
+                        {repo.fullName}
+                      </a>
+                      {repo.isPrivate ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                          <Lock size={10} /> Private
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          <Unlock size={10} /> Public
+                        </span>
+                      )}
+                      {repo.language && (
+                        <span className="text-xs text-slate-500">{repo.language}</span>
+                      )}
+                    </div>
+                    <Link
+                      href={`/github-repos`}
+                      className="text-xs text-blue-500 hover:text-blue-600 font-medium"
+                    >
+                      Manage →
+                    </Link>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

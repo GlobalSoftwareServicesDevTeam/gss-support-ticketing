@@ -19,6 +19,7 @@ export async function GET(
       customers: {
         include: { customer: { select: { id: true, company: true, emailAddress: true } } },
       },
+      project: { select: { id: true, projectName: true } },
     },
   });
 
@@ -43,4 +44,29 @@ export async function DELETE(
   await prisma.gitHubRepo.delete({ where: { id } });
 
   return NextResponse.json({ success: true });
+}
+
+// PATCH: update repo (link/unlink project)
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const body = await req.json();
+  const { projectId } = body;
+
+  const repo = await prisma.gitHubRepo.update({
+    where: { id },
+    data: { projectId: projectId || null },
+    include: {
+      project: { select: { id: true, projectName: true } },
+    },
+  });
+
+  return NextResponse.json(repo);
 }

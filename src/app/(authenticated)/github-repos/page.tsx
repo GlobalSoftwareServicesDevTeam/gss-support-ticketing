@@ -15,8 +15,10 @@ import {
   Loader2,
   Code2,
   Trash2,
+  FolderKanban,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
+import Link from "next/link";
 
 interface CustomerAssignment {
   id: string;
@@ -36,6 +38,8 @@ interface Repo {
   language: string | null;
   createdAt: string;
   customers: CustomerAssignment[];
+  projectId: string | null;
+  project: { id: string; projectName: string } | null;
 }
 
 interface Customer {
@@ -51,6 +55,7 @@ export default function GitHubReposPage() {
 
   const [repos, setRepos] = useState<Repo[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [projects, setProjects] = useState<{ id: string; projectName: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
@@ -74,6 +79,15 @@ export default function GitHubReposPage() {
     }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    const res = await fetch("/api/projects");
+    if (res.ok) {
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : data.projects || [];
+      setProjects(list.map((p: { id: string; projectName: string }) => ({ id: p.id, projectName: p.projectName })));
+    }
+  }, []);
+
   useEffect(() => {
     if (session?.user && !isAdmin) router.push("/dashboard");
   }, [session, isAdmin, router]);
@@ -82,6 +96,7 @@ export default function GitHubReposPage() {
     if (isAdmin) {
       fetchRepos();
       fetchCustomers();
+      fetchProjects();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
@@ -137,6 +152,15 @@ export default function GitHubReposPage() {
     if (!confirm("Remove this repo from the system? Customer assignments will also be removed.")) return;
     const res = await fetch(`/api/github/repos/${repoId}`, { method: "DELETE" });
     if (res.ok) fetchRepos();
+  };
+
+  const handleLinkProject = async (repoId: string, projectId: string) => {
+    await fetch(`/api/github/repos/${repoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: projectId || null }),
+    });
+    fetchRepos();
   };
 
   const LANG_COLORS: Record<string, string> = {
@@ -307,6 +331,37 @@ export default function GitHubReposPage() {
                     >
                       <Trash2 size={16} />
                     </button>
+                  </div>
+                </div>
+
+                {/* Linked Project */}
+                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <FolderKanban size={14} />
+                      Project
+                    </h3>
+                    <select
+                      title="Link to project"
+                      value={repo.projectId || ""}
+                      onChange={(e) => handleLinkProject(repo.id, e.target.value)}
+                      className="flex-1 max-w-xs px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                    >
+                      <option value="">No project linked</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.projectName}
+                        </option>
+                      ))}
+                    </select>
+                    {repo.project && (
+                      <Link
+                        href={`/projects/${repo.project.id}`}
+                        className="text-xs text-brand-500 hover:text-brand-600 font-medium"
+                      >
+                        View Project →
+                      </Link>
+                    )}
                   </div>
                 </div>
 

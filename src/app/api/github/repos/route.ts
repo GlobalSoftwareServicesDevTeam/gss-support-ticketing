@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
       customers: {
         include: { customer: { select: { id: true, company: true } } },
       },
+      project: { select: { id: true, projectName: true } },
     },
     orderBy: { fullName: "asc" },
   });
