@@ -63,21 +63,25 @@ export async function POST(req: NextRequest) {
         // Import any new contacts that don't exist yet
         for (const inContact of inClient.contacts || []) {
           if (!inContact.email) continue;
-          const existingContact = await prisma.contact.findFirst({
-            where: { customerId: existing.id, email: inContact.email },
-          });
-          if (!existingContact) {
-            const contact = await prisma.contact.create({
-              data: {
-                firstName: inContact.first_name || inClient.name,
-                lastName: inContact.last_name || "",
-                email: inContact.email,
-                customerId: existing.id,
-                isPrimary: false,
-              },
+          try {
+            const existingContact = await prisma.contact.findFirst({
+              where: { customerId: existing.id, email: inContact.email },
             });
-            // Create default notification preferences
-            await createDefaultPrefs(contact.id);
+            if (!existingContact) {
+              const contact = await prisma.contact.create({
+                data: {
+                  firstName: inContact.first_name || inClient.name,
+                  lastName: inContact.last_name || "",
+                  email: inContact.email,
+                  customerId: existing.id,
+                  isPrimary: false,
+                },
+              });
+              // Create default notification preferences
+              await createDefaultPrefs(contact.id);
+            }
+          } catch {
+            // Skip duplicate contacts
           }
         }
 
@@ -102,17 +106,29 @@ export async function POST(req: NextRequest) {
         const inContact = inClient.contacts[i];
         if (!inContact.email) continue;
 
-        const contact = await prisma.contact.create({
-          data: {
-            firstName: inContact.first_name || inClient.name,
-            lastName: inContact.last_name || "",
-            email: inContact.email,
-            customerId: customer.id,
-            isPrimary: i === 0,
-          },
-        });
+        try {
+          const existingContact = await prisma.contact.findFirst({
+            where: { email: inContact.email },
+          });
+          if (existingContact) {
+            // Link existing contact to this customer if needed
+            if (existingContact.customerId !== customer.id) continue;
+            continue;
+          }
+          const contact = await prisma.contact.create({
+            data: {
+              firstName: inContact.first_name || inClient.name,
+              lastName: inContact.last_name || "",
+              email: inContact.email,
+              customerId: customer.id,
+              isPrimary: i === 0,
+            },
+          });
 
-        await createDefaultPrefs(contact.id);
+          await createDefaultPrefs(contact.id);
+        } catch {
+          // Skip duplicate contacts
+        }
       }
 
       results.imported++;
