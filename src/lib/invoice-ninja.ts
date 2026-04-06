@@ -214,6 +214,79 @@ export async function stopRecurringInvoice(recurringInvoiceId: string) {
 export async function getRecurringInvoice(recurringInvoiceId: string) {
   const data = await ninjaFetch(`recurring_invoices/${recurringInvoiceId}`);
   return data.data;
+}
 
-  return { id: data.data.id, number: data.data.number };
+// ─── Quotes ──────────────────────────────────────────
+
+export interface INQuote {
+  id: string;
+  number: string;
+  date: string;
+  due_date?: string;
+  valid_until?: string;
+  amount: number;
+  balance: number;
+  status_id: string;
+  client_id: string;
+  client?: { id: string; name: string; display_name?: string };
+  line_items: Array<{
+    product_key?: string;
+    notes?: string;
+    cost: number;
+    quantity: number;
+    line_total: number;
+  }>;
+  terms?: string;
+  public_notes?: string;
+  private_notes?: string;
+  tax_name1?: string;
+  tax_rate1?: number;
+  discount?: number;
+  partial?: number;
+  is_deleted?: boolean;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export async function listQuotes(params?: {
+  clientId?: string;
+  status?: string;
+  perPage?: number;
+}): Promise<INQuote[]> {
+  const parts = [`per_page=${params?.perPage || 500}`, "is_deleted=false"];
+  if (params?.clientId) parts.push(`client_id=${encodeURIComponent(params.clientId)}`);
+  if (params?.status) parts.push(`status=${encodeURIComponent(params.status)}`);
+  const data = await ninjaFetch(`quotes?${parts.join("&")}`);
+  return data.data || [];
+}
+
+export async function getQuote(quoteId: string): Promise<INQuote> {
+  const data = await ninjaFetch(`quotes/${quoteId}`);
+  return data.data;
+}
+
+export async function convertQuoteToInvoice(quoteId: string): Promise<{ id: string; number: string }> {
+  // Invoice Ninja: PUT with action=convert_to_invoice
+  const data = await ninjaFetch(`quotes/${quoteId}?action=convert_to_invoice`, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+  // The response contains the invoice id
+  return { id: data.data?.id || "", number: data.data?.number || "" };
+}
+
+export async function approveQuote(quoteId: string) {
+  const data = await ninjaFetch(`quotes/${quoteId}?action=approve`, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+  return data.data;
+}
+
+export async function sendQuote(quoteId: string) {
+  const data = await ninjaFetch(`quotes/${quoteId}?action=send_email`, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+  return data.data;
 }
