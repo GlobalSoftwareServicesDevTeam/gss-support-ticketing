@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Facebook from "next-auth/providers/facebook";
+import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 
@@ -14,6 +15,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Facebook({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+    }),
+    GitHub({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
     Credentials({
       name: "credentials",
@@ -59,7 +64,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       // For OAuth providers, find or create user in our database
-      if (account?.provider === "google" || account?.provider === "facebook") {
+      if (account?.provider === "google" || account?.provider === "facebook" || account?.provider === "github") {
         const email = user.email;
         if (!email) return false;
 

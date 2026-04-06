@@ -64,6 +64,7 @@ model Customer {
 
   issues   Issue[]
   contacts Contact[]
+  repos    CustomerRepo[]
 
   @@map("customers")
 }
@@ -526,4 +527,35 @@ model PaymentArrangementInstallment {
   @@index([arrangementId])
   @@index([dueDate])
   @@map("payment_arrangement_installments")
+}
+
+model GitHubRepo {
+  id          String   @id @default(uuid())
+  owner       String   // GitHub org or user
+  name        String   // repo name
+  fullName    String   // owner/name
+  description String?  @db.NVarChar(Max)
+  htmlUrl     String   // https://github.com/owner/name
+  isPrivate   Boolean  @default(false)
+  language    String?
+  createdAt   DateTime @default(now())
+
+  customers CustomerRepo[]
+
+  @@unique([owner, name])
+  @@map("github_repos")
+}
+
+model CustomerRepo {
+  id         String   @id @default(uuid())
+  assignedAt DateTime @default(now())
+  assignedBy String?  // admin userId
+
+  customerId String
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  repoId     String
+  repo       GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([customerId, repoId])
+  @@map("customer_repos")
 }
