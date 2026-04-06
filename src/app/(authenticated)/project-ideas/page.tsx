@@ -22,6 +22,8 @@ import {
   DollarSign,
   CalendarClock,
   User,
+  ArrowRightCircle,
+  FolderKanban,
 } from "lucide-react";
 
 interface ProjectIdea {
@@ -99,6 +101,19 @@ export default function ProjectIdeasPage() {
   // Detail panel
   const [selectedIdea, setSelectedIdea] = useState<ProjectIdea | null>(null);
 
+  // Convert to task
+  const [showConvert, setShowConvert] = useState(false);
+  const [convertIdea, setConvertIdea] = useState<ProjectIdea | null>(null);
+  const [projects, setProjects] = useState<{ id: string; projectName: string }[]>([]);
+  const [convertForm, setConvertForm] = useState({
+    projectId: "",
+    newProjectName: "",
+    createNewProject: false,
+    taskPriority: "",
+    taskDueDate: "",
+  });
+  const [converting, setConverting] = useState(false);
+
   function fetchIdeas() {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
@@ -117,6 +132,56 @@ export default function ProjectIdeasPage() {
     if (session) fetchIdeas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search, statusFilter, categoryFilter, session]);
+
+  function fetchProjects() {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => setProjects(Array.isArray(data) ? data : data.projects || []));
+  }
+
+  function openConvert(idea: ProjectIdea) {
+    setConvertIdea(idea);
+    setConvertForm({
+      projectId: "",
+      newProjectName: "",
+      createNewProject: false,
+      taskPriority: idea.priority === "URGENT" ? "CRITICAL" : idea.priority,
+      taskDueDate: "",
+    });
+    fetchProjects();
+    setShowConvert(true);
+    setActionMenu(null);
+  }
+
+  async function handleConvert(e: React.FormEvent) {
+    e.preventDefault();
+    if (!convertIdea) return;
+    setConverting(true);
+
+    const res = await fetch(`/api/project-ideas/${convertIdea.id}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: convertForm.createNewProject ? undefined : convertForm.projectId,
+        newProjectName: convertForm.createNewProject ? convertForm.newProjectName : undefined,
+        taskPriority: convertForm.taskPriority || undefined,
+        taskDueDate: convertForm.taskDueDate || undefined,
+      }),
+    });
+
+    const data = await res.json();
+    setConverting(false);
+
+    if (!res.ok) {
+      setActionMsg(data.error || "Failed to convert idea");
+    } else {
+      setShowConvert(false);
+      setConvertIdea(null);
+      setActionMsg(`Idea converted to task in project "${data.projectName}"!`);
+      fetchIdeas();
+    }
+    setTimeout(() => setActionMsg(""), 5000);
+  }
 
   function resetForm() {
     setForm({
@@ -438,6 +503,15 @@ export default function ProjectIdeasPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            openConvert(idea);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-indigo-600"
+                        >
+                          <ArrowRightCircle size={14} /> Convert to Task
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleDelete(idea.id);
                           }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600"
@@ -591,7 +665,136 @@ export default function ProjectIdeasPage() {
                   <p>Updated: {new Date(selectedIdea.updatedAt).toLocaleString("en-ZA")}</p>
                 </div>
               </div>
+
+              {isAdmin && selectedIdea.status !== "COMPLETED" && selectedIdea.status !== "REJECTED" && (
+                <button
+                  onClick={() => {
+                    setSelectedIdea(null);
+                    openConvert(selectedIdea);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium mt-4"
+                >
+                  <ArrowRightCircle size={16} />
+                  Convert to Task
+                </button>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Task Modal */}
+      {showConvert && convertIdea && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <ArrowRightCircle size={20} className="text-indigo-600" />
+                Convert to Task
+              </h2>
+              <button
+                onClick={() => { setShowConvert(false); setConvertIdea(null); }}
+                title="Close"
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{convertIdea.title}</p>
+              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{convertIdea.description}</p>
+            </div>
+
+            <form onSubmit={handleConvert} className="space-y-4">
+              <div>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={convertForm.createNewProject}
+                    onChange={(e) => setConvertForm({ ...convertForm, createNewProject: e.target.checked, projectId: "", newProjectName: "" })}
+                    className="rounded border-gray-300"
+                  />
+                  Create a new project
+                </label>
+
+                {convertForm.createNewProject ? (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">New Project Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={convertForm.newProjectName}
+                      onChange={(e) => setConvertForm({ ...convertForm, newProjectName: e.target.value })}
+                      placeholder="Enter project name"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Select Project *</label>
+                    <select
+                      required
+                      value={convertForm.projectId}
+                      onChange={(e) => setConvertForm({ ...convertForm, projectId: e.target.value })}
+                      title="Select a project"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm"
+                    >
+                      <option value="">-- Select a project --</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.projectName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Task Priority</label>
+                  <select
+                    value={convertForm.taskPriority}
+                    onChange={(e) => setConvertForm({ ...convertForm, taskPriority: e.target.value })}
+                    title="Task priority"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm"
+                  >
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={convertForm.taskDueDate}
+                    onChange={(e) => setConvertForm({ ...convertForm, taskDueDate: e.target.value })}
+                    placeholder="Due date"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowConvert(false); setConvertIdea(null); }}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={converting}
+                  className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {converting && <Loader2 size={14} className="animate-spin" />}
+                  <FolderKanban size={14} />
+                  Convert to Task
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
