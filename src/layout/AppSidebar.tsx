@@ -27,6 +27,7 @@ import {
   Building2,
   Bell,
   Github,
+  GitCommit,
 } from "lucide-react";
 
 type NavItem = {
@@ -55,6 +56,7 @@ const adminNavItems: NavItem[] = [
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
+  { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
 ];
 
 const adminOtherItems: NavItem[] = [
@@ -87,6 +89,7 @@ const userNavItems: NavItem[] = [
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
+  { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
   { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 
