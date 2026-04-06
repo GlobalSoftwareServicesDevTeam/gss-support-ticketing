@@ -210,3 +210,86 @@ export async function getAppDetails(packageName: string) {
     }).catch(() => {});
   }
 }
+
+// ─── App Listing Details (title, icon, etc.) ─────────
+
+export interface AppListingInfo {
+  packageName: string;
+  title: string;
+  shortDescription?: string;
+  fullDescription?: string;
+  iconUrl?: string;
+  storeUrl: string;
+}
+
+/**
+ * Fetch store listing info (title, descriptions) from the Edits API.
+ * Tries en-US first, then falls back to the first available listing.
+ */
+export async function getAppListing(packageName: string): Promise<AppListingInfo | null> {
+  const edit = await playFetch(`/applications/${packageName}/edits`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+
+  try {
+    // Try to get the listing for default language first
+    const listings = await playFetch(
+      `/applications/${packageName}/edits/${edit.id}/listings`
+    );
+
+    const listingsArr = listings.listings || [];
+    // Prefer en-US, en-GB, then any
+    const listing =
+      listingsArr.find((l: { language: string }) => l.language === "en-US") ||
+      listingsArr.find((l: { language: string }) => l.language?.startsWith("en")) ||
+      listingsArr[0];
+
+    if (!listing) return null;
+
+    // Try to get the app icon
+    let iconUrl: string | undefined;
+    try {
+      const images = await playFetch(
+        `/applications/${packageName}/edits/${edit.id}/listings/${listing.language}/images/icon`
+      );
+      if (images.images?.[0]?.url) {
+        iconUrl = images.images[0].url;
+      }
+    } catch {
+      // Icon fetch is optional
+    }
+
+    return {
+      packageName,
+      title: listing.title || packageName,
+      shortDescription: listing.shortDescription || undefined,
+      fullDescription: listing.fullDescription || undefined,
+      iconUrl,
+      storeUrl: `https://play.google.com/store/apps/details?id=${packageName}`,
+    };
+  } catch {
+    return null;
+  } finally {
+    await playFetch(`/applications/${packageName}/edits/${edit.id}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Fetch listing info for multiple package names.
+ * Returns results for packages that were accessible (owned by the service account).
+ */
+export async function getAppListings(packageNames: string[]): Promise<AppListingInfo[]> {
+  const results: AppListingInfo[] = [];
+  for (const pkg of packageNames) {
+    try {
+      const info = await getAppListing(pkg.trim());
+      if (info) results.push(info);
+    } catch {
+      // Skip packages that fail (not owned, invalid name, etc.)
+    }
+  }
+  return results;
+}

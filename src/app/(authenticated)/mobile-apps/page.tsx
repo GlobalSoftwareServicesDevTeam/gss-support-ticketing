@@ -19,6 +19,8 @@ import {
   XCircle,
   Clock,
   Upload,
+  Download,
+  AlertCircle,
 } from "lucide-react";
 
 interface Customer {
@@ -84,6 +86,20 @@ export default function MobileAppsPage() {
   const [builds, setBuilds] = useState<Record<string, AppBuild[]>>({});
   const [loadingBuilds, setLoadingBuilds] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+
+  // Import from Play Store state
+  const [showImport, setShowImport] = useState(false);
+  const [importPackageNames, setImportPackageNames] = useState("");
+  const [importCustomerId, setImportCustomerId] = useState("");
+  const [importPreviewing, setImportPreviewing] = useState(false);
+  const [importImporting, setImportImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ packageName: string; title: string; iconUrl?: string; storeUrl: string }[]>([]);
+  const [importNotFound, setImportNotFound] = useState<string[]>([]);
+  const [importResult, setImportResult] = useState<{ created: string[]; skipped: string[]; errors: string[]; notFound: string[] } | null>(null);
+  const [importError, setImportError] = useState("");
+
+  // Auto-fetch from Play Store for Add App form
+  const [fetchingPackage, setFetchingPackage] = useState(false);
 
   const loadApps = useCallback(async () => {
     setLoading(true);
@@ -194,6 +210,113 @@ export default function MobileAppsPage() {
     } catch { /* ignore */ }
   }
 
+  // ─── Import from Play Store ─────────────────────────
+
+  function openImport() {
+    setImportPackageNames("");
+    setImportCustomerId("");
+    setImportPreview([]);
+    setImportNotFound([]);
+    setImportResult(null);
+    setImportError("");
+    setShowImport(true);
+  }
+
+  async function handleImportPreview() {
+    const names = importPackageNames
+      .split(/[\n,]+/)
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+
+    if (names.length === 0) {
+      setImportError("Enter at least one package name");
+      return;
+    }
+
+    setImportPreviewing(true);
+    setImportError("");
+    setImportPreview([]);
+    setImportNotFound([]);
+    setImportResult(null);
+
+    try {
+      const res = await fetch("/api/mobile-apps/import-playstore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageNames: names, action: "preview" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportError(data.error || "Failed to fetch from Play Store");
+      } else {
+        setImportPreview(data.apps || []);
+        setImportNotFound(data.notFound || []);
+      }
+    } catch {
+      setImportError("Network error");
+    }
+    setImportPreviewing(false);
+  }
+
+  async function handleImportConfirm() {
+    if (!importCustomerId) {
+      setImportError("Select a customer");
+      return;
+    }
+
+    const names = importPreview.map((a) => a.packageName);
+    if (names.length === 0) {
+      setImportError("No apps to import");
+      return;
+    }
+
+    setImportImporting(true);
+    setImportError("");
+
+    try {
+      const res = await fetch("/api/mobile-apps/import-playstore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packageNames: names,
+          customerId: importCustomerId,
+          action: "import",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportError(data.error || "Import failed");
+      } else {
+        setImportResult(data);
+        loadApps();
+      }
+    } catch {
+      setImportError("Network error");
+    }
+    setImportImporting(false);
+  }
+
+  // ─── Auto-fetch from Play Store ─────────────────────
+
+  async function autoFetchPackage(packageName: string) {
+    if (!packageName || packageName.length < 3 || formData.platform !== "GOOGLE_PLAY") return;
+    setFetchingPackage(true);
+    try {
+      const res = await fetch(`/api/mobile-apps/import-playstore?packageName=${encodeURIComponent(packageName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFormData((prev) => ({
+          ...prev,
+          name: data.title || prev.name,
+          storeUrl: data.storeUrl || prev.storeUrl,
+          packageName: data.packageName || prev.packageName,
+          iconUrl: data.iconUrl || prev.iconUrl,
+        }));
+      }
+    } catch { /* ignore */ }
+    setFetchingPackage(false);
+  }
+
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -236,13 +359,22 @@ export default function MobileAppsPage() {
           <Smartphone className="text-blue-600" size={28} />
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Mobile Apps</h1>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
-        >
-          <Plus size={16} />
-          Add App
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openImport}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+          >
+            <Download size={16} />
+            Import from Play Store
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          >
+            <Plus size={16} />
+            Add App
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -301,13 +433,27 @@ export default function MobileAppsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Bundle ID *</label>
-                  <input
-                    type="text"
-                    value={formData.bundleId}
-                    onChange={(e) => setFormData({ ...formData, bundleId: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
-                    placeholder="com.example.app"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.bundleId}
+                      onChange={(e) => setFormData({ ...formData, bundleId: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                      placeholder="com.example.app"
+                    />
+                    {formData.platform === "GOOGLE_PLAY" && !editingApp && (
+                      <button
+                        type="button"
+                        onClick={() => autoFetchPackage(formData.bundleId)}
+                        disabled={fetchingPackage || !formData.bundleId}
+                        className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-xs flex items-center gap-1"
+                        title="Fetch app info from Play Store"
+                      >
+                        {fetchingPackage ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                        Fetch
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Platform *</label>
@@ -397,6 +543,178 @@ export default function MobileAppsPage() {
                 {editingApp ? "Update" : "Create"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import from Play Store Modal */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+              Import from Google Play Store
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Enter package names to fetch app details from your Play Store developer account.
+            </p>
+
+            {importError && (
+              <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                <AlertCircle size={16} />
+                {importError}
+              </div>
+            )}
+
+            {importResult ? (
+              /* Import Results */
+              <div className="space-y-3">
+                {importResult.created.length > 0 && (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                      <CheckCircle2 size={14} className="inline mr-1" />
+                      Imported {importResult.created.length} app(s):
+                    </p>
+                    <ul className="text-xs text-green-600 dark:text-green-500 mt-1 ml-5 list-disc">
+                      {importResult.created.map((n) => <li key={n}>{n}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {importResult.skipped.length > 0 && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                      Skipped {importResult.skipped.length} (already exist):
+                    </p>
+                    <ul className="text-xs text-yellow-600 dark:text-yellow-500 mt-1 ml-5 list-disc">
+                      {importResult.skipped.map((n) => <li key={n}>{n}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {importResult.notFound.length > 0 && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      Not found: {importResult.notFound.join(", ")}
+                    </p>
+                  </div>
+                )}
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => setShowImport(false)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : importPreview.length > 0 ? (
+              /* Preview fetched apps */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assign to Customer *</label>
+                  <select
+                    value={importCustomerId}
+                    onChange={(e) => setImportCustomerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                    title="Customer"
+                  >
+                    <option value="">Select customer</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.company}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 dark:bg-gray-800">
+                      <tr className="text-left text-slate-600 dark:text-slate-400">
+                        <th className="px-3 py-2 font-medium">Icon</th>
+                        <th className="px-3 py-2 font-medium">App Name</th>
+                        <th className="px-3 py-2 font-medium">Package Name</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {importPreview.map((app) => (
+                        <tr key={app.packageName} className="text-slate-700 dark:text-slate-300">
+                          <td className="px-3 py-2">
+                            {app.iconUrl ? (
+                              <Image src={app.iconUrl} alt="" width={32} height={32} className="w-8 h-8 rounded-lg" unoptimized />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <Smartphone size={16} className="text-slate-400" />
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-medium">{app.title}</td>
+                          <td className="px-3 py-2 text-xs font-mono text-slate-500">{app.packageName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {importNotFound.length > 0 && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                      <AlertCircle size={14} className="inline mr-1" />
+                      Not found or not accessible: {importNotFound.join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => { setImportPreview([]); setImportNotFound([]); }}
+                    className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleImportConfirm}
+                    disabled={importImporting || !importCustomerId}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-sm"
+                  >
+                    {importImporting && <Loader2 size={14} className="animate-spin" />}
+                    Import {importPreview.length} App(s)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Input package names */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Package Names (one per line)
+                  </label>
+                  <textarea
+                    value={importPackageNames}
+                    onChange={(e) => setImportPackageNames(e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white font-mono"
+                    placeholder={"com.example.app1\ncom.example.app2\ncom.example.app3"}
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    Enter the Android package names from your Google Play Console. Separate with new lines or commas.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setShowImport(false)}
+                    className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImportPreview}
+                    disabled={importPreviewing || !importPackageNames.trim()}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-sm"
+                  >
+                    {importPreviewing && <Loader2 size={14} className="animate-spin" />}
+                    <Search size={14} />
+                    Fetch from Play Store
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
