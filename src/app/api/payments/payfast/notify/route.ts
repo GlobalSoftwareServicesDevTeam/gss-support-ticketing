@@ -56,6 +56,38 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // 7. If tokenization was requested, save the card token
+    if (params.token && status === "COMPLETE" && payment.userId) {
+      try {
+        const cardBrand = params.payment_method === "cc" ? (params.card_type || null) : null;
+
+        await prisma.savedCard.upsert({
+          where: {
+            userId_token: {
+              userId: payment.userId,
+              token: params.token,
+            },
+          },
+          update: {
+            isActive: true,
+            updatedAt: new Date(),
+          },
+          create: {
+            userId: payment.userId,
+            gateway: "PAYFAST",
+            token: params.token,
+            cardBrand: cardBrand,
+            last4: params.custom_str1 || null,
+            nickname: null,
+            isDefault: false,
+          },
+        });
+      } catch (err) {
+        console.error("Failed to save card token:", err);
+        // Don't fail the ITN response for card save errors
+      }
+    }
+
     return new NextResponse("OK", { status: 200 });
   } catch (error) {
     console.error("PayFast ITN error:", error);

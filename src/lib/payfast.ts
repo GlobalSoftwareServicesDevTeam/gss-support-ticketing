@@ -25,6 +25,7 @@ export interface PayfastPaymentData {
   customerFirstName?: string;
   customerLastName?: string;
   paymentId: string;
+  saveCard?: boolean; // Enable ad-hoc tokenization
 }
 
 export function buildPayfastForm(data: PayfastPaymentData, baseUrl: string) {
@@ -43,6 +44,11 @@ export function buildPayfastForm(data: PayfastPaymentData, baseUrl: string) {
   if (data.customerEmail) params.email_address = data.customerEmail;
   if (data.customerFirstName) params.name_first = data.customerFirstName;
   if (data.customerLastName) params.name_last = data.customerLastName;
+
+  // Ad-hoc tokenization: save card for future payments
+  if (data.saveCard) {
+    params.subscription_type = "2";
+  }
 
   // Generate signature
   const signatureString = Object.entries(params)
@@ -89,5 +95,85 @@ export async function validatePayfastServer(pfParamString: string): Promise<bool
     return text.trim() === "VALID";
   } catch {
     return false;
+  }
+}
+
+// PayFast ad-hoc charge via saved token
+const PAYFAST_API_URL = PAYFAST_SANDBOX
+  ? "https://api.payfast.co.za/subscriptions"
+  : "https://api.payfast.co.za/subscriptions";
+
+export interface ChargeTokenData {
+  token: string;
+  amount: number;
+  itemName: string;
+  paymentId: string;
+  invoiceNumber?: string;
+}
+
+export async function chargePayfastToken(
+  data: ChargeTokenData
+): Promise<{ success: boolean; pfPaymentId?: string; error?: string }> {
+  try {
+    const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "+02:00");
+
+    const body: Record<string, string> = {
+      amount: (data.amount * 100).toString(), // PayFast expects cents for ad-hoc
+      item_name: data.itemName.substring(0, 100),
+      m_payment_id: data.paymentId,
+    };
+    if (data.invoiceNumber) {
+      body.item_description = `Invoice: ${data.invoiceNumber}`;
+    }
+
+    // Generate signature for API call
+    const headerParams: Record<string, string> = {
+      "merchant-id": PAYFAST_MERCHANT_ID,
+      version: "v1",
+      timestamp,
+    };
+
+    // Signature: MD5 of all header params + body params + passphrase
+    const allParams = { ...headerParams, ...body };
+    const signatureString = Object.entries(allParams)
+      .filter(([, v]) => v !== "")
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${encodeURIComponent(v.trim()).replace(/%20/g, "+")}`)
+      .join("&");
+
+    const passphraseStr = PAYFAST_PASSPHRASE
+      ? `${signatureString}&passphrase=${encodeURIComponent(PAYFAST_PASSPHRASE.trim()).replace(/%20/g, "+")}`
+      : signatureString;
+
+    const signature = crypto.createHash("md5").update(passphraseStr).digest("hex");
+
+    const res = await fetch(`${PAYFAST_API_URL}/${data.token}/adhoc`, {
+      method: "POST",
+      headers: {
+        "merchant-id": PAYFAST_MERCHANT_ID,
+        version: "v1",
+        timestamp,
+        signature,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseData = await res.json();
+
+    if (res.ok && responseData.data?.response) {
+      return {
+        success: true,
+        pfPaymentId: responseData.data.response.pf_payment_id,
+      };
+    }
+
+    return {
+      success: false,
+      error: responseData.data?.response?.reason || responseData.message || "Charge failed",
+    };
+  } catch (error) {
+    console.error("PayFast token charge error:", error);
+    return { success: false, error: "Failed to charge card" };
   }
 }

@@ -315,8 +315,30 @@ model Payment {
   updatedAt       DateTime @updatedAt
 
   userId          String?
+  savedCardId     String?
+  savedCard       SavedCard? @relation(fields: [savedCardId], references: [id])
 
   @@map("payments")
+}
+
+model SavedCard {
+  id            String   @id @default(uuid())
+  userId        String
+  gateway       String   @default("PAYFAST") // PAYFAST
+  token         String   // PayFast ad-hoc token
+  cardBrand     String?  // VISA, MASTERCARD, AMEX, etc.
+  last4         String?  // Last 4 digits of card
+  expiryMonth   Int?
+  expiryYear    Int?
+  nickname      String?  // User-defined label
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  payments      Payment[]
+
+  @@unique([userId, token])
+  @@map("saved_cards")
 }
 
 model EftBankDetail {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { CreditCard, Landmark, Building2 } from "lucide-react";
+import { Wallet, Building2 } from "lucide-react";
 import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 interface Payment {
@@ -29,6 +29,16 @@ interface EftDetail {
   accountType: string | null;
   swiftCode: string | null;
   reference: string | null;
+}
+
+interface SavedCard {
+  id: string;
+  cardBrand: string | null;
+  last4: string | null;
+  expiryMonth: number | null;
+  expiryYear: number | null;
+  nickname: string | null;
+  isDefault: boolean;
 }
 
 interface Gateways {
@@ -84,6 +94,10 @@ export default function PaymentsPage() {
     invoiceNumber: "",
   });
   const [paying, setPaying] = useState(false);
+  const [saveCard, setSaveCard] = useState(false);
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [payWithCard, setPayWithCard] = useState(false);
 
   // EFT form state (admin)
   const [showEftForm, setShowEftForm] = useState(false);
@@ -121,6 +135,22 @@ export default function PaymentsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cards")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) {
+          const cards = Array.isArray(data) ? data : [];
+          setSavedCards(cards);
+          const defaultCard = cards.find((c: SavedCard) => c.isDefault);
+          if (defaultCard) setSelectedCardId(defaultCard.id);
+          else if (cards.length > 0) setSelectedCardId(cards[0].id);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   function refreshPayments() {
     fetch("/api/payments")
       .then((r) => r.json())
@@ -140,6 +170,32 @@ export default function PaymentsPage() {
     e.preventDefault();
     setPaying(true);
 
+    // Pay with saved card
+    if (payWithCard && selectedCardId) {
+      const res = await fetch("/api/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: selectedCardId,
+          amount: parseFloat(payForm.amount),
+          description: payForm.description || undefined,
+          invoiceNumber: payForm.invoiceNumber || undefined,
+        }),
+      });
+      const data = await res.json();
+      setPaying(false);
+      if (!res.ok) {
+        alert(data.error || "Failed to charge saved card");
+        return;
+      }
+      alert("Payment processed successfully!");
+      setPayForm({ gateway: "PAYFAST", amount: "", description: "", invoiceNumber: "" });
+      setPayWithCard(false);
+      refreshPayments();
+      setTab("history");
+      return;
+    }
+
     const res = await fetch("/api/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,6 +204,7 @@ export default function PaymentsPage() {
         amount: parseFloat(payForm.amount),
         description: payForm.description || undefined,
         invoiceNumber: payForm.invoiceNumber || undefined,
+        saveCard: payForm.gateway === "PAYFAST" && saveCard ? true : undefined,
       }),
     });
 
@@ -324,12 +381,60 @@ export default function PaymentsPage() {
                   />
                 </div>
 
+                {/* Saved card quick-pay */}
+                {savedCards.length > 0 && (
+                  <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={payWithCard}
+                        onChange={(e) => setPayWithCard(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                      />
+                      <Wallet size={16} className="text-slate-500" />
+                      <span className="text-sm font-medium text-slate-700">Pay with saved card</span>
+                    </label>
+                    {payWithCard && (
+                      <div className="mt-2">
+                        <select
+                          title="Select a saved card"
+                          value={selectedCardId || ""}
+                          onChange={(e) => setSelectedCardId(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+                        >
+                          {savedCards.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.cardBrand || "Card"} •••• {c.last4 || "????"}{" "}
+                              {c.nickname ? `(${c.nickname})` : ""}{" "}
+                              {c.isDefault ? "★ Default" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Save card for future use */}
+                {payForm.gateway === "PAYFAST" && !payWithCard && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={saveCard}
+                      onChange={(e) => setSaveCard(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                    />
+                    <span className="text-sm text-slate-600">Save card for future payments</span>
+                  </label>
+                )}
+
                 <button
                   type="submit"
                   disabled={paying || !payForm.amount}
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium"
                 >
                   {paying ? "Processing..." :
+                    payWithCard ? "Pay with Saved Card" :
                     payForm.gateway === "PAYFAST" ? "Pay with PayFast" :
                     payForm.gateway === "OZOW" ? "Pay with Ozow" :
                     "Record EFT Payment"}

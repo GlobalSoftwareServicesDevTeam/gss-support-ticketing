@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreditCard, Landmark, Building2 } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 interface InvoicePaymentModalProps {
@@ -30,6 +30,14 @@ interface EftDetail {
   reference: string | null;
 }
 
+interface SavedCard {
+  id: string;
+  cardBrand: string | null;
+  last4: string | null;
+  nickname: string | null;
+  isDefault: boolean;
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(amount);
 }
@@ -51,6 +59,10 @@ export default function InvoicePaymentModal({
   const [paymentType, setPaymentType] = useState<"full" | "deposit" | "custom">(
     depositMode ? "deposit" : "full"
   );
+  const [saveCard, setSaveCard] = useState(false);
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [payWithCard, setPayWithCard] = useState(false);
 
   const depositAmount = Math.round(invoiceAmount * 0.4 * 100) / 100;
   const payableAmount =
@@ -75,6 +87,17 @@ export default function InvoicePaymentModal({
       .then((data) => {
         if (!cancelled) setEftDetails(Array.isArray(data) ? data : []);
       });
+    fetch("/api/cards")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) {
+          const cards = Array.isArray(data) ? data : [];
+          setSavedCards(cards);
+          const defaultCard = cards.find((c: SavedCard) => c.isDefault);
+          if (defaultCard) setSelectedCardId(defaultCard.id);
+          else if (cards.length > 0) setSelectedCardId(cards[0].id);
+        }
+      });
     return () => { cancelled = true; };
   }, [isOpen]);
 
@@ -90,6 +113,29 @@ export default function InvoicePaymentModal({
         ? `Advance Payment for Invoice ${invoiceNumber}`
         : `Full Payment for Invoice ${invoiceNumber}`;
 
+    // Pay with saved card
+    if (payWithCard && selectedCardId) {
+      const res = await fetch("/api/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: selectedCardId,
+          amount: payableAmount,
+          description,
+          invoiceNumber,
+        }),
+      });
+      const data = await res.json();
+      setPaying(false);
+      if (!res.ok) {
+        alert(data.error || "Failed to charge saved card");
+        return;
+      }
+      alert("Payment processed successfully!");
+      onClose();
+      return;
+    }
+
     const res = await fetch("/api/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,6 +145,7 @@ export default function InvoicePaymentModal({
         description,
         invoiceNumber,
         paymentType: paymentType === "deposit" ? "DEPOSIT_40" : paymentType === "custom" ? "ADVANCE" : "FULL",
+        saveCard: gateway === "PAYFAST" && saveCard ? true : undefined,
       }),
     });
 
@@ -293,6 +340,51 @@ export default function InvoicePaymentModal({
               </div>
             )}
 
+            {/* Pay with saved card */}
+            {savedCards.length > 0 && (
+              <div className="mb-4 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payWithCard}
+                    onChange={(e) => setPayWithCard(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                  />
+                  <Wallet size={16} className="text-slate-500" />
+                  <span className="text-sm font-medium text-slate-700">Pay with saved card</span>
+                </label>
+                {payWithCard && (
+                  <select
+                    title="Select a saved card"
+                    value={selectedCardId || ""}
+                    onChange={(e) => setSelectedCardId(e.target.value)}
+                    className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+                  >
+                    {savedCards.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.cardBrand || "Card"} •••• {c.last4 || "????"}{" "}
+                        {c.nickname ? `(${c.nickname})` : ""}{" "}
+                        {c.isDefault ? "★ Default" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Save card checkbox */}
+            {gateway === "PAYFAST" && !payWithCard && (
+              <label className="flex items-center gap-2 cursor-pointer mb-4">
+                <input
+                  type="checkbox"
+                  checked={saveCard}
+                  onChange={(e) => setSaveCard(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                />
+                <span className="text-sm text-slate-600">Save card for future payments</span>
+              </label>
+            )}
+
             <div className="flex gap-3">
               <button
                 type="button"
@@ -308,6 +400,8 @@ export default function InvoicePaymentModal({
               >
                 {paying
                   ? "Processing..."
+                  : payWithCard
+                  ? `Pay ${formatCurrency(payableAmount)} with Saved Card`
                   : gateway === "PAYFAST"
                   ? `Pay ${formatCurrency(payableAmount)} with PayFast`
                   : gateway === "OZOW"

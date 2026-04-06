@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { gateway, amount, description, invoiceNumber, paymentType } = body;
+  const { gateway, amount, description, invoiceNumber, paymentType, saveCard } = body;
 
   if (!gateway || !amount || amount <= 0) {
     return NextResponse.json({ error: "gateway and amount are required" }, { status: 400 });
@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
         customerFirstName: nameParts[0] || undefined,
         customerLastName: nameParts.slice(1).join(" ") || undefined,
         paymentId: payment.id,
+        saveCard: saveCard === true,
       },
       baseUrl
     );

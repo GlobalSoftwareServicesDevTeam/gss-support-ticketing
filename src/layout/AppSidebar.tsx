@@ -28,6 +28,7 @@ import {
   Bell,
   Github,
   GitCommit,
+  Wallet,
 } from "lucide-react";
 
 type NavItem = {
@@ -51,6 +52,7 @@ const adminNavItems: NavItem[] = [
   { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
   { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
+  { icon: <Wallet size={24} />, name: "Saved Cards", path: "/cards" },
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
@@ -85,6 +87,7 @@ const userNavItems: NavItem[] = [
   { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
   { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
+  { icon: <Wallet size={24} />, name: "Saved Cards", path: "/cards" },
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
