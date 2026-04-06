@@ -67,6 +67,7 @@ const adminNavItems: NavItem[] = [
   { icon: <Wallet size={24} />, name: "Saved Cards", path: "/cards" },
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
+  { icon: <Server size={24} />, name: "Client Hosting", path: "/hosting-clients" },
   { icon: <Package size={24} />, name: "Hosting Packages", path: "/hosting-packages" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
