@@ -37,6 +37,11 @@ model User {
   oauthProvider        String?   // google, facebook - null means credentials
   oauthProviderId      String?   // provider's user ID
 
+  // Two-factor authentication
+  totpSecret           String?   @db.NVarChar(Max) // encrypted TOTP secret
+  totpEnabled          Boolean   @default(false)
+  totpBackupCodes      String?   @db.NVarChar(Max) // encrypted JSON array of hashed backup codes
+
   issues              Issue[]
   messages            Message[]
   assignments         TaskAssignment[]

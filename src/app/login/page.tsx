@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Loader2, LogIn, Eye, EyeOff, Shield } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -16,6 +16,12 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 2FA state
+  const [needs2FA, setNeeds2FA] = useState(false);
+  const [totpToken, setTotpToken] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
+
   const verified = searchParams.get("verified");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -23,20 +29,74 @@ function LoginForm() {
     setError("");
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      username,
-      password,
-      redirect: false,
-    });
+    try {
+      // First check if 2FA is required
+      if (!needs2FA) {
+        const checkRes = await fetch("/api/auth/2fa/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const checkData = await checkRes.json();
+
+        if (!checkRes.ok) {
+          setError(checkData.error || "Invalid credentials or email not verified.");
+          setLoading(false);
+          return;
+        }
+
+        if (checkData.requires2FA) {
+          setNeeds2FA(true);
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Verify 2FA token before signing in
+        const verifyRes = await fetch("/api/auth/2fa/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            password,
+            totpToken: useBackupCode ? undefined : totpToken,
+            backupCode: useBackupCode ? backupCode : undefined,
+          }),
+        });
+        const verifyData = await verifyRes.json();
+
+        if (!verifyRes.ok) {
+          setError(verifyData.error || "Invalid authentication code.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Proceed with NextAuth sign-in
+      const result = await signIn("credentials", {
+        username,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError("Invalid credentials or email not verified.");
+      } else {
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch {
+      setError("An error occurred. Please try again.");
+    }
 
     setLoading(false);
+  }
 
-    if (result?.error) {
-      setError("Invalid credentials or email not verified.");
-    } else {
-      router.push("/dashboard");
-      router.refresh();
-    }
+  function handleBack() {
+    setNeeds2FA(false);
+    setTotpToken("");
+    setBackupCode("");
+    setUseBackupCode(false);
+    setError("");
   }
 
   return (
@@ -73,42 +133,116 @@ function LoginForm() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Username or Email
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username or email"
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                required
-              />
-            </div>
+            {!needs2FA ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Username or Email
+                  </label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username or email"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    required
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full px-4 py-2.5 pr-11 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="w-full px-4 py-2.5 pr-11 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-center mb-2">
+                  <div className="mx-auto w-12 h-12 bg-brand-500/10 rounded-full flex items-center justify-center mb-3">
+                    <Shield size={24} className="text-brand-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Two-Factor Authentication</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {useBackupCode
+                      ? "Enter one of your backup codes"
+                      : "Enter the 6-digit code from your authenticator app"}
+                  </p>
+                </div>
+
+                {!useBackupCode ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Authentication Code
+                    </label>
+                    <input
+                      type="text"
+                      value={totpToken}
+                      onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      maxLength={6}
+                      autoFocus
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white text-center text-lg tracking-[0.5em] font-mono placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Backup Code
+                    </label>
+                    <input
+                      type="text"
+                      value={backupCode}
+                      onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+                      placeholder="XXXXXXXX"
+                      maxLength={8}
+                      autoFocus
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none transition text-gray-900 dark:text-white text-center text-lg tracking-[0.3em] font-mono placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
+                  >
+                    &larr; Back to login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseBackupCode(!useBackupCode);
+                      setTotpToken("");
+                      setBackupCode("");
+                      setError("");
+                    }}
+                    className="text-xs text-brand-500 hover:text-brand-600 transition"
+                  >
+                    {useBackupCode ? "Use authenticator app" : "Use a backup code"}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
