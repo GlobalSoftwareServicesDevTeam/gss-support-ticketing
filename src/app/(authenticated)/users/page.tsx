@@ -151,6 +151,21 @@ export default function UsersPage() {
     setTimeout(() => setActionMsg(""), 4000);
   }
 
+  async function handleReset2FA(userId: string, userName: string) {
+    if (!confirm(`Reset two-factor authentication for ${userName}? They will need to set up 2FA again.`)) return;
+
+    const res = await fetch(`/api/users/${userId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset-2fa" }),
+    });
+    const data = await res.json();
+
+    setActionMsg(data.message || data.error || "Done");
+    fetchUsers();
+    setTimeout(() => setActionMsg(""), 4000);
+  }
+
   async function handleResendInvite(userId: string) {
     const res = await fetch(`/api/users/${userId}`, {
       method: "POST",
@@ -491,12 +506,22 @@ export default function UsersPage() {
                           Resend
                         </button>
                       ) : user.emailConfirmed && (
-                        <button
-                          onClick={() => handleResetPassword(user.id, `${user.firstName} ${user.lastName}`)}
-                          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition"
-                        >
-                          Reset Pwd
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleResetPassword(user.id, `${user.firstName} ${user.lastName}`)}
+                            className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition"
+                          >
+                            Reset Pwd
+                          </button>
+                          {user.totpEnabled && (
+                            <button
+                              onClick={() => handleReset2FA(user.id, `${user.firstName} ${user.lastName}`)}
+                              className="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 transition"
+                            >
+                              Reset 2FA
+                            </button>
+                          )}
+                        </>
                       )}
                       <button
                         onClick={() => handleDelete(user.id, `${user.firstName} ${user.lastName}`)}

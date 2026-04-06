@@ -282,5 +282,27 @@ export async function POST(
     return NextResponse.json({ message: "Invitation resent" });
   }
 
+  if (action === "reset-2fa") {
+    if (!user.totpEnabled) {
+      return NextResponse.json({ error: "User does not have 2FA enabled" }, { status: 400 });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { totpEnabled: false, totpSecret: null, totpBackupCodes: null },
+    });
+
+    logAudit({
+      action: "UPDATE",
+      entity: "USER",
+      entityId: id,
+      description: `Admin reset 2FA for user: ${user.firstName} ${user.lastName} (${user.email})`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+    });
+
+    return NextResponse.json({ message: "Two-factor authentication has been reset for this user." });
+  }
+
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 }

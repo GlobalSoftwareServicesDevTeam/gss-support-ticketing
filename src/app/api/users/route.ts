@@ -23,6 +23,7 @@ export async function GET() {
       company: true,
       role: true,
       emailConfirmed: true,
+      totpEnabled: true,
       inviteToken: true,
       createdAt: true,
       _count: { select: { issues: true } },
