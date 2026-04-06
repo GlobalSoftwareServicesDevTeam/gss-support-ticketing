@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Building2,
@@ -35,6 +37,10 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const isAdmin = session?.user?.role === "ADMIN";
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -81,9 +87,13 @@ export default function CustomersPage() {
   }
 
   useEffect(() => {
-    fetchCustomers();
+    if (session && !isAdmin) {
+      router.push("/dashboard");
+      return;
+    }
+    if (session) fetchCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search]);
+  }, [page, search, session, isAdmin]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

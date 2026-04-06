@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -62,8 +63,10 @@ interface Customer {
 const CATEGORIES = ["TICKETS", "INVOICES", "PAYMENTS", "PROJECTS", "HOSTING", "MAINTENANCE", "GENERAL"];
 
 export default function CustomerDetailPage() {
+  const { data: session } = useSession();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -133,8 +136,12 @@ export default function CustomerDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    fetchCustomer();
-  }, [fetchCustomer]);
+    if (session && !isAdmin) {
+      router.push("/dashboard");
+      return;
+    }
+    if (session) fetchCustomer();
+  }, [fetchCustomer, session, isAdmin, router]);
 
   function showMsg(msg: string) {
     setActionMsg(msg);
