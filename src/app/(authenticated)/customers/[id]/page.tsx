@@ -21,7 +21,11 @@ import {
   Bell,
   UserPlus,
   Shield,
+  Lock,
+  Unlock,
+  ExternalLink,
 } from "lucide-react";
+import { GitHubIcon } from "@/components/icons";
 
 interface NotificationPref {
   id: string;
@@ -67,6 +71,27 @@ interface Customer {
   isActive: boolean;
   contacts: Contact[];
   _count: { issues: number };
+}
+
+interface AssignedRepo {
+  id: string;
+  repoId: string;
+  assignedAt: string;
+  repo: {
+    id: string;
+    fullName: string;
+    description: string | null;
+    htmlUrl: string;
+    isPrivate: boolean;
+    language: string | null;
+  };
+}
+
+interface AvailableRepo {
+  id: string;
+  fullName: string;
+  isPrivate: boolean;
+  language: string | null;
 }
 
 const CATEGORIES = ["TICKETS", "INVOICES", "PAYMENTS", "PROJECTS", "HOSTING", "MAINTENANCE", "GENERAL"];
@@ -135,6 +160,12 @@ export default function CustomerDetailPage() {
   });
   const [permSaving, setPermSaving] = useState(false);
 
+  // GitHub repos
+  const [assignedRepos, setAssignedRepos] = useState<AssignedRepo[]>([]);
+  const [allRepos, setAllRepos] = useState<AvailableRepo[]>([]);
+  const [showRepoAssign, setShowRepoAssign] = useState(false);
+  const [selectedRepoId, setSelectedRepoId] = useState("");
+
   const fetchCustomer = useCallback(() => {
     fetch(`/api/customers/${id}`)
       .then((r) => r.json())
@@ -158,13 +189,60 @@ export default function CustomerDetailPage() {
       });
   }, [id]);
 
+  const fetchRepos = useCallback(() => {
+    fetch(`/api/github/repos?search=`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((allReposData: Array<{
+        id: string; fullName: string; description: string | null;
+        htmlUrl: string; isPrivate: boolean; language: string | null;
+        customers?: Array<{ id: string; customerId: string; assignedAt: string }>;
+      }>) => {
+        if (!Array.isArray(allReposData)) return;
+        const assigned: AssignedRepo[] = [];
+        for (const repo of allReposData) {
+          const assignment = repo.customers?.find((c) => c.customerId === id);
+          if (assignment) {
+            assigned.push({
+              id: assignment.id,
+              repoId: repo.id,
+              assignedAt: assignment.assignedAt,
+              repo: {
+                id: repo.id,
+                fullName: repo.fullName,
+                description: repo.description,
+                htmlUrl: repo.htmlUrl,
+                isPrivate: repo.isPrivate,
+                language: repo.language,
+              },
+            });
+          }
+        }
+        setAssignedRepos(assigned);
+        setAllRepos(
+          allReposData.map((r) => ({
+            id: r.id,
+            fullName: r.fullName,
+            isPrivate: r.isPrivate,
+            language: r.language,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     if (session && !isAdmin) {
       router.push("/dashboard");
       return;
     }
-    if (session) fetchCustomer();
-  }, [fetchCustomer, session, isAdmin, router]);
+    if (session) {
+      fetchCustomer();
+      fetchRepos();
+    }
+  }, [fetchCustomer, fetchRepos, session, isAdmin, router]);
 
   function showMsg(msg: string) {
     setActionMsg(msg);
@@ -290,6 +368,37 @@ export default function CustomerDetailPage() {
     } else {
       const data = await res.json();
       showMsg(data.error || "Failed to update permissions");
+    }
+  }
+
+  async function handleAssignRepo() {
+    if (!selectedRepoId) return;
+    const res = await fetch(`/api/github/repos/${selectedRepoId}/customers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerId: id }),
+    });
+    if (res.ok) {
+      setShowRepoAssign(false);
+      setSelectedRepoId("");
+      fetchRepos();
+      showMsg("Repository shared with customer");
+    } else {
+      const data = await res.json();
+      showMsg(data.error || "Failed to share repository");
+    }
+  }
+
+  async function handleUnassignRepo(repoId: string, repoName: string) {
+    if (!confirm(`Remove "${repoName}" from this customer?`)) return;
+    const res = await fetch(`/api/github/repos/${repoId}/customers/${id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      fetchRepos();
+      showMsg("Repository unshared");
+    } else {
+      showMsg("Failed to remove repository");
     }
   }
 
@@ -622,6 +731,124 @@ export default function CustomerDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* GitHub Repositories Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <GitHubIcon size={20} /> Shared Repositories ({assignedRepos.length})
+          </h2>
+          <button
+            onClick={() => setShowRepoAssign(!showRepoAssign)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Plus size={14} /> Share Repo
+          </button>
+        </div>
+
+        {/* Assign Repo Form */}
+        {showRepoAssign && (
+          <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700">
+            <select
+              title="Select a repository"
+              value={selectedRepoId}
+              onChange={(e) => setSelectedRepoId(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            >
+              <option value="">Select a repository...</option>
+              {allRepos
+                .filter((r) => !assignedRepos.some((ar) => ar.repoId === r.id))
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.fullName} {r.isPrivate ? "(Private)" : "(Public)"}
+                  </option>
+                ))}
+            </select>
+            <button
+              onClick={handleAssignRepo}
+              disabled={!selectedRepoId}
+              className="px-3 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 transition disabled:opacity-50"
+            >
+              Share
+            </button>
+            <button
+              onClick={() => { setShowRepoAssign(false); setSelectedRepoId(""); }}
+              className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {assignedRepos.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <GitHubIcon size={32} className="mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No repositories shared with this customer yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Click &quot;Share Repo&quot; to give them access to a repository.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {assignedRepos.map((ar) => (
+              <div
+                key={ar.id}
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <GitHubIcon size={20} className="text-gray-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <a
+                        href={ar.repo.htmlUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1"
+                      >
+                        {ar.repo.fullName}
+                        <ExternalLink size={12} />
+                      </a>
+                      {ar.repo.isPrivate ? (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                          <Lock size={8} /> Private
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          <Unlock size={8} /> Public
+                        </span>
+                      )}
+                      {ar.repo.language && (
+                        <span className="text-xs text-gray-400">{ar.repo.language}</span>
+                      )}
+                    </div>
+                    {ar.repo.description && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-md">
+                        {ar.repo.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-xs text-gray-400">
+                    Shared {new Date(ar.assignedAt).toLocaleDateString()}
+                  </span>
+                  <Link
+                    href={`/code-history/${ar.repoId}`}
+                    className="text-xs text-brand-500 hover:text-brand-600 font-medium"
+                  >
+                    Commits
+                  </Link>
+                  <button
+                    onClick={() => handleUnassignRepo(ar.repoId, ar.repo.fullName)}
+                    className="p-1 rounded text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    title="Remove access"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
