@@ -68,12 +68,13 @@ model Customer {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @default(now()) @updatedAt
 
-  issues   Issue[]
-  contacts Contact[]
-  repos    CustomerRepo[]
-  vault    SecureNote[]
-  quotes   Quote[]
-  apps     MobileApp[]
+  issues    Issue[]
+  contacts  Contact[]
+  repos     CustomerRepo[]
+  vault     SecureNote[]
+  quotes    Quote[]
+  apps      MobileApp[]
+  referrals Referral[]
 
   @@map("customers")
 }
@@ -843,4 +844,32 @@ model AppBuild {
   @@index([appId, status])
   @@index([status])
   @@map("app_builds")
+}
+
+model Referral {
+  id              String    @id @default(uuid())
+  referrerName    String                          // person who referred
+  referrerEmail   String                          // referrer email
+  referrerPhone   String?                         // referrer phone
+  refereeName     String                          // person being referred
+  refereeEmail    String                          // referee email
+  refereePhone    String?                         // referee phone
+  refereeCompany  String?                         // referee company name
+  service         String?                         // service they're interested in
+  notes           String?   @db.NVarChar(Max)     // additional notes
+  status          String    @default("PENDING")   // PENDING, CONTACTED, CONVERTED, PAID, CANCELLED
+  commissionRate  Float     @default(10)          // commission percentage
+  commissionAmount Float?                         // calculated commission amount
+  dealValue       Float?                          // value of the deal if converted
+  paidAt          DateTime?                       // when commission was paid out
+  convertedAt     DateTime?                       // when the referral converted
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  customerId      String?                         // linked referring customer
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([status])
+  @@index([referrerEmail])
+  @@map("referrals")
 }
