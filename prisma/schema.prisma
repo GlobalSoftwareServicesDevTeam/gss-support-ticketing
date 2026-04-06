@@ -74,7 +74,8 @@ model Customer {
   vault     SecureNote[]
   quotes    Quote[]
   apps      MobileApp[]
-  referrals Referral[]
+  referrals     Referral[]
+  projectIdeas  ProjectIdea[]
 
   @@map("customers")
 }
@@ -872,4 +873,28 @@ model Referral {
   @@index([status])
   @@index([referrerEmail])
   @@map("referrals")
+}
+
+model ProjectIdea {
+  id           String    @id @default(uuid())
+  title        String
+  description  String    @db.NVarChar(Max)
+  category     String    @default("GENERAL")    // GENERAL, WEB, MOBILE, AUTOMATION, INTEGRATION, OTHER
+  priority     String    @default("MEDIUM")      // LOW, MEDIUM, HIGH, URGENT
+  status       String    @default("NEW")         // NEW, REVIEWING, APPROVED, IN_PROGRESS, COMPLETED, REJECTED
+  budget       Float?                             // estimated budget
+  timeline     String?                            // e.g. "2 weeks", "3 months"
+  attachments  String?   @db.NVarChar(Max)       // JSON array of file URLs
+  adminNotes   String?   @db.NVarChar(Max)       // internal notes from admin
+  submittedBy  String?                            // name of person who submitted
+  contactEmail String?                            // contact email for follow-up
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([status])
+  @@index([category])
+  @@map("project_ideas")
 }

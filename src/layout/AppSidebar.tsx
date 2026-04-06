@@ -38,6 +38,7 @@ import {
   Smartphone,
   BarChart3,
   Gift,
+  Lightbulb,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -74,6 +75,7 @@ const adminNavItems: NavItem[] = [
   { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
   { icon: <Gift size={24} />, name: "Referrals", path: "/referrals" },
+  { icon: <Lightbulb size={24} />, name: "Project Ideas", path: "/project-ideas" },
 ];
 
 const adminOtherItems: NavItem[] = [
@@ -118,6 +120,7 @@ const userNavItems: NavItem[] = [
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
   { icon: <BarChart3 size={24} />, name: "App Stats", path: "/app-stats" },
   { icon: <Gift size={24} />, name: "Referrals", path: "/referrals" },
+  { icon: <Lightbulb size={24} />, name: "Project Ideas", path: "/project-ideas" },
   { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 
