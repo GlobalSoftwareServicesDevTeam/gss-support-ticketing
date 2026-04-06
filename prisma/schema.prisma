@@ -676,3 +676,47 @@ model SecureNote {
 
   @@map("secure_notes")
 }
+
+model BulkEmailCampaign {
+  id            String    @id @default(uuid())
+  name          String                            // campaign name/label
+  subject       String                            // email subject line
+  contentHtml   String?   @db.NVarChar(Max)       // HTML body
+  contentText   String?   @db.NVarChar(Max)       // plain text body
+  format        String    @default("html")        // "html" | "text"
+  status        String    @default("DRAFT")       // DRAFT, SENDING, SENT, FAILED
+  recipientFilter String? @db.NVarChar(Max)       // JSON: {type: "all"|"customers"|"contacts"|"custom", customerIds?: [], contactIds?: []}
+  totalRecipients Int     @default(0)
+  sentCount     Int       @default(0)
+  failedCount   Int       @default(0)
+  sentAt        DateTime?
+  completedAt   DateTime?
+  createdBy     String
+  createdByName String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  recipients    BulkEmailRecipient[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("bulk_email_campaigns")
+}
+
+model BulkEmailRecipient {
+  id          String    @id @default(uuid())
+  campaignId  String
+  campaign    BulkEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  email       String
+  name        String?
+  company     String?
+  status      String    @default("PENDING")       // PENDING, SENT, FAILED
+  error       String?   @db.NVarChar(Max)
+  sentAt      DateTime?
+  customerId  String?
+  contactId   String?
+
+  @@index([campaignId])
+  @@index([status])
+  @@map("bulk_email_recipients")
+}

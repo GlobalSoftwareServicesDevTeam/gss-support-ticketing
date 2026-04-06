@@ -33,6 +33,7 @@ import {
   KeyRound,
   Package,
   Wrench,
+  Send,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -78,6 +79,7 @@ const adminOtherItems: NavItem[] = [
   { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos" },
   { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
+  { icon: <Send size={24} />, name: "Bulk Email", path: "/bulk-email" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
   { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings" },
 ];
