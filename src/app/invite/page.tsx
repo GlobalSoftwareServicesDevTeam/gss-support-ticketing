@@ -188,7 +188,10 @@ function InviteContent() {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white px-8 py-6">
-          <h1 className="text-xl font-bold">Welcome to GSS Support Portal</h1>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Global Software Services" className="h-10 w-auto brightness-0 invert" />
+            <h1 className="text-xl font-bold">Support Portal</h1>
+          </div>
           <p className="text-blue-200 text-sm mt-1">
             {inviteInfo?.firstName} {inviteInfo?.lastName} — {inviteInfo?.email}
           </p>

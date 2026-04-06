@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSidebar } from "@/context/SidebarContext";
@@ -288,9 +289,9 @@ const AppSidebar: React.FC = () => {
       >
         <Link href="/dashboard">
           {isExpanded || isHovered || isMobileOpen ? (
-            <span className="text-xl font-bold text-brand-500">GSS Support</span>
+            <Image src="/logo.png" alt="Global Software Services" width={120} height={48} className="h-12 w-auto" />
           ) : (
-            <span className="text-xl font-bold text-brand-500">GSS</span>
+            <Image src="/logo.png" alt="GSS" width={80} height={40} className="h-10 w-auto" />
           )}
         </Link>
       </div>

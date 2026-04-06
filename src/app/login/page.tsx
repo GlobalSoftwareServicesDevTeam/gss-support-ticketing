@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 
 function LoginForm() {
@@ -50,11 +51,8 @@ function LoginForm() {
       <div className="w-full max-w-md relative z-10">
         {/* Logo / Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-500 shadow-lg shadow-brand-500/30 mb-4">
-            <span className="text-2xl font-black text-white tracking-tight">G</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white">GSS Support Portal</h1>
-          <p className="text-gray-400 text-sm mt-1">Global Software Services</p>
+          <Image src="/logo.png" alt="Global Software Services" width={160} height={80} className="mx-auto h-20 w-auto mb-4" priority />
+          <h1 className="text-2xl font-bold text-white">Support Portal</h1>
         </div>
 
         {/* Login Card */}
