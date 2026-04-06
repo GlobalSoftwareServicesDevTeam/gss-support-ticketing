@@ -26,6 +26,9 @@ import {
   ExternalLink,
   KeyRound,
   Eye,
+  Server,
+  Globe,
+  LogIn,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -171,6 +174,13 @@ export default function CustomerDetailPage() {
   // Vault
   const [vaultCount, setVaultCount] = useState(0);
 
+  // Plesk hosting
+  const [pleskLoading, setPleskLoading] = useState(true);
+  const [pleskFound, setPleskFound] = useState(false);
+  const [pleskCustomer, setPleskCustomer] = useState<{ id: number; login: string; name: string } | null>(null);
+  const [pleskDomains, setPleskDomains] = useState<{ id: number; name: string; hosting_type: string; status: string }[]>([]);
+  const [pleskLoginLoading, setPleskLoginLoading] = useState(false);
+
   const fetchCustomer = useCallback(() => {
     fetch(`/api/customers/${id}`)
       .then((r) => r.json())
@@ -251,8 +261,37 @@ export default function CustomerDetailPage() {
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => { if (Array.isArray(data)) setVaultCount(data.length); })
         .catch(() => {});
+
+      // Fetch Plesk hosting info
+      fetch(`/api/customers/${id}/plesk`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data) {
+            setPleskFound(data.found);
+            setPleskCustomer(data.pleskCustomer || null);
+            setPleskDomains(data.domains || []);
+          }
+          setPleskLoading(false);
+        })
+        .catch(() => setPleskLoading(false));
     }
   }, [fetchCustomer, fetchRepos, session, isAdmin, router, id]);
+
+  async function handlePleskLogin() {
+    setPleskLoginLoading(true);
+    try {
+      const res = await fetch(`/api/customers/${id}/plesk/login`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } else {
+        showMsg(data.error || "Failed to create Plesk session");
+      }
+    } catch {
+      showMsg("Failed to create Plesk session");
+    }
+    setPleskLoginLoading(false);
+  }
 
   function showMsg(msg: string) {
     setActionMsg(msg);
@@ -741,6 +780,110 @@ export default function CustomerDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Plesk Hosting Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Server size={20} className="text-brand-500" /> Hosting Information
+          </h2>
+          {pleskFound && pleskCustomer && (
+            <button
+              onClick={handlePleskLogin}
+              disabled={pleskLoginLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm disabled:opacity-50"
+            >
+              {pleskLoginLoading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+              Login to Plesk Panel
+            </button>
+          )}
+        </div>
+
+        {pleskLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="animate-spin text-brand-500" size={24} />
+            <span className="ml-2 text-sm text-gray-500">Checking Plesk...</span>
+          </div>
+        ) : !pleskFound ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <Globe size={32} className="mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No Plesk account found matching <strong>{customer.emailAddress}</strong></p>
+            <p className="text-xs text-gray-400 mt-1">The customer&apos;s email must match their Plesk account email.</p>
+          </div>
+        ) : (
+          <div>
+            {/* Plesk Account Info */}
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-4 text-sm">
+                <div>
+                  <span className="text-xs font-medium text-blue-500 uppercase">Plesk Account</span>
+                  <p className="text-gray-900 dark:text-white font-medium">{pleskCustomer?.name}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-blue-500 uppercase">Login</span>
+                  <p className="text-gray-700 dark:text-gray-300">{pleskCustomer?.login}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-blue-500 uppercase">ID</span>
+                  <p className="text-gray-700 dark:text-gray-300">#{pleskCustomer?.id}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Domains List */}
+            {pleskDomains.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No domains found for this account.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Domain</th>
+                      <th className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                      <th className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                      <th className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {pleskDomains.map((domain) => (
+                      <tr key={domain.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                        <td className="px-4 py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Globe size={14} className="text-blue-500" />
+                            <span className="font-medium text-gray-900 dark:text-white">{domain.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {domain.hosting_type}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                            domain.status === "active" || domain.status === "0"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          }`}>
+                            {domain.status === "0" ? "Active" : domain.status === "active" ? "Active" : domain.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <a
+                            href={`https://${domain.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-brand-500 hover:text-brand-600 flex items-center gap-1"
+                          >
+                            Visit <ExternalLink size={10} />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

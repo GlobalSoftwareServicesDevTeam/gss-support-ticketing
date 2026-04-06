@@ -431,3 +431,30 @@ export async function testConnection(): Promise<{ success: boolean; message: str
     return { success: false, message: `Connection failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
+
+// ─── One-Time Login URL for a customer ───────────────
+
+export async function createSessionUrl(pleskCustomerLogin: string): Promise<string> {
+  const creds = await getPleskCredentials();
+  // Use XML-RPC to create a one-time login session for a customer
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <server>
+        <create_session>
+          <login>${pleskCustomerLogin}</login>
+          <data>
+            <user_ip></user_ip>
+          </data>
+        </create_session>
+      </server>
+    </packet>`
+  );
+
+  // Parse session ID from response
+  const sessionIdMatch = /<id>([^<]+)<\/id>/.exec(xml);
+  if (!sessionIdMatch) {
+    throw new Error("Failed to create Plesk session");
+  }
+
+  return `${creds.url}/enterprise/rsession_init.php?PHPSESSID=${sessionIdMatch[1]}`;
+}
