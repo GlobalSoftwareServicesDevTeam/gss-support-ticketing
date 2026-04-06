@@ -31,6 +31,8 @@ import {
   GitCommit,
   Wallet,
   KeyRound,
+  Package,
+  Wrench,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -59,6 +61,7 @@ const adminNavItems: NavItem[] = [
   { icon: <Wallet size={24} />, name: "Saved Cards", path: "/cards" },
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
+  { icon: <Package size={24} />, name: "Hosting Packages", path: "/hosting-packages" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
@@ -76,6 +79,7 @@ const adminOtherItems: NavItem[] = [
   { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
+  { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings" },
 ];
 
 const userNavItems: NavItem[] = [
@@ -97,6 +101,7 @@ const userNavItems: NavItem[] = [
   { icon: <Wallet size={24} />, name: "Saved Cards", path: "/cards" },
   { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
+  { icon: <Package size={24} />, name: "Hosting Packages", path: "/hosting-packages" },
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },

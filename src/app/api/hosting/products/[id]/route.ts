@@ -16,7 +16,12 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, type, description, monthlyPrice, setupFee, features, pleskPlanName, sortOrder, isActive } = body;
+    const {
+      name, type, description, monthlyPrice, annualPrice, setupFee,
+      features, pleskPlanName, sortOrder, isActive, isPopular,
+      diskSpace, bandwidth, databases, emailAccounts, emailStorage,
+      ftpAccounts, subdomains, sslSupport, phpSupport, backups,
+    } = body;
 
     const product = await prisma.hostingProduct.findUnique({ where: { id } });
     if (!product) {
@@ -33,11 +38,23 @@ export async function PATCH(
     }
     if (description !== undefined) data.description = description || null;
     if (monthlyPrice !== undefined) data.monthlyPrice = monthlyPrice;
+    if (annualPrice !== undefined) data.annualPrice = annualPrice;
     if (setupFee !== undefined) data.setupFee = setupFee;
     if (features !== undefined) data.features = features ? JSON.stringify(features) : null;
     if (pleskPlanName !== undefined) data.pleskPlanName = pleskPlanName || null;
     if (sortOrder !== undefined) data.sortOrder = sortOrder;
     if (isActive !== undefined) data.isActive = isActive;
+    if (isPopular !== undefined) data.isPopular = isPopular;
+    if (diskSpace !== undefined) data.diskSpace = diskSpace;
+    if (bandwidth !== undefined) data.bandwidth = bandwidth;
+    if (databases !== undefined) data.databases = databases;
+    if (emailAccounts !== undefined) data.emailAccounts = emailAccounts;
+    if (emailStorage !== undefined) data.emailStorage = emailStorage;
+    if (ftpAccounts !== undefined) data.ftpAccounts = ftpAccounts;
+    if (subdomains !== undefined) data.subdomains = subdomains;
+    if (sslSupport !== undefined) data.sslSupport = sslSupport;
+    if (phpSupport !== undefined) data.phpSupport = phpSupport;
+    if (backups !== undefined) data.backups = backups;
 
     const updated = await prisma.hostingProduct.update({
       where: { id },

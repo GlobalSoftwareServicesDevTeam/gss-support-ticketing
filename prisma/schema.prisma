@@ -462,16 +462,40 @@ model SigningRequest {
   @@map("signing_requests")
 }
 
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.NVarChar(Max)
+  encrypted Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
 model HostingProduct {
   id          String   @id @default(uuid())
   name        String
   type        String   // HOSTING, SSL, DOMAIN
   description String?  @db.NVarChar(Max)
   monthlyPrice Decimal
+  annualPrice  Decimal?
   setupFee    Decimal  @default(0)
   features    String?  @db.NVarChar(Max) // JSON array of feature strings
   pleskPlanName String? // Plesk service plan name for auto-provisioning
+  pleskPlanId  Int?     // Plesk service plan ID
+  // Plesk plan limits (synced from Plesk)
+  diskSpace    String?  // e.g. "10 GB", "unlimited"
+  bandwidth    String?  // e.g. "100 GB", "unlimited"
+  databases    String?  // e.g. "5", "unlimited"
+  emailAccounts String? // e.g. "10", "unlimited"
+  emailStorage String?  // e.g. "1 GB per mailbox"
+  ftpAccounts  String?  // e.g. "5", "unlimited"
+  subdomains   String?  // e.g. "10", "unlimited"
+  sslSupport   Boolean  @default(true)
+  phpSupport   Boolean  @default(true)
+  backups      String?  // e.g. "Daily", "Weekly"
   isActive    Boolean  @default(true)
+  isPopular   Boolean  @default(false)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
 
