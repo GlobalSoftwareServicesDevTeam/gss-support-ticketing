@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { promises as dns } from "dns";
+import {
+  checkDomainAvailability,
+  checkDomainMultipleTlds,
+} from "@/lib/domains-api";
 
 // POST: check domain availability (single or multiple TLDs)
 export async function POST(req: NextRequest) {
@@ -28,93 +31,68 @@ export async function POST(req: NextRequest) {
 
   // If user entered just a name (no TLD), check all configured TLDs
   const hasTld = /\.[a-z]{2,}$/.test(cleanDomain);
-  const domainsToCheck: string[] = [];
 
-  if (hasTld) {
-    domainsToCheck.push(cleanDomain);
-  } else {
-    // Extract TLD suffixes from domain product names (e.g. ".co.za Domain" → ".co.za")
-    const tlds: string[] = [];
-    for (const product of domainProducts) {
-      const match = product.name.match(/(\.[a-z.]+)/i);
-      if (match) tlds.push(match[1].toLowerCase());
-    }
-    // Default TLDs if no products configured
-    const checkTlds = tlds.length > 0 ? tlds : [".co.za", ".com", ".co", ".net", ".org"];
-    for (const tld of checkTlds) {
-      domainsToCheck.push(cleanDomain.replace(/\.$/, "") + tld);
-    }
-    // Also add the exact input if it looks like a full domain
-    if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z]{2,})+$/.test(cleanDomain) && !domainsToCheck.includes(cleanDomain)) {
-      domainsToCheck.unshift(cleanDomain);
-    }
-  }
+  try {
+    let apiResults: {
+      domain: string;
+      sld: string;
+      tld: string;
+      available: boolean;
+      registered: boolean;
+      message: string;
+      raw: unknown;
+    }[];
 
-  // Validate all domains
-  const validDomains = domainsToCheck.filter((d) =>
-    /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z]{2,})+$/.test(d)
-  );
-
-  if (validDomains.length === 0) {
-    return NextResponse.json({ error: "Invalid domain format" }, { status: 400 });
-  }
-
-  // Check availability for each domain
-  const results = await Promise.all(
-    validDomains.map(async (d) => {
-      let available = false;
-      let registered = false;
-
-      try {
-        await dns.resolve(d);
-        registered = true;
-      } catch (err: unknown) {
-        const dnsErr = err as { code?: string };
-        if (dnsErr.code === "ENOTFOUND" || dnsErr.code === "ENODATA") {
-          available = true;
-        } else if (dnsErr.code === "SERVFAIL") {
-          registered = true;
-        }
+    if (hasTld) {
+      const result = await checkDomainAvailability(cleanDomain);
+      apiResults = [result];
+    } else {
+      // Extract TLD suffixes from domain product names (e.g. ".co.za Domain" → ".co.za")
+      const tlds: string[] = [];
+      for (const product of domainProducts) {
+        const match = product.name.match(/(\.[a-z.]+)/i);
+        if (match) tlds.push(match[1].toLowerCase());
       }
+      // Default TLDs if no products configured
+      const checkTlds = tlds.length > 0 ? tlds : [".co.za", ".com", ".co", ".net", ".org"];
+      apiResults = await checkDomainMultipleTlds(cleanDomain.replace(/\.$/, ""), checkTlds);
+    }
 
-      if (!registered && !available) {
-        try {
-          await dns.resolveSoa(d);
-          registered = true;
-        } catch {
-          available = true;
-        }
-      }
-
-      // Find matching domain product by TLD
-      const domainTld = d.substring(d.indexOf("."));
+    // Merge with product pricing
+    const results = apiResults.map((r) => {
       const matchingProduct = domainProducts.find((p) => {
         const productTld = p.name.match(/(\.[a-z.]+)/i);
-        return productTld && productTld[1].toLowerCase() === domainTld;
+        return productTld && productTld[1].toLowerCase() === r.tld;
       });
 
       return {
-        domain: d,
-        tld: domainTld,
-        available,
-        registered,
+        domain: r.domain,
+        tld: r.tld,
+        available: r.available,
+        registered: r.registered,
         price: matchingProduct ? Number(matchingProduct.monthlyPrice) : null,
         productId: matchingProduct?.id || null,
         productName: matchingProduct?.name || null,
-        message: available ? "Available" : "Registered",
+        message: r.available ? "Available" : r.registered ? "Registered" : r.message,
       };
-    })
-  );
+    });
 
-  return NextResponse.json({
-    query: cleanDomain,
-    results,
-    // For backwards compatibility when single domain checked
-    domain: results[0]?.domain,
-    available: results[0]?.available,
-    registered: results[0]?.registered,
-    message: results[0]?.available
-      ? "Domain appears to be available!"
-      : "Domain is already registered.",
-  });
+    return NextResponse.json({
+      query: cleanDomain,
+      results,
+      // For backwards compatibility when single domain checked
+      domain: results[0]?.domain,
+      available: results[0]?.available,
+      registered: results[0]?.registered,
+      message: results[0]?.available
+        ? "Domain appears to be available!"
+        : "Domain is already registered.",
+    });
+  } catch (error) {
+    console.error("Domain check error:", error);
+    return NextResponse.json(
+      { error: "Failed to check domain availability. Please try again later." },
+      { status: 502 }
+    );
+  }
 }
