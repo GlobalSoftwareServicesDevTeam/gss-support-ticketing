@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { validatePayfastSignature, validatePayfastServer } from "@/lib/payfast";
 import { handlePostPaymentSsl } from "@/lib/post-payment-ssl";
+import { handlePostPaymentHosting } from "@/lib/post-payment-hosting";
 
 // PayFast ITN (Instant Transaction Notification) handler
 // This is called by PayFast servers, NOT by the user's browser
@@ -89,10 +90,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Post-payment automation (SSL certificates, etc.)
+    // 8. Post-payment automation (SSL certificates, hosting provisioning, etc.)
     if (status === "COMPLETE") {
       handlePostPaymentSsl(paymentId).catch((err) =>
         console.error("Post-payment SSL error:", err)
+      );
+      handlePostPaymentHosting(paymentId).catch((err) =>
+        console.error("Post-payment hosting error:", err)
       );
     }
 

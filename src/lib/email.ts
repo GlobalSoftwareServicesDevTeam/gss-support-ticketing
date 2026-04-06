@@ -289,3 +289,80 @@ export function quoteNotificationTemplate(
     </html>
   `;
 }
+
+export function hostingCredentialsTemplate(params: {
+  recipientName: string;
+  domain: string;
+  planName: string;
+  pleskLogin: string;
+  pleskPassword: string;
+  ftpLogin: string;
+  ftpPassword: string;
+}): string {
+  const { recipientName, domain, planName, pleskLogin, pleskPassword, ftpLogin, ftpPassword } = params;
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: #276749; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center; }
+        .cred-box { background-color: #f0fff4; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #276749; }
+        .cred-box p { margin: 6px 0; }
+        .cred-label { font-weight: bold; color: #2d3748; }
+        .cred-value { font-family: monospace; background: #edf2f7; padding: 2px 6px; border-radius: 3px; }
+        .section-title { font-size: 16px; font-weight: bold; color: #276749; margin: 20px 0 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        .warning { background-color: #fffbeb; border-left: 4px solid #d69e2e; padding: 12px 15px; border-radius: 6px; margin: 20px 0; font-size: 13px; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;">Hosting Account Ready</h1>
+          <p style="margin:5px 0 0;">GSS Support — Global Software Services</p>
+        </div>
+        <p>Dear ${recipientName},</p>
+        <p>Your hosting account has been successfully provisioned. Below are your login credentials. Please keep this information safe.</p>
+
+        <div class="section-title">Hosting Details</div>
+        <div class="cred-box">
+          <p><span class="cred-label">Domain:</span> <span class="cred-value">${domain}</span></p>
+          <p><span class="cred-label">Plan:</span> ${planName}</p>
+        </div>
+
+        <div class="section-title">Control Panel (Plesk)</div>
+        <div class="cred-box">
+          <p><span class="cred-label">Username:</span> <span class="cred-value">${pleskLogin}</span></p>
+          <p><span class="cred-label">Password:</span> <span class="cred-value">${pleskPassword}</span></p>
+        </div>
+
+        <div class="section-title">FTP Access</div>
+        <div class="cred-box">
+          <p><span class="cred-label">FTP Host:</span> <span class="cred-value">ftp.${domain}</span></p>
+          <p><span class="cred-label">FTP Username:</span> <span class="cred-value">${ftpLogin}</span></p>
+          <p><span class="cred-label">FTP Password:</span> <span class="cred-value">${ftpPassword}</span></p>
+          <p><span class="cred-label">Port:</span> <span class="cred-value">21</span></p>
+        </div>
+
+        <div class="section-title">Webmail</div>
+        <div class="cred-box">
+          <p><span class="cred-label">Webmail URL:</span> <span class="cred-value">webmail.${domain}</span></p>
+          <p>You can create email accounts through your Plesk control panel.</p>
+        </div>
+
+        <div class="warning">
+          <strong>Important:</strong> We recommend changing your passwords after your first login. Do not share these credentials with anyone. If you suspect unauthorized access, contact GSS Support immediately.
+        </div>
+
+        <p>If you need any assistance setting up your hosting, please don't hesitate to reach out to our support team.</p>
+
+        <div class="footer">
+          <p>This is an automated message from GSS Support. Please keep this email confidential as it contains sensitive login information.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
