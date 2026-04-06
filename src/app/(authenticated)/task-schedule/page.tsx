@@ -12,7 +12,9 @@ import {
   X,
   Filter,
   ListTodo,
+  Ticket,
 } from "lucide-react";
+import Link from "next/link";
 
 interface TaskUser {
   id: string;
@@ -30,6 +32,7 @@ interface Task {
   dueDate: string | null;
   order: number;
   projectId: string;
+  issueId: string | null;
   project: { id: string; projectName: string };
   assignments: { user: TaskUser }[];
 }
@@ -351,7 +354,10 @@ export default function TaskSchedulePage() {
                       onClick={() => openEdit(t)}
                       className={`w-full text-left p-2 rounded-lg border-l-4 bg-slate-50 dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 transition text-xs ${PRIORITY_COLORS[t.priority]}`}
                     >
-                      <p className="font-medium text-slate-800 dark:text-white truncate">{t.title}</p>
+                      <p className="font-medium text-slate-800 dark:text-white truncate">
+                        {t.issueId && <Ticket size={10} className="inline mr-1 text-purple-500" />}
+                        {t.title}
+                      </p>
                       <p className="text-slate-500 dark:text-gray-400 truncate">{t.project.projectName}</p>
                       <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[t.status]}`}>
                         {STATUS_LABELS[t.status]}
@@ -434,7 +440,19 @@ export default function TaskSchedulePage() {
                 <tr key={t.id} className="bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition">
                   <td className="px-4 py-3">
                     <button onClick={() => openEdit(t)} className="text-left hover:text-blue-600 transition">
-                      <p className="font-medium text-slate-900 dark:text-white">{t.title}</p>
+                      <p className="font-medium text-slate-900 dark:text-white">
+                        {t.title}
+                        {t.issueId && (
+                          <Link
+                            href={`/issues/${t.issueId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 align-middle"
+                            title="View source ticket"
+                          >
+                            <Ticket size={10} /> Ticket
+                          </Link>
+                        )}
+                      </p>
                       {t.description && <p className="text-xs text-slate-500 dark:text-gray-400 truncate max-w-xs">{t.description}</p>}
                     </button>
                   </td>

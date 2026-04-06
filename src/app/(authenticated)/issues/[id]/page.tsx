@@ -4,7 +4,8 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
-import { ArrowLeft, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Paperclip, X, ListTodo, Loader2, Check } from "lucide-react";
+import Link from "next/link";
 
 interface Message {
   id: string;
@@ -37,6 +38,7 @@ interface IssueDetail {
   messages: Message[];
   fileUploads: FileUpload[];
   project?: { projectName: string } | null;
+  convertedTaskId?: string | null;
 }
 
 export default function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +53,15 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
 
   const isAdmin = session?.user?.role === "ADMIN";
+
+  // Convert to task state
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [projects, setProjects] = useState<{ id: string; projectName: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+  const [convertProjectId, setConvertProjectId] = useState("");
+  const [convertAssignees, setConvertAssignees] = useState<string[]>([]);
+  const [converting, setConverting] = useState(false);
+  const [convertMsg, setConvertMsg] = useState("");
 
   function fetchIssue() {
     fetch(`/api/issues/${id}`)
@@ -132,6 +143,57 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
     router.push("/issues");
   }
 
+  async function openConvertModal() {
+    setConvertMsg("");
+    setConvertProjectId(issue?.project?.projectName ? "" : "");
+    setConvertAssignees([]);
+    setShowConvertModal(true);
+
+    // Load projects and users in parallel
+    const [projRes, usersRes] = await Promise.all([
+      fetch("/api/projects"),
+      fetch("/api/users"),
+    ]);
+    if (projRes.ok) {
+      const data = await projRes.json();
+      const list = Array.isArray(data) ? data : data.projects || [];
+      setProjects(list.map((p: { id: string; projectName: string }) => ({ id: p.id, projectName: p.projectName })));
+    }
+    if (usersRes.ok) {
+      const data = await usersRes.json();
+      const list = Array.isArray(data) ? data : data.users || [];
+      setUsers(list.map((u: { id: string; firstName: string; lastName: string }) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName })));
+    }
+  }
+
+  async function handleConvert() {
+    if (!convertProjectId) {
+      setConvertMsg("Please select a project");
+      return;
+    }
+    setConverting(true);
+    setConvertMsg("");
+
+    const res = await fetch(`/api/issues/${id}/convert-to-task`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: convertProjectId,
+        assigneeIds: convertAssignees,
+      }),
+    });
+
+    const data = await res.json();
+    setConverting(false);
+
+    if (res.ok) {
+      setShowConvertModal(false);
+      fetchIssue();
+    } else {
+      setConvertMsg(data.error || "Failed to convert");
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-12 text-slate-400">Loading...</div>;
   }
@@ -161,12 +223,29 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         {isAdmin && (
-          <button
-            onClick={handleDeleteIssue}
-            className="text-sm text-red-600 hover:text-red-800 transition"
-          >
-            Delete Ticket
-          </button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {issue.convertedTaskId ? (
+              <Link
+                href="/task-schedule"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm font-medium hover:bg-green-100 transition"
+              >
+                <Check size={14} /> Converted to Task
+              </Link>
+            ) : (
+              <button
+                onClick={openConvertModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 rounded-lg text-sm font-medium hover:bg-brand-100 transition"
+              >
+                <ListTodo size={14} /> Convert to Task
+              </button>
+            )}
+            <button
+              onClick={handleDeleteIssue}
+              className="text-sm text-red-600 hover:text-red-800 transition"
+            >
+              Delete Ticket
+            </button>
+          </div>
         )}
       </div>
 
@@ -334,6 +413,91 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       </div>
+
+      {/* Convert to Task Modal */}
+      {showConvertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <ListTodo size={18} className="text-brand-500" /> Convert to Task
+              </h3>
+              <button onClick={() => setShowConvertModal(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {convertMsg && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+                  {convertMsg}
+                </div>
+              )}
+              <div className="bg-gray-50 dark:bg-gray-900/30 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{issue.subject}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Priority: {issue.priority} &middot; Status: {issue.status}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Project *
+                </label>
+                <select
+                  title="Select a project"
+                  value={convertProjectId}
+                  onChange={(e) => setConvertProjectId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="">Select a project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.projectName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Assign to <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+                  {users.map((u) => (
+                    <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={convertAssignees.includes(u.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setConvertAssignees([...convertAssignees, u.id]);
+                          } else {
+                            setConvertAssignees(convertAssignees.filter((a) => a !== u.id));
+                          }
+                        }}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-gray-700 dark:text-gray-300">{u.firstName} {u.lastName}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  onClick={() => setShowConvertModal(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConvert}
+                  disabled={converting || !convertProjectId}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm disabled:opacity-50"
+                >
+                  {converting ? <Loader2 size={14} className="animate-spin" /> : <ListTodo size={14} />}
+                  {converting ? "Converting..." : "Convert"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

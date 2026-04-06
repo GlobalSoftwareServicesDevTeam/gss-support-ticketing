@@ -28,6 +28,7 @@ export async function GET(
         select: { id: true, fileName: true, fileExt: true, dateAdded: true, publicDoc: true },
       },
       project: true,
+      tasks: { select: { id: true }, take: 1 },
     },
   });
 
@@ -40,7 +41,8 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json(issue);
+  const { tasks, ...rest } = issue;
+  return NextResponse.json({ ...rest, convertedTaskId: tasks[0]?.id || null });
 }
 
 export async function PATCH(
