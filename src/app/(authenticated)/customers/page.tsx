@@ -19,6 +19,7 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  Send,
 } from "lucide-react";
 
 interface Customer {
@@ -392,12 +393,24 @@ export default function CustomersPage() {
                       <MoreVertical size={16} className="text-gray-500" />
                     </button>
                     {actionMenu === c.id && (
-                      <div className="absolute right-4 top-10 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[140px]">
+                      <div className="absolute right-4 top-10 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
                         <Link
                           href={`/customers/${c.id}`}
                           className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           <Pencil size={14} /> Edit
+                        </Link>
+                        <Link
+                          href={`/customers/${c.id}#contacts`}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          <Users size={14} /> Contacts
+                        </Link>
+                        <Link
+                          href={`/customers/${c.id}#contacts`}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20"
+                        >
+                          <Send size={14} /> Invite Contacts
                         </Link>
                         <button
                           onClick={() => handleDelete(c.id, c.company)}

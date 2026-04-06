@@ -39,6 +39,7 @@ import {
   BarChart3,
   Gift,
   Lightbulb,
+  Contact,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -81,6 +82,7 @@ const adminNavItems: NavItem[] = [
 
 const adminOtherItems: NavItem[] = [
   { icon: <Building2 size={24} />, name: "Customers", path: "/customers" },
+  { icon: <Contact size={24} />, name: "Contacts", path: "/contacts" },
   { icon: <Users size={24} />, name: "Users", path: "/users" },
   { icon: <ShieldCheck size={24} />, name: "Hosting Admin", path: "/hosting-admin" },
   { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule" },
