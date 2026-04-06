@@ -40,15 +40,15 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass > /dev/null
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/deploy_key"
 
-          export SSHPASS="$DEPLOY_PASSWORD"
-          SSH_OPTS="-o StrictHostKeyChecking=no"
-
-          sshpass -e scp $SSH_OPTS -P $DEPLOY_PORT deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
-          sshpass -e ssh $SSH_OPTS -p $DEPLOY_PORT "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
+          scp $SSH_OPTS -P $DEPLOY_PORT deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
+          ssh $SSH_OPTS -p $DEPLOY_PORT "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
             set -e
             DOMAIN_DIR="$HOME/domains/support.globalsoftwareservices.co.za"
             APP_DIR="$DOMAIN_DIR/nodejs"
