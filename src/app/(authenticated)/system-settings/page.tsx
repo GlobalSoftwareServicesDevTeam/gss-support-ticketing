@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck } from "lucide-react";
 
-type Tab = "plesk" | "smtp" | "imap";
+type Tab = "plesk" | "smtp" | "imap" | "digicert";
 
 interface PleskPlan {
   id: number;
@@ -50,6 +50,8 @@ export default function SystemSettingsPage() {
     IMAP_TLS: "",
     IMAP_USER: "",
     IMAP_PASSWORD: "",
+    DIGICERT_API_KEY: "",
+    DIGICERT_ORG_ID: "",
   });
 
   const isAdmin = session?.user?.role === "ADMIN";
@@ -80,6 +82,7 @@ export default function SystemSettingsPage() {
       plesk: ["PLESK_API_URL", "PLESK_API_LOGIN", "PLESK_API_PASSWORD"],
       smtp: ["SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME"],
       imap: ["IMAP_HOST", "IMAP_PORT", "IMAP_TLS", "IMAP_USER", "IMAP_PASSWORD"],
+      digicert: ["DIGICERT_API_KEY", "DIGICERT_ORG_ID"],
     };
 
     const payload: Record<string, string> = {};
@@ -200,6 +203,7 @@ export default function SystemSettingsPage() {
     { key: "plesk", label: "Plesk API", icon: <Server size={16} /> },
     { key: "smtp", label: "SMTP (Outgoing)", icon: <Mail size={16} /> },
     { key: "imap", label: "IMAP (Incoming)", icon: <Inbox size={16} /> },
+    { key: "digicert", label: "DigiCert SSL", icon: <ShieldCheck size={16} /> },
   ];
 
   function renderInput(key: string, label: string, opts?: { type?: string; placeholder?: string; help?: string }) {
@@ -466,6 +470,49 @@ export default function SystemSettingsPage() {
                   <li>If the sender matches a registered user, the ticket is linked to their account</li>
                   <li>An auto-reply confirms the ticket with a unique ID like <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-xs">[GSS-xxx]</code></li>
                   <li>Replies with the ticket ID are threaded as messages on the existing ticket</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* DigiCert Tab */}
+          {activeTab === "digicert" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">DigiCert SSL Configuration</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Configure DigiCert API credentials to issue SSL certificates. Get your API key from{" "}
+                  <a href="https://www.digicert.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    DigiCert CertCentral
+                  </a>.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {renderInput("DIGICERT_API_KEY", "API Key", { placeholder: "Enter DigiCert API key" })}
+                {renderInput("DIGICERT_ORG_ID", "Organization ID", { placeholder: "123456", help: "Required for OV/EV certificates. Find it in CertCentral > Organizations." })}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("digicert")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How SSL Certificate Issuing Works</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Admin creates an SSL certificate order for a customer domain</li>
+                  <li>Customer pays via PayFast, Ozow, or EFT</li>
+                  <li>After payment, the certificate is automatically submitted to DigiCert</li>
+                  <li>Domain validation (DNS or Email) must be completed</li>
+                  <li>Once validated, DigiCert issues the certificate</li>
+                  <li>Admin or customer can download the certificate files</li>
                 </ol>
               </div>
             </div>

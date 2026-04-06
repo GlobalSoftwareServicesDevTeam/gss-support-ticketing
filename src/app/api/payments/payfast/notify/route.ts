@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { validatePayfastSignature, validatePayfastServer } from "@/lib/payfast";
+import { handlePostPaymentSsl } from "@/lib/post-payment-ssl";
 
 // PayFast ITN (Instant Transaction Notification) handler
 // This is called by PayFast servers, NOT by the user's browser
@@ -86,6 +87,13 @@ export async function POST(req: NextRequest) {
         console.error("Failed to save card token:", err);
         // Don't fail the ITN response for card save errors
       }
+    }
+
+    // 8. Post-payment automation (SSL certificates, etc.)
+    if (status === "COMPLETE") {
+      handlePostPaymentSsl(paymentId).catch((err) =>
+        console.error("Post-payment SSL error:", err)
+      );
     }
 
     return new NextResponse("OK", { status: 200 });

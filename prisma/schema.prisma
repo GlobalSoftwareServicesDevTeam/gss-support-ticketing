@@ -532,7 +532,36 @@ model HostingOrder {
   productId String?
   product   HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  sslCertificate SslCertificate?
+
   @@map("hosting_orders")
+}
+
+model SslCertificate {
+  id                 String    @id @default(uuid())
+  orderId            String    @unique
+  order              HostingOrder @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  digicertOrderId    Int?      // DigiCert order ID
+  productType        String    // DV, OV, EV, WILDCARD
+  commonName         String    // e.g. example.com or *.example.com
+  sans               String?   @db.NVarChar(Max) // JSON array of SANs
+  status             String    @default("PENDING") // PENDING, PENDING_VALIDATION, ISSUED, EXPIRED, REVOKED, REJECTED, CANCELLED
+  csr                String?   @db.NVarChar(Max)
+  privateKey         String?   @db.NVarChar(Max) // encrypted
+  certificate        String?   @db.NVarChar(Max)
+  intermediateCert   String?   @db.NVarChar(Max)
+  rootCert           String?   @db.NVarChar(Max)
+  validationType     String?   // DNS, EMAIL, FILE
+  validationStatus   String?   // PENDING, COMPLETED
+  validationDetails  String?   @db.NVarChar(Max) // JSON with validation records
+  validFrom          DateTime?
+  validTo            DateTime?
+  issuedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([digicertOrderId])
+  @@map("ssl_certificates")
 }
 
 model CodeRelease {

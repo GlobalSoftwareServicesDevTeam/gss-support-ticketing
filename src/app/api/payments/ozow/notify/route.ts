@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { validateOzowHash } from "@/lib/ozow";
+import { handlePostPaymentSsl } from "@/lib/post-payment-ssl";
 
 // Ozow notification handler (webhook)
 export async function POST(req: NextRequest) {
@@ -47,6 +48,13 @@ export async function POST(req: NextRequest) {
         metadata: JSON.stringify(body),
       },
     });
+
+    // 6. Post-payment automation (SSL certificates, etc.)
+    if (status === "COMPLETE") {
+      handlePostPaymentSsl(transactionRef).catch((err) =>
+        console.error("Post-payment SSL error:", err)
+      );
+    }
 
     return new NextResponse("OK", { status: 200 });
   } catch (error) {

@@ -13,12 +13,15 @@ const ALLOWED_KEYS = [
   // IMAP
   "IMAP_HOST", "IMAP_PORT", "IMAP_TLS",
   "IMAP_USER", "IMAP_PASSWORD",
+  // DigiCert
+  "DIGICERT_API_KEY", "DIGICERT_ORG_ID",
 ];
 
 const SENSITIVE_KEYS = new Set([
   "PLESK_API_PASSWORD",
   "SMTP_PASSWORD",
   "IMAP_PASSWORD",
+  "DIGICERT_API_KEY",
 ]);
 
 // GET /api/settings?keys=PLESK_API_URL,PLESK_API_LOGIN,...

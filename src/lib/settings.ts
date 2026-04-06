@@ -6,6 +6,7 @@ const SENSITIVE_KEYS = new Set([
   "PLESK_API_PASSWORD",
   "SMTP_PASSWORD",
   "IMAP_PASSWORD",
+  "DIGICERT_API_KEY",
 ]);
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -101,4 +102,8 @@ export async function getImapConfig() {
     "IMAP_HOST", "IMAP_PORT", "IMAP_TLS",
     "IMAP_USER", "IMAP_PASSWORD",
   ]);
+}
+
+export async function getDigicertConfig() {
+  return getSettings(["DIGICERT_API_KEY", "DIGICERT_ORG_ID"]);
 }

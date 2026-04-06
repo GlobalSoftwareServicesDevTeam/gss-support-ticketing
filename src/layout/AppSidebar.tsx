@@ -67,6 +67,7 @@ const adminNavItems: NavItem[] = [
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
+  { icon: <ShieldCheck size={24} />, name: "SSL Certificates", path: "/ssl-certificates" },
   { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
 ];
