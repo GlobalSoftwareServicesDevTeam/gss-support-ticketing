@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, issueUpdateTemplate } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
+import { getCustomerUserIds } from "@/lib/customer-users";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -19,9 +21,19 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {};
 
-  // Non-admin users can only see their own issues
+  // Non-admin users: filter by user or customer scope
   if (session.user.role !== "ADMIN") {
-    where.userId = session.user.id;
+    const ctx = getCustomerContext(session);
+    if (ctx && ctx.permissions.tickets) {
+      // Customer-scoped: see all issues for the customer (by customerId or userId)
+      const customerUserIds = await getCustomerUserIds(ctx.customerId);
+      where.OR = [
+        { customerId: ctx.customerId },
+        { userId: { in: customerUserIds } },
+      ];
+    } else {
+      where.userId = session.user.id;
+    }
   }
 
   if (status) where.status = status;

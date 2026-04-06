@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
+import { getCustomerUserIds } from "@/lib/customer-users";
 
 export async function GET() {
   const session = await auth();
@@ -9,9 +11,17 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const where = session.user.role !== "ADMIN"
-    ? { assignments: { some: { userId: session.user.id } } }
-    : {};
+  let where: Record<string, unknown> = {};
+  if (session.user.role !== "ADMIN") {
+    const ctx = getCustomerContext(session);
+    if (ctx && ctx.permissions.projects) {
+      // Customer-scoped: see projects assigned to any user in the customer
+      const customerUserIds = await getCustomerUserIds(ctx.customerId);
+      where = { assignments: { some: { userId: { in: customerUserIds } } } };
+    } else {
+      where = { assignments: { some: { userId: session.user.id } } };
+    }
+  }
 
   const projects = await prisma.project.findMany({
     where,

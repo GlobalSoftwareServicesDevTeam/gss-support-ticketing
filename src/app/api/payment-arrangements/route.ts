@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
+import { getCustomerUserIds } from "@/lib/customer-users";
 
 // GET: list payment arrangements
 export async function GET(req: NextRequest) {
@@ -15,7 +17,15 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
 
   const where: Record<string, unknown> = {};
-  if (!isAdmin) where.userId = session.user.id;
+  if (!isAdmin) {
+    const ctx = getCustomerContext(session);
+    if (ctx && ctx.permissions.billing) {
+      const customerUserIds = await getCustomerUserIds(ctx.customerId);
+      where.userId = { in: customerUserIds };
+    } else {
+      where.userId = session.user.id;
+    }
+  }
   if (status) where.status = status;
 
   const arrangements = await prisma.paymentArrangement.findMany({

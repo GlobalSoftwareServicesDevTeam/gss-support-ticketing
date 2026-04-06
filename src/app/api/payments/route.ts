@@ -4,6 +4,8 @@ import prisma from "@/lib/prisma";
 import { buildPayfastForm, isPayfastConfigured } from "@/lib/payfast";
 import { buildOzowPaymentUrl, isOzowConfigured } from "@/lib/ozow";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
+import { getCustomerUserIds } from "@/lib/customer-users";
 
 // GET: list payments for current user (or all for admin)
 export async function GET(req: NextRequest) {
@@ -16,8 +18,18 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "20");
 
-  const where: Record<string, unknown> =
-    session.user.role === "ADMIN" ? {} : { userId: session.user.id };
+  const where: Record<string, unknown> = {};
+  if (session.user.role === "ADMIN") {
+    // Admin sees all
+  } else {
+    const ctx = getCustomerContext(session);
+    if (ctx && ctx.permissions.billing) {
+      const customerUserIds = await getCustomerUserIds(ctx.customerId);
+      where.userId = { in: customerUserIds };
+    } else {
+      where.userId = session.user.id;
+    }
+  }
 
   const [payments, total] = await Promise.all([
     prisma.payment.findMany({

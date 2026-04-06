@@ -75,6 +75,7 @@ const adminOtherItems: NavItem[] = [
 
 const userNavItems: NavItem[] = [
   { icon: <LayoutDashboard size={24} />, name: "Dashboard", path: "/dashboard" },
+  { icon: <Building2 size={24} />, name: "My Company", path: "/my-company" },
   {
     icon: <Ticket size={24} />,
     name: "Tickets",

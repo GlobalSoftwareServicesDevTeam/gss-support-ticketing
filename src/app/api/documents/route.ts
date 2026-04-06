@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
+import { getCustomerUserIds } from "@/lib/customer-users";
 
 export async function GET(
   req: NextRequest
@@ -18,6 +20,24 @@ export async function GET(
   const where: Record<string, unknown> = {};
   if (category) where.category = category;
   if (projectId) where.projectId = projectId;
+
+  // Non-admin: filter documents to those uploaded by the user or their customer group,
+  // or documents belonging to projects they have access to
+  if (session.user.role !== "ADMIN") {
+    const ctx = getCustomerContext(session);
+    if (ctx && ctx.permissions.documents) {
+      const customerUserIds = await getCustomerUserIds(ctx.customerId);
+      where.OR = [
+        { uploadedBy: { in: customerUserIds } },
+        { project: { assignments: { some: { userId: { in: customerUserIds } } } } },
+      ];
+    } else {
+      where.OR = [
+        { uploadedBy: session.user.id },
+        { project: { assignments: { some: { userId: session.user.id } } } },
+      ];
+    }
+  }
 
   const documents = await prisma.document.findMany({
     where,

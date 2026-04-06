@@ -9,19 +9,42 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; contactId: string }> }
 ) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id, contactId } = await params;
+  const isAdminUser = (session.user as { role?: string }).role === "ADMIN";
+
+  // Allow admin OR primary contact of same customer to update
+  let isPrimaryOfCustomer = false;
+  if (!isAdminUser) {
+    const callerContact = await prisma.contact.findFirst({
+      where: { userId: session.user.id, customerId: id, inviteAccepted: true },
+    });
+    if (!callerContact || (!callerContact.isPrimary && !callerContact.canManageContacts)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    isPrimaryOfCustomer = true;
+  }
+
   const body = await req.json();
-  const { firstName, lastName, email, phone, position, isPrimary } = body;
+  const {
+    firstName, lastName, email, phone, position, isPrimary,
+    canViewTickets, canViewProjects, canViewBilling, canViewHosting,
+    canViewDocuments, canViewCode, canViewNotifications, canManageContacts,
+  } = body;
 
   const contact = await prisma.contact.findFirst({
     where: { id: contactId, customerId: id },
   });
   if (!contact) {
     return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+  }
+
+  // Primary contacts can only change permissions on non-primary contacts
+  if (isPrimaryOfCustomer && contact.isPrimary && contact.userId !== session.user.id) {
+    return NextResponse.json({ error: "Cannot modify another primary contact" }, { status: 403 });
   }
 
   // If setting as primary, unset others
@@ -41,6 +64,16 @@ export async function PUT(
       ...(phone !== undefined && { phone }),
       ...(position !== undefined && { position }),
       ...(isPrimary !== undefined && { isPrimary }),
+      // Permission flags — only admin or primary contact can set
+      ...(canViewTickets !== undefined && { canViewTickets }),
+      ...(canViewProjects !== undefined && { canViewProjects }),
+      ...(canViewBilling !== undefined && { canViewBilling }),
+      ...(canViewHosting !== undefined && { canViewHosting }),
+      ...(canViewDocuments !== undefined && { canViewDocuments }),
+      ...(canViewCode !== undefined && { canViewCode }),
+      ...(canViewNotifications !== undefined && { canViewNotifications }),
+      // Only admin can grant manageContacts
+      ...(canManageContacts !== undefined && isAdminUser && { canManageContacts }),
     },
     include: { notificationPreferences: true },
   });

@@ -20,6 +20,7 @@ import {
   Check,
   Bell,
   UserPlus,
+  Shield,
 } from "lucide-react";
 
 interface NotificationPref {
@@ -43,6 +44,14 @@ interface Contact {
   inviteAccepted: boolean;
   userId: string | null;
   notificationPreferences: NotificationPref[];
+  canViewTickets: boolean;
+  canViewProjects: boolean;
+  canViewBilling: boolean;
+  canViewHosting: boolean;
+  canViewDocuments: boolean;
+  canViewCode: boolean;
+  canViewNotifications: boolean;
+  canManageContacts: boolean;
 }
 
 interface Customer {
@@ -111,6 +120,20 @@ export default function CustomerDetailPage() {
     position: "",
     isPrimary: false,
   });
+
+  // Permissions modal
+  const [permContact, setPermContact] = useState<Contact | null>(null);
+  const [permForm, setPermForm] = useState({
+    canViewTickets: true,
+    canViewProjects: true,
+    canViewBilling: true,
+    canViewHosting: true,
+    canViewDocuments: true,
+    canViewCode: true,
+    canViewNotifications: true,
+    canManageContacts: false,
+  });
+  const [permSaving, setPermSaving] = useState(false);
 
   const fetchCustomer = useCallback(() => {
     fetch(`/api/customers/${id}`)
@@ -235,6 +258,39 @@ export default function CustomerDetailPage() {
       prefs[cat] = pref ? pref.enabled : true;
     }
     setNotifPrefs(prefs);
+  }
+
+  function openPermModal(contact: Contact) {
+    setPermContact(contact);
+    setPermForm({
+      canViewTickets: contact.canViewTickets,
+      canViewProjects: contact.canViewProjects,
+      canViewBilling: contact.canViewBilling,
+      canViewHosting: contact.canViewHosting,
+      canViewDocuments: contact.canViewDocuments,
+      canViewCode: contact.canViewCode,
+      canViewNotifications: contact.canViewNotifications,
+      canManageContacts: contact.canManageContacts,
+    });
+  }
+
+  async function handleSavePerms() {
+    if (!permContact) return;
+    setPermSaving(true);
+    const res = await fetch(`/api/customers/${id}/contacts/${permContact.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(permForm),
+    });
+    setPermSaving(false);
+    if (res.ok) {
+      setPermContact(null);
+      fetchCustomer();
+      showMsg("Permissions updated");
+    } else {
+      const data = await res.json();
+      showMsg(data.error || "Failed to update permissions");
+    }
   }
 
   async function handleSaveNotifs() {
@@ -535,6 +591,13 @@ export default function CustomerDetailPage() {
                             >
                               <Bell size={14} />
                             </button>
+                            <button
+                              onClick={() => openPermModal(contact)}
+                              className="p-1 rounded text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                              title="Portal Permissions"
+                            >
+                              <Shield size={14} />
+                            </button>
                             {!contact.inviteAccepted && !contact.userId && (
                               <button
                                 onClick={() => handleInvite(contact.id)}
@@ -604,6 +667,71 @@ export default function CustomerDetailPage() {
               </button>
               <button onClick={handleSaveNotifs} disabled={notifSaving} className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm disabled:opacity-50">
                 {notifSaving ? "Saving..." : "Save Preferences"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Portal Permissions Modal */}
+      {permContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Shield size={18} className="text-purple-500" /> Portal Permissions
+              </h3>
+              <button onClick={() => setPermContact(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+              {permContact.firstName} {permContact.lastName} ({permContact.email})
+            </p>
+            {permContact.isPrimary && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mb-3 flex items-center gap-1">
+                <Star size={12} className="fill-amber-500" /> Primary contacts always have full access
+              </p>
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+              Control what this contact can see in the portal when they log in.
+            </p>
+            <div className="space-y-3">
+              {([
+                { key: "canViewTickets", label: "View Tickets" },
+                { key: "canViewProjects", label: "View Projects" },
+                { key: "canViewBilling", label: "View Billing & Invoices" },
+                { key: "canViewHosting", label: "View Hosting & Domains" },
+                { key: "canViewDocuments", label: "View Documents" },
+                { key: "canViewCode", label: "View Code History" },
+                { key: "canViewNotifications", label: "View Notifications" },
+                { key: "canManageContacts", label: "Manage Contacts" },
+              ] as const).map(({ key, label }) => (
+                <label key={key} className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPermForm({ ...permForm, [key]: !permForm[key] })}
+                    disabled={permContact.isPrimary}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      permContact.isPrimary || permForm[key] ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-600"
+                    } ${permContact.isPrimary ? "opacity-60 cursor-not-allowed" : ""}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        permContact.isPrimary || permForm[key] ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setPermContact(null)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm">
+                Cancel
+              </button>
+              <button onClick={handleSavePerms} disabled={permSaving || permContact.isPrimary} className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm disabled:opacity-50">
+                {permSaving ? "Saving..." : "Save Permissions"}
               </button>
             </div>
           </div>

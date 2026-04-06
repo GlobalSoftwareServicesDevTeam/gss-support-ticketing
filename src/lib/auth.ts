@@ -113,10 +113,52 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.role = (user as { role: string }).role;
         token.company = (user as { company?: string }).company;
+      }
+      // On sign-in or token refresh, look up the user's customer link
+      if (user || trigger === "update") {
+        const userId = user?.id || token.sub;
+        if (userId) {
+          const contact = await prisma.contact.findFirst({
+            where: { userId, inviteAccepted: true },
+            select: {
+              id: true,
+              isPrimary: true,
+              customerId: true,
+              canViewTickets: true,
+              canViewProjects: true,
+              canViewBilling: true,
+              canViewHosting: true,
+              canViewDocuments: true,
+              canViewCode: true,
+              canViewNotifications: true,
+              canManageContacts: true,
+            },
+          });
+          if (contact) {
+            token.customerId = contact.customerId;
+            token.contactId = contact.id;
+            token.isPrimaryContact = contact.isPrimary;
+            token.customerPermissions = {
+              tickets: contact.canViewTickets,
+              projects: contact.canViewProjects,
+              billing: contact.canViewBilling,
+              hosting: contact.canViewHosting,
+              documents: contact.canViewDocuments,
+              code: contact.canViewCode,
+              notifications: contact.canViewNotifications,
+              manageContacts: contact.canManageContacts,
+            };
+          } else {
+            token.customerId = undefined;
+            token.contactId = undefined;
+            token.isPrimaryContact = undefined;
+            token.customerPermissions = undefined;
+          }
+        }
       }
       return token;
     },
@@ -125,6 +167,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.sub!;
         (session.user as { role: string }).role = token.role as string;
         (session.user as { company?: string }).company = token.company as string | undefined;
+        (session.user as { customerId?: string }).customerId = token.customerId as string | undefined;
+        (session.user as { contactId?: string }).contactId = token.contactId as string | undefined;
+        (session.user as { isPrimaryContact?: boolean }).isPrimaryContact = token.isPrimaryContact as boolean | undefined;
+        (session.user as { customerPermissions?: Record<string, boolean> }).customerPermissions = token.customerPermissions as Record<string, boolean> | undefined;
       }
       return session;
     },
