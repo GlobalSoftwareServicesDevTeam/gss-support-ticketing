@@ -78,21 +78,20 @@ export async function POST(
     );
   }
 
-  const data: Record<string, unknown> = {
-    appId: id,
-    version,
-    buildNumber,
-    status,
-    trackOrChannel: trackOrChannel || null,
-    releaseNotes: releaseNotes || null,
-    rejectionReason: rejectionReason || null,
-  };
-
-  if (status === "SUBMITTED") data.submittedAt = new Date();
-  if (status === "APPROVED" || status === "REJECTED") data.reviewedAt = new Date();
-  if (status === "RELEASED") data.releasedAt = new Date();
-
-  const build = await prisma.appBuild.create({ data });
+  const build = await prisma.appBuild.create({
+    data: {
+      appId: id,
+      version,
+      buildNumber,
+      status,
+      trackOrChannel: trackOrChannel || null,
+      releaseNotes: releaseNotes || null,
+      rejectionReason: rejectionReason || null,
+      ...(status === "SUBMITTED" ? { submittedAt: new Date() } : {}),
+      ...((status === "APPROVED" || status === "REJECTED") ? { reviewedAt: new Date() } : {}),
+      ...(status === "RELEASED" ? { releasedAt: new Date() } : {}),
+    },
+  });
 
   return NextResponse.json(build, { status: 201 });
 }

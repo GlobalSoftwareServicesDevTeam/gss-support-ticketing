@@ -14,6 +14,7 @@ interface User {
   role: string;
   emailConfirmed: boolean;
   inviteToken: string | null;
+  totpEnabled: boolean;
   createdAt: string;
   _count: { issues: number };
 }

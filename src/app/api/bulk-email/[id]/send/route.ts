@@ -217,6 +217,6 @@ async function sendCampaignEmails(
     description: `Sent bulk email campaign: ${sentCount} delivered, ${failedCount} failed out of ${recipients.length} recipients`,
     userId,
     userName,
-    metadata: JSON.stringify({ sentCount, failedCount, total: recipients.length }),
+    metadata: { sentCount, failedCount, total: recipients.length },
   });
 }

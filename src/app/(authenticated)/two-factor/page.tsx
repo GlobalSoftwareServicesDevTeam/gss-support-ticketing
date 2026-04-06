@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 export default function TwoFactorPage() {
-  const { data: session } = useSession();
+  useSession();
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 

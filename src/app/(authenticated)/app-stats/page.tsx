@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import {
   Smartphone,
   BarChart3,
@@ -9,15 +10,11 @@ import {
   Download,
   Star,
   Users,
-  AlertTriangle,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   CheckCircle2,
   XCircle,
   Clock,
   Upload,
-  RefreshCw,
 } from "lucide-react";
 
 interface MobileApp {
@@ -58,7 +55,7 @@ interface AppBuild {
 }
 
 export default function AppStatsPage() {
-  const { data: session } = useSession();
+  useSession();
   const [apps, setApps] = useState<MobileApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
@@ -83,7 +80,8 @@ export default function AppStatsPage() {
     setLoading(false);
   }, [selectedApp]);
 
-  useEffect(() => { loadApps(); }, [loadApps]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadApps(); }, []);
 
   const loadStats = useCallback(async (appId: string) => {
     setLoadingStats(true);
@@ -105,8 +103,8 @@ export default function AppStatsPage() {
 
   useEffect(() => {
     if (selectedApp) {
-      loadStats(selectedApp);
-      loadBuilds(selectedApp);
+      void loadStats(selectedApp);
+      void loadBuilds(selectedApp);
     }
   }, [selectedApp, loadStats, loadBuilds]);
 
@@ -186,7 +184,7 @@ export default function AppStatsPage() {
               }`}
             >
               {app.iconUrl ? (
-                <img src={app.iconUrl} alt="" className="w-5 h-5 rounded" />
+                <Image src={app.iconUrl} alt="" width={20} height={20} className="w-5 h-5 rounded" unoptimized />
               ) : (
                 <Smartphone size={16} />
               )}

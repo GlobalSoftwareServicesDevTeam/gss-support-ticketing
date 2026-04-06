@@ -18,7 +18,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertTriangle,
 } from "lucide-react";
 
 interface Campaign {
@@ -172,6 +171,7 @@ export default function BulkEmailPage() {
           <button
             onClick={() => fetchCampaigns()}
             className="p-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+            title="Refresh campaigns"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
@@ -204,6 +204,7 @@ export default function BulkEmailPage() {
             setPage(1);
           }}
           className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-800 dark:text-white"
+          title="Filter by status"
         >
           <option value="">All Statuses</option>
           <option value="DRAFT">Draft</option>
@@ -525,7 +526,7 @@ function CreateCampaignModal({
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
               {editCampaign ? "Edit Campaign" : "New Campaign"}
             </h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="Close">
               <X size={20} />
             </button>
           </div>
@@ -621,6 +622,7 @@ function CreateCampaignModal({
                 value={recipientType}
                 onChange={(e) => setRecipientType(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white mb-2"
+                title="Recipient type"
               >
                 <option value="all">All Active Customers &amp; Contacts</option>
                 <option value="customers">Specific Customers</option>
@@ -673,7 +675,7 @@ function CreateCampaignModal({
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                       {previewRecipients.length} recipient(s)
                     </span>
-                    <button onClick={() => setPreviewRecipients(null)} className="text-slate-400 hover:text-slate-600">
+                    <button onClick={() => setPreviewRecipients(null)} className="text-slate-400 hover:text-slate-600" title="Close preview">
                       <X size={14} />
                     </button>
                   </div>
@@ -734,7 +736,7 @@ function CampaignDetailModal({
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Campaign Details</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="Close">
               <X size={20} />
             </button>
           </div>

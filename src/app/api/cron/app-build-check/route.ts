@@ -23,8 +23,7 @@ export async function GET(req: NextRequest) {
       customer: {
         include: {
           contacts: {
-            where: { isActive: true },
-            select: { email: true, name: true },
+            select: { email: true, firstName: true, lastName: true },
           },
         },
       },
@@ -199,7 +198,7 @@ interface AppWithCustomer {
   name: string;
   platform: string;
   customer: {
-    contacts: { email: string; name: string | null }[];
+    contacts: { email: string; firstName: string; lastName: string }[];
   };
 }
 
@@ -215,7 +214,7 @@ async function notifyContacts(
     if (!contact.email) continue;
     try {
       const html = buildApprovalTemplate({
-        recipientName: contact.name || "Valued Customer",
+        recipientName: `${contact.firstName} ${contact.lastName}`.trim() || "Valued Customer",
         appName: app.name,
         platform: app.platform,
         version,

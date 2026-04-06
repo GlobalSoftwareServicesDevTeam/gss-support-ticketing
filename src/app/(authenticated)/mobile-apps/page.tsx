@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, startTransition } from "react";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import {
   Smartphone,
   Plus,
@@ -108,8 +109,10 @@ export default function MobileAppsPage() {
   }, []);
 
   useEffect(() => {
-    loadApps();
-    if (isAdmin) loadCustomers();
+    startTransition(() => {
+      loadApps();
+      if (isAdmin) loadCustomers();
+    });
   }, [loadApps, loadCustomers, isAdmin]);
 
   async function loadBuilds(appId: string) {
@@ -258,6 +261,7 @@ export default function MobileAppsPage() {
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
           className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+          title="Filter by platform"
         >
           <option value="">All Platforms</option>
           <option value="GOOGLE_PLAY">Google Play</option>
@@ -267,6 +271,7 @@ export default function MobileAppsPage() {
           value={customerFilter}
           onChange={(e) => setCustomerFilter(e.target.value)}
           className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+          title="Filter by customer"
         >
           <option value="">All Customers</option>
           {customers.map((c) => (
@@ -310,6 +315,7 @@ export default function MobileAppsPage() {
                     value={formData.platform}
                     onChange={(e) => setFormData({ ...formData, platform: e.target.value as "GOOGLE_PLAY" | "APPLE" })}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                    title="Platform"
                   >
                     <option value="GOOGLE_PLAY">Google Play</option>
                     <option value="APPLE">Apple</option>
@@ -322,6 +328,7 @@ export default function MobileAppsPage() {
                   value={formData.customerId}
                   onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                  title="Customer"
                 >
                   <option value="">Select customer</option>
                   {customers.map((c) => (
@@ -413,7 +420,7 @@ export default function MobileAppsPage() {
                 {/* Icon */}
                 <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {app.iconUrl ? (
-                    <img src={app.iconUrl} alt="" className="w-12 h-12 object-cover rounded-xl" />
+                    <Image src={app.iconUrl} alt="" width={48} height={48} className="w-12 h-12 object-cover rounded-xl" unoptimized />
                   ) : (
                     <Smartphone size={24} className="text-slate-400" />
                   )}
