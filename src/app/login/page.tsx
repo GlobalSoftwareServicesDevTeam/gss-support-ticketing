@@ -6,6 +6,7 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, LogIn, Eye, EyeOff, Shield } from "lucide-react";
+import { useRecaptcha } from "@/hooks/useRecaptcha";
 
 function LoginForm() {
   const router = useRouter();
@@ -24,6 +25,7 @@ function LoginForm() {
   const [rememberDevice, setRememberDevice] = useState(false);
 
   const verified = searchParams.get("verified");
+  const { executeRecaptcha } = useRecaptcha();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,12 +33,15 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      // Get reCAPTCHA token
+      const recaptchaToken = await executeRecaptcha("login");
+
       // First check if 2FA is required
       if (!needs2FA) {
         const checkRes = await fetch("/api/auth/2fa/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, recaptchaToken }),
         });
         const checkData = await checkRes.json();
 
@@ -62,6 +67,7 @@ function LoginForm() {
             totpToken: useBackupCode ? undefined : totpToken,
             backupCode: useBackupCode ? backupCode : undefined,
             rememberDevice,
+            recaptchaToken,
           }),
         });
         const verifyData = await verifyRes.json();

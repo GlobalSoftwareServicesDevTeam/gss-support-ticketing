@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
+import { useRecaptcha } from "@/hooks/useRecaptcha";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { executeRecaptcha } = useRecaptcha();
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -39,6 +41,8 @@ export default function RegisterPage() {
 
     setLoading(true);
 
+    const recaptchaToken = await executeRecaptcha("register");
+
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -50,6 +54,7 @@ export default function RegisterPage() {
         password: form.password,
         phoneNumber: form.phoneNumber,
         company: form.company,
+        recaptchaToken,
       }),
     });
 

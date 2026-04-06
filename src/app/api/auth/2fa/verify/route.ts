@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { verifyTotpToken, verifyBackupCode } from "@/lib/totp";
+import { verifyRecaptcha } from "@/lib/recaptcha";
 
 const TRUST_DURATION_DAYS = 30;
 
@@ -14,10 +15,18 @@ function hashToken(token: string): string {
 // Called during login flow
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { username, password, totpToken, backupCode, rememberDevice } = body;
+  const { username, password, totpToken, backupCode, rememberDevice, recaptchaToken } = body;
 
   if (!username || !password) {
     return NextResponse.json({ error: "Credentials required" }, { status: 400 });
+  }
+
+  // Verify reCAPTCHA on initial credential check (not on 2FA code entry)
+  if (!totpToken && !backupCode) {
+    const captcha = await verifyRecaptcha(recaptchaToken, "login");
+    if (!captcha.success) {
+      return NextResponse.json({ error: captcha.error || "reCAPTCHA verification failed" }, { status: 400 });
+    }
   }
 
   // Look up the user

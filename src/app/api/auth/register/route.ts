@@ -4,10 +4,17 @@ import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { sendEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
+import { verifyRecaptcha } from "@/lib/recaptcha";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { username, email, firstName, lastName, password, phoneNumber, company } = body;
+  const { username, email, firstName, lastName, password, phoneNumber, company, recaptchaToken } = body;
+
+  // Verify reCAPTCHA
+  const captcha = await verifyRecaptcha(recaptchaToken, "register");
+  if (!captcha.success) {
+    return NextResponse.json({ error: captcha.error || "reCAPTCHA verification failed" }, { status: 400 });
+  }
 
   if (!username || !email || !firstName || !lastName || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
