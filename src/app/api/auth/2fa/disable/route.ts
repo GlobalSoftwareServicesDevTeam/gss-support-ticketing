@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Clear all trusted devices
+  await prisma.trustedDevice.deleteMany({
+    where: { userId: session.user.id },
+  });
+
   logAudit({
     action: "UPDATE",
     entity: "USER",

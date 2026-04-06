@@ -21,6 +21,7 @@ function LoginForm() {
   const [totpToken, setTotpToken] = useState("");
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
 
   const verified = searchParams.get("verified");
 
@@ -60,6 +61,7 @@ function LoginForm() {
             password,
             totpToken: useBackupCode ? undefined : totpToken,
             backupCode: useBackupCode ? backupCode : undefined,
+            rememberDevice,
           }),
         });
         const verifyData = await verifyRes.json();
@@ -96,6 +98,7 @@ function LoginForm() {
     setTotpToken("");
     setBackupCode("");
     setUseBackupCode(false);
+    setRememberDevice(false);
     setError("");
   }
 
@@ -219,6 +222,19 @@ function LoginForm() {
                     />
                   </div>
                 )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="rememberDevice"
+                    checked={rememberDevice}
+                    onChange={(e) => setRememberDevice(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/40"
+                  />
+                  <label htmlFor="rememberDevice" className="text-xs text-gray-500 dark:text-gray-400 select-none">
+                    Remember this device for 30 days
+                  </label>
+                </div>
 
                 <div className="flex items-center justify-between">
                   <button

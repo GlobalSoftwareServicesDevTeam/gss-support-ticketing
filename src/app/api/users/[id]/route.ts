@@ -292,6 +292,11 @@ export async function POST(
       data: { totpEnabled: false, totpSecret: null, totpBackupCodes: null },
     });
 
+    // Clear all trusted devices
+    await prisma.trustedDevice.deleteMany({
+      where: { userId: id },
+    });
+
     logAudit({
       action: "UPDATE",
       entity: "USER",
