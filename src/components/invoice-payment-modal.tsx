@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { CreditCard, Landmark, Building2 } from "lucide-react";
+import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 interface InvoicePaymentModalProps {
   isOpen: boolean;
@@ -248,9 +249,9 @@ export default function InvoicePaymentModal({
               <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { key: "PAYFAST", label: "PayFast", icon: <CreditCard size={20} />, enabled: gateways.payfast },
-                  { key: "OZOW", label: "Ozow", icon: <Landmark size={20} />, enabled: gateways.ozow },
-                  { key: "EFT", label: "EFT / Bank", icon: <Building2 size={20} />, enabled: true },
+                  { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={28} />, enabled: gateways.payfast },
+                  { key: "OZOW", label: "Ozow", icon: <OzowLogo size={28} />, enabled: gateways.ozow },
+                  { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={28} />, enabled: true },
                 ].map((gw) => (
                   <button
                     key={gw.key}

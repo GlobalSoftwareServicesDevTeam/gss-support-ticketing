@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, Landmark, Building2 } from "lucide-react";
+import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 interface Payment {
   id: string;
@@ -257,9 +258,9 @@ export default function PaymentsPage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Payment Gateway *</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { key: "PAYFAST", label: "PayFast", icon: <CreditCard size={24} />, enabled: gateways.payfast },
-                      { key: "OZOW", label: "Ozow", icon: <Landmark size={24} />, enabled: gateways.ozow },
-                      { key: "EFT", label: "EFT / Bank", icon: <Building2 size={24} />, enabled: true },
+                      { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={32} />, enabled: gateways.payfast },
+                      { key: "OZOW", label: "Ozow", icon: <OzowLogo size={32} />, enabled: gateways.ozow },
+                      { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={32} />, enabled: true },
                     ].map((gw) => (
                       <button
                         key={gw.key}
@@ -398,14 +399,14 @@ export default function PaymentsPage() {
             {/* Gateway info cards */}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className={`rounded-lg border p-4 ${gateways.payfast ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
-                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1"><CreditCard size={14} /> PayFast</span></h3>
+                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1.5"><PayFastLogo size={20} /> PayFast</span></h3>
                 <p className="text-xs mt-1 text-slate-500">Credit/Debit cards, Instant EFT, SnapScan</p>
                 <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${gateways.payfast ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
                   {gateways.payfast ? "Connected" : "Not configured"}
                 </span>
               </div>
               <div className={`rounded-lg border p-4 ${gateways.ozow ? "border-teal-200 bg-teal-50" : "border-slate-200 bg-slate-50"}`}>
-                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1"><Landmark size={14} /> Ozow</span></h3>
+                <h3 className="text-sm font-medium text-slate-900"><span className="inline-flex items-center gap-1.5"><OzowLogo size={20} /> Ozow</span></h3>
                 <p className="text-xs mt-1 text-slate-500">Instant EFT via all major SA banks</p>
                 <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${gateways.ozow ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
                   {gateways.ozow ? "Connected" : "Not configured"}
@@ -441,7 +442,10 @@ export default function PaymentsPage() {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm text-slate-600">{new Date(p.createdAt).toLocaleDateString()}</td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${gatewayColors[p.gateway] || "bg-gray-100 text-gray-700"}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${gatewayColors[p.gateway] || "bg-gray-100 text-gray-700"}`}>
+                        {p.gateway === "PAYFAST" && <PayFastLogo size={14} />}
+                        {p.gateway === "OZOW" && <OzowLogo size={14} />}
+                        {p.gateway === "EFT" && <EftIcon size={14} />}
                         {p.gateway}
                       </span>
                     </td>

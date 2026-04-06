@@ -28,6 +28,7 @@ import {
   Hash,
   Globe,
 } from "lucide-react";
+import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -517,11 +518,16 @@ export default function UserProfilePage() {
                   {profile.payments.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20">
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
                           p.gateway === "PAYFAST" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                           : p.gateway === "OZOW" ? "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
                           : "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                        }`}>{p.gateway}</span>
+                        }`}>
+                          {p.gateway === "PAYFAST" && <PayFastLogo size={14} />}
+                          {p.gateway === "OZOW" && <OzowLogo size={14} />}
+                          {p.gateway === "EFT" && <EftIcon size={14} />}
+                          {p.gateway}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300 max-w-48 truncate">{p.description || "—"}</td>
                       <td className="px-4 py-3 text-slate-500">{p.invoiceNumber || "—"}</td>
