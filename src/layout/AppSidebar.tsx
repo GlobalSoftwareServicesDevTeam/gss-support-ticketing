@@ -28,6 +28,7 @@ import {
   Bell,
   GitCommit,
   Wallet,
+  KeyRound,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -59,6 +60,7 @@ const adminNavItems: NavItem[] = [
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
   { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
+  { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
 ];
 
 const adminOtherItems: NavItem[] = [
@@ -94,6 +96,7 @@ const userNavItems: NavItem[] = [
   { icon: <Globe size={24} />, name: "DNS Manager", path: "/dns-manager" },
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
+  { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
   { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 

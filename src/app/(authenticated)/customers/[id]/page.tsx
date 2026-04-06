@@ -24,6 +24,8 @@ import {
   Lock,
   Unlock,
   ExternalLink,
+  KeyRound,
+  Eye,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -166,6 +168,9 @@ export default function CustomerDetailPage() {
   const [showRepoAssign, setShowRepoAssign] = useState(false);
   const [selectedRepoId, setSelectedRepoId] = useState("");
 
+  // Vault
+  const [vaultCount, setVaultCount] = useState(0);
+
   const fetchCustomer = useCallback(() => {
     fetch(`/api/customers/${id}`)
       .then((r) => r.json())
@@ -241,8 +246,13 @@ export default function CustomerDetailPage() {
     if (session) {
       fetchCustomer();
       fetchRepos();
+      // Fetch vault count
+      fetch(`/api/customers/${id}/vault`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => { if (Array.isArray(data)) setVaultCount(data.length); })
+        .catch(() => {});
     }
-  }, [fetchCustomer, fetchRepos, session, isAdmin, router]);
+  }, [fetchCustomer, fetchRepos, session, isAdmin, router, id]);
 
   function showMsg(msg: string) {
     setActionMsg(msg);
@@ -851,6 +861,26 @@ export default function CustomerDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Secure Vault Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <KeyRound size={20} className="text-brand-500" /> Secure Vault ({vaultCount})
+          </h2>
+          <Link
+            href={`/vault`}
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Eye size={14} /> Open Vault
+          </Link>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {vaultCount === 0
+            ? "No encrypted secrets stored yet. Open the vault to add credentials, API keys, and other sensitive data."
+            : `${vaultCount} encrypted secret${vaultCount !== 1 ? "s" : ""} stored. Open the vault to view or manage.`}
+        </p>
       </div>
 
       {/* Notification Preferences Modal */}
