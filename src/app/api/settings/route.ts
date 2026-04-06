@@ -66,18 +66,24 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json();
   const updates: Record<string, string> = {};
+  let hasValidKeys = false;
 
   for (const [key, value] of Object.entries(body)) {
     if (!ALLOWED_KEYS.includes(key)) continue;
     if (typeof value !== "string") continue;
+    hasValidKeys = true;
     // Skip masked placeholders for sensitive fields
     if (SENSITIVE_KEYS.has(key) && value === "••••••••") continue;
     if (value === "") continue; // Don't store empty strings
     updates[key] = value;
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (!hasValidKeys) {
     return NextResponse.json({ error: "No valid settings to update" }, { status: 400 });
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ success: true, updated: [], message: "No changes detected" });
   }
 
   await setSettings(updates);

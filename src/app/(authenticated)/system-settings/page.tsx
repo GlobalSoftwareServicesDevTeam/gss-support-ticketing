@@ -104,7 +104,7 @@ export default function SystemSettingsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setTestResult({ success: true, message: `Settings saved: ${data.updated.join(", ")}` });
+        setTestResult({ success: true, message: data.updated?.length ? `Settings saved: ${data.updated.join(", ")}` : "Settings unchanged" });
       } else {
         setTestResult({ success: false, message: data.error || "Failed to save" });
       }
