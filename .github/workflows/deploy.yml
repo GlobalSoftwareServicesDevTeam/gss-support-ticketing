@@ -45,48 +45,67 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/deploy_key"
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key"
 
-          scp $SSH_OPTS -P $DEPLOY_PORT deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"
-          ssh $SSH_OPTS -p $DEPLOY_PORT "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'ENDSSH'
-            set -e
-            DOMAIN_DIR="$HOME/domains/support.globalsoftwareservices.co.za"
-            APP_DIR="$DOMAIN_DIR/nodejs"
+          # Write remote deploy script to a file
+          cat > /tmp/remote_deploy.sh <<'REMOTESCRIPT'
+          set -e
+          DOMAIN_DIR="$HOME/domains/support.globalsoftwareservices.co.za"
+          APP_DIR="$DOMAIN_DIR/nodejs"
 
-            # Extract build to temp location
-            rm -rf /tmp/nextjs-deploy
-            mkdir -p /tmp/nextjs-deploy
-            cd /tmp/nextjs-deploy
-            tar -xzf ~/deploy.tar.gz
-            rm ~/deploy.tar.gz
+          rm -rf /tmp/nextjs-deploy
+          mkdir -p /tmp/nextjs-deploy
+          cd /tmp/nextjs-deploy
+          tar -xzf ~/deploy.tar.gz
+          rm ~/deploy.tar.gz
 
-            # Clean old app files (preserve .env, tmp, console.log, stderr.log, node_modules)
-            cd "$APP_DIR"
-            find . -mindepth 1 -maxdepth 1 \
-              ! -name '.env' \
-              ! -name 'tmp' \
-              ! -name 'console.log' \
-              ! -name 'stderr.log' \
-              ! -name 'node_modules' \
-              -exec rm -rf {} +
+          cd "$APP_DIR"
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.env' \
+            ! -name 'tmp' \
+            ! -name 'console.log' \
+            ! -name 'stderr.log' \
+            ! -name 'node_modules' \
+            -exec rm -rf {} +
 
-            # Copy standalone build contents to app root
-            cp -a /tmp/nextjs-deploy/.next/standalone/. "$APP_DIR/"
+          cp -a /tmp/nextjs-deploy/.next/standalone/. "$APP_DIR/"
+          mkdir -p "$APP_DIR/.next/static"
+          cp -a /tmp/nextjs-deploy/.next/static/. "$APP_DIR/.next/static/"
+          mkdir -p "$APP_DIR/public"
+          cp -a /tmp/nextjs-deploy/public/. "$APP_DIR/public/" 2>/dev/null || true
+          rm -rf /tmp/nextjs-deploy
 
-            # Copy static assets into .next directory
-            mkdir -p "$APP_DIR/.next/static"
-            cp -a /tmp/nextjs-deploy/.next/static/. "$APP_DIR/.next/static/"
+          mkdir -p "$APP_DIR/tmp"
+          touch "$APP_DIR/tmp/restart.txt"
+          echo "Deploy complete. Passenger restart triggered."
+          REMOTESCRIPT
 
-            # Copy public directory
-            mkdir -p "$APP_DIR/public"
-            cp -a /tmp/nextjs-deploy/public/. "$APP_DIR/public/" 2>/dev/null || true
+          # Retry SCP up to 3 times
+          for i in 1 2 3; do
+            echo "SCP attempt $i..."
+            if scp $SSH_OPTS -P $DEPLOY_PORT deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:~/deploy.tar.gz"; then
+              echo "SCP succeeded on attempt $i"
+              break
+            fi
+            if [ $i -eq 3 ]; then
+              echo "SCP failed after 3 attempts"
+              exit 1
+            fi
+            echo "SCP failed, retrying in 10s..."
+            sleep 10
+          done
 
-            # Clean up temp files
-            rm -rf /tmp/nextjs-deploy
-
-            # Restart Passenger
-            mkdir -p "$APP_DIR/tmp"
-            touch "$APP_DIR/tmp/restart.txt"
-
-            echo "Deploy complete. Passenger restart triggered."
-          ENDSSH
+          # Retry SSH deploy up to 3 times
+          for i in 1 2 3; do
+            echo "SSH deploy attempt $i..."
+            if ssh $SSH_OPTS -p $DEPLOY_PORT "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s < /tmp/remote_deploy.sh; then
+              echo "SSH deploy succeeded on attempt $i"
+              break
+            fi
+            if [ $i -eq 3 ]; then
+              echo "SSH deploy failed after 3 attempts"
+              exit 1
+            fi
+            echo "SSH failed, retrying in 10s..."
+            sleep 10
+          done
