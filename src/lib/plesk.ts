@@ -12,7 +12,7 @@ export function isPleskConfigured(): boolean {
 async function getPleskCredentials() {
   const config = await getPleskConfig();
   return {
-    url: config.PLESK_API_URL || PLESK_URL,
+    url: (config.PLESK_API_URL || PLESK_URL).replace(/\/+$/, ""),
     login: config.PLESK_API_LOGIN || PLESK_LOGIN,
     password: config.PLESK_API_PASSWORD || PLESK_PASSWORD,
   };
@@ -22,6 +22,8 @@ export async function isPleskConfiguredAsync(): Promise<boolean> {
   const creds = await getPleskCredentials();
   return !!(creds.url && creds.login && creds.password);
 }
+
+// ─── REST API v2 helper ──────────────────────────────
 
 async function pleskFetch(endpoint: string, options: RequestInit = {}) {
   const creds = await getPleskCredentials();
@@ -51,6 +53,33 @@ async function pleskFetch(endpoint: string, options: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// ─── XML-RPC API helper (for service plans) ──────────
+
+async function pleskXmlRpc(xmlBody: string): Promise<string> {
+  const creds = await getPleskCredentials();
+  if (!creds.url || !creds.login || !creds.password) {
+    throw new Error("Plesk not configured");
+  }
+
+  const res = await fetch(`${creds.url}/enterprise/control/agent.php`, {
+    method: "POST",
+    headers: {
+      HTTP_AUTH_LOGIN: creds.login,
+      HTTP_AUTH_PASSWD: creds.password,
+      "Content-Type": "text/xml",
+    },
+    body: xmlBody,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Plesk XML-RPC ${res.status}: ${await res.text()}`);
+  }
+
+  return res.text();
+}
+
+// ─── Clients (mapped from old "customers" endpoint) ──
+
 export interface PleskCustomer {
   id: number;
   login: string;
@@ -59,23 +88,32 @@ export interface PleskCustomer {
 }
 
 export async function listServicePlans(): Promise<{ id: number; name: string }[]> {
-  const data = await pleskFetch("service-plans");
-  return data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+  const xml = await pleskXmlRpc(
+    "<packet><service-plan><get><filter/></get></service-plan></packet>"
+  );
+  const plans: { id: number; name: string }[] = [];
+  // Parse <result><id>N</id><name>...</name></result> blocks
+  const resultRegex = /<result>[\s\S]*?<status>ok<\/status>[\s\S]*?<id>(\d+)<\/id>[\s\S]*?<name>([^<]+)<\/name>[\s\S]*?<\/result>/g;
+  let match;
+  while ((match = resultRegex.exec(xml)) !== null) {
+    plans.push({ id: parseInt(match[1], 10), name: match[2] });
+  }
+  return plans;
 }
 
 export async function findCustomerByEmail(email: string): Promise<PleskCustomer | null> {
   try {
-    const data = await pleskFetch("customers");
+    const data = await pleskFetch("clients");
     const match = data.find(
-      (c: { contact: { email: string } }) =>
-        c.contact?.email?.toLowerCase() === email.toLowerCase()
+      (c: { id: number; login: string; name: string; email: string }) =>
+        c.email?.toLowerCase() === email.toLowerCase()
     );
     if (!match) return null;
     return {
       id: match.id,
       login: match.login,
-      name: match.contact?.name || match.login,
-      email: match.contact?.email,
+      name: match.name || match.login,
+      email: match.email,
     };
   } catch {
     return null;
@@ -90,16 +128,15 @@ export async function createCustomer(params: {
   company?: string;
 }): Promise<PleskCustomer> {
   const body = {
+    name: params.name,
     login: params.login,
     password: params.password,
-    contact: {
-      name: params.name,
-      email: params.email,
-      company: params.company || "",
-    },
+    email: params.email,
+    type: "customer",
+    company: params.company || "",
   };
 
-  const data = await pleskFetch("customers", {
+  const data = await pleskFetch("clients", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -112,6 +149,8 @@ export async function createCustomer(params: {
   };
 }
 
+// ─── Domains (mapped from old "subscriptions" endpoint) ─
+
 export async function createSubscription(params: {
   customerId: number;
   domain: string;
@@ -121,16 +160,16 @@ export async function createSubscription(params: {
 }): Promise<{ id: number; domain: string }> {
   const body: Record<string, unknown> = {
     name: params.domain,
-    owner: { id: params.customerId },
+    owner_client: { id: params.customerId },
     plan: { name: params.planName },
     hosting_type: "virtual",
-    hosting: {
+    hosting_settings: {
       ftp_login: params.login || params.domain.replace(/\./g, "_").substring(0, 16),
       ftp_password: params.password || generatePassword(),
     },
   };
 
-  const data = await pleskFetch("subscriptions", {
+  const data = await pleskFetch("domains", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -139,28 +178,32 @@ export async function createSubscription(params: {
 }
 
 export async function listSubscriptions(customerId?: number) {
-  const endpoint = customerId ? `subscriptions?customer_id=${customerId}` : "subscriptions";
-  return pleskFetch(endpoint);
+  if (customerId) {
+    return pleskFetch(`clients/${customerId}/domains`);
+  }
+  return pleskFetch("domains");
 }
 
 export async function getSubscription(subscriptionId: number) {
-  return pleskFetch(`subscriptions/${subscriptionId}`);
+  return pleskFetch(`domains/${subscriptionId}`);
 }
 
 export async function suspendSubscription(subscriptionId: number) {
-  return pleskFetch(`subscriptions/${subscriptionId}/suspend`, {
+  return pleskFetch(`domains/${subscriptionId}/status`, {
     method: "PUT",
+    body: JSON.stringify({ status: "disabled" }),
   });
 }
 
 export async function activateSubscription(subscriptionId: number) {
-  return pleskFetch(`subscriptions/${subscriptionId}/activate`, {
+  return pleskFetch(`domains/${subscriptionId}/status`, {
     method: "PUT",
+    body: JSON.stringify({ status: "active" }),
   });
 }
 
 export async function removeSubscription(subscriptionId: number) {
-  return pleskFetch(`subscriptions/${subscriptionId}`, {
+  return pleskFetch(`domains/${subscriptionId}`, {
     method: "DELETE",
   });
 }
@@ -173,30 +216,31 @@ export interface DnsRecord {
   host: string;
   value: string;
   opt?: string; // priority for MX, weight/port for SRV
+  ttl?: number;
 }
 
 export async function getDnsRecords(domain: string): Promise<DnsRecord[]> {
-  const data = await pleskFetch(`dns?domain=${encodeURIComponent(domain)}`);
+  const data = await pleskFetch(`dns/records?domain=${encodeURIComponent(domain)}`);
   if (!Array.isArray(data)) return [];
-  return data.map((r: { id: number; type: string; host: string; value: string; opt?: string }) => ({
+  return data.map((r: { id: number; type: string; host: string; value: string; opt?: string; ttl?: number }) => ({
     id: r.id,
     type: r.type,
     host: r.host,
     value: r.value,
     opt: r.opt || undefined,
+    ttl: r.ttl,
   }));
 }
 
 export async function addDnsRecord(domain: string, record: Omit<DnsRecord, "id">): Promise<DnsRecord> {
   const body: Record<string, unknown> = {
-    domain,
     type: record.type,
     host: record.host,
     value: record.value,
   };
   if (record.opt) body.opt = record.opt;
 
-  const data = await pleskFetch("dns", {
+  const data = await pleskFetch(`dns/records?domain=${encodeURIComponent(domain)}`, {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -210,7 +254,7 @@ export async function updateDnsRecord(recordId: number, record: Partial<DnsRecor
   if (record.value !== undefined) body.value = record.value;
   if (record.opt !== undefined) body.opt = record.opt;
 
-  const data = await pleskFetch(`dns/${recordId}`, {
+  const data = await pleskFetch(`dns/records/${recordId}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -218,7 +262,7 @@ export async function updateDnsRecord(recordId: number, record: Partial<DnsRecor
 }
 
 export async function deleteDnsRecord(recordId: number): Promise<void> {
-  await pleskFetch(`dns/${recordId}`, {
+  await pleskFetch(`dns/records/${recordId}`, {
     method: "DELETE",
   });
 }
@@ -245,7 +289,7 @@ function generatePassword(): string {
   return pass;
 }
 
-// ─── Detailed Service Plan Info ──────────────────────
+// ─── Service Plan Details (via XML-RPC) ──────────────
 
 export interface PleskServicePlan {
   id: number;
@@ -286,11 +330,48 @@ function formatLimit(val: number | undefined): string {
 
 export async function getServicePlanDetails(planId: number): Promise<PleskServicePlan | null> {
   try {
-    const data = await pleskFetch(`service-plans/${planId}`);
-    return data;
+    const plans = await listServicePlansFromXml();
+    return plans.find((p) => p.id === planId) || null;
   } catch {
     return null;
   }
+}
+
+// Parse full plan data from XML-RPC response
+async function listServicePlansFromXml(): Promise<PleskServicePlan[]> {
+  const xml = await pleskXmlRpc(
+    "<packet><service-plan><get><filter/></get></service-plan></packet>"
+  );
+  const plans: PleskServicePlan[] = [];
+  const resultRegex = /<result>[\s\S]*?<status>ok<\/status>([\s\S]*?)<\/result>/g;
+  let m;
+  while ((m = resultRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const id = parseInt(xmlVal(block, "id") || "0", 10);
+    const name = xmlVal(block, "name") || "";
+    const limits: Record<string, number> = {};
+    const limitRegex = /<limit>\s*<name>([^<]+)<\/name>\s*<value>([^<]+)<\/value>\s*<\/limit>/g;
+    let lm;
+    while ((lm = limitRegex.exec(block)) !== null) {
+      limits[lm[1]] = parseInt(lm[2], 10);
+    }
+    const hosting: { php?: boolean; ssl?: boolean; webstat?: string; cgi?: boolean } = {};
+    const propRegex = /<property>\s*<name>([^<]+)<\/name>\s*<value>([^<]*)<\/value>\s*<\/property>/g;
+    let pm;
+    while ((pm = propRegex.exec(block)) !== null) {
+      if (pm[1] === "php") hosting.php = pm[2] === "true";
+      else if (pm[1] === "ssl") hosting.ssl = pm[2] === "true";
+      else if (pm[1] === "cgi") hosting.cgi = pm[2] === "true";
+      else if (pm[1] === "webstat") hosting.webstat = pm[2];
+    }
+    plans.push({ id, name, limits, hosting });
+  }
+  return plans;
+}
+
+function xmlVal(block: string, tag: string): string | null {
+  const m = new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(block);
+  return m ? m[1] : null;
 }
 
 export async function listServicePlansDetailed(): Promise<{
@@ -306,7 +387,7 @@ export async function listServicePlansDetailed(): Promise<{
   sslSupport: boolean;
   phpSupport: boolean;
 }[]> {
-  const plans = await pleskFetch("service-plans");
+  const plans = await listServicePlansFromXml();
   const detailed = [];
 
   for (const plan of plans) {
@@ -337,8 +418,15 @@ export async function testConnection(): Promise<{ success: boolean; message: str
     if (!configured) {
       return { success: false, message: "Plesk API credentials are not configured" };
     }
-    const plans = await pleskFetch("service-plans");
-    return { success: true, message: `Connected successfully. Found ${plans.length} service plan(s).`, planCount: plans.length };
+    // Test REST API with server endpoint
+    const server = await pleskFetch("server");
+    // Also verify service plan listing via XML-RPC
+    const plans = await listServicePlans();
+    return {
+      success: true,
+      message: `Connected to ${server.hostname} (Plesk ${server.panel_version}). Found ${plans.length} service plan(s).`,
+      planCount: plans.length,
+    };
   } catch (err) {
     return { success: false, message: `Connection failed: ${err instanceof Error ? err.message : String(err)}` };
   }
