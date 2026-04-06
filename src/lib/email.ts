@@ -239,3 +239,53 @@ export function domainExpiryReminderTemplate(
     </html>
   `;
 }
+
+export function quoteNotificationTemplate(
+  recipientName: string,
+  quoteNo: string,
+  title: string,
+  totalAmount: string,
+  validUntil: string | null,
+  quoteUrl: string
+): string {
+  const validLine = validUntil ? `<p style="margin:5px 0 0;"><strong>Valid Until:</strong> ${validUntil}</p>` : "";
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: #2b6cb0; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center; }
+        .quote-box { background-color: #f7fafc; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #2b6cb0; }
+        .btn { display: inline-block; background: #2b6cb0; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;">Quote ${quoteNo}</h1>
+          <p style="margin:5px 0 0;">GSS Support</p>
+        </div>
+        <p>Dear ${recipientName},</p>
+        <p>We have prepared a quote for you. Please review the details below:</p>
+        <div class="quote-box">
+          <p style="margin:0;"><strong>Quote:</strong> ${quoteNo}</p>
+          <p style="margin:5px 0 0;"><strong>Description:</strong> ${title}</p>
+          <p style="margin:5px 0 0;"><strong>Total Amount:</strong> R${totalAmount}</p>
+          ${validLine}
+        </div>
+        <p>Click the button below to view the full quote, accept or decline it, and provide your signature:</p>
+        <p style="text-align:center;">
+          <a href="${quoteUrl}" class="btn" style="color: white;">View &amp; Respond to Quote</a>
+        </p>
+        <p style="color:#718096;font-size:13px;">If the button doesn't work, copy this link into your browser:<br/>${quoteUrl}</p>
+        <div class="footer">
+          <p>This is an automated message from GSS Support. This link is unique to you — do not forward this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}

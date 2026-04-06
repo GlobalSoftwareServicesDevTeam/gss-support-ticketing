@@ -66,6 +66,7 @@ model Customer {
   contacts Contact[]
   repos    CustomerRepo[]
   vault    SecureNote[]
+  quotes   Quote[]
 
   @@map("customers")
 }
@@ -148,6 +149,7 @@ model Project {
   assignments ProjectAssignment[]
   codeReleases CodeRelease[]
   repos       GitHubRepo[]
+  quotes      Quote[]
 
   @@map("projects")
 }
@@ -287,15 +289,49 @@ model MailSetting {
 }
 
 model Quote {
-  id          String   @id @default(uuid())
-  quoteNo     String?
-  amount      Decimal?
-  paid        Boolean  @default(false)
-  amountPaid  Decimal?
-  dueDate     DateTime?
-  invoiceNo   String?
-  quoteStatus String?
-  createdAt   DateTime @default(now())
+  id              String    @id @default(uuid())
+  quoteNo         String?
+  title           String?
+  description     String?   @db.NVarChar(Max)
+  lineItems       String?   @db.NVarChar(Max) // JSON: [{description, qty, unitPrice, amount}]
+  amount          Decimal?
+  taxRate         Decimal?  @default(15)
+  taxAmount       Decimal?
+  totalAmount     Decimal?
+  paid            Boolean   @default(false)
+  amountPaid      Decimal?
+  dueDate         DateTime?
+  validUntil      DateTime?
+  invoiceNo       String?
+  quoteStatus     String?   @default("DRAFT") // DRAFT, SENT, VIEWED, ACCEPTED, DECLINED, EXPIRED, CONVERTED
+  notes           String?   @db.NVarChar(Max)
+  declineReason   String?   @db.NVarChar(Max)
+
+  // Client info
+  clientName      String?
+  clientEmail     String?
+  clientCompany   String?
+
+  // Signature
+  clientSignature String?   @db.NVarChar(Max) // base64 PNG
+  clientSignedAt  DateTime?
+  clientSignedName String?
+  clientIp        String?
+
+  // Token for public access
+  token           String?   @unique @default(uuid())
+
+  // Relations
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  sentAt          DateTime?
+  sentBy          String?   // userId who sent
+  createdBy       String?   // userId who created
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("quotes")
 }
