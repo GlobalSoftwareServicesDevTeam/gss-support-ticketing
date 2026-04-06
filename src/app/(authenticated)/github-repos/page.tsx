@@ -16,6 +16,9 @@ import {
   Code2,
   Trash2,
   FolderKanban,
+  Pencil,
+  GitMerge,
+  ArrowRightLeft,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 import Link from "next/link";
@@ -64,6 +67,31 @@ export default function GitHubReposPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [assigningRepoId, setAssigningRepoId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+
+  // Rename state
+  const [renameRepoId, setRenameRepoId] = useState<string | null>(null);
+  const [newRepoName, setNewRepoName] = useState("");
+  const [renameToken, setRenameToken] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameResult, setRenameResult] = useState<string | null>(null);
+
+  // Merge state
+  const [mergeRepoId, setMergeRepoId] = useState<string | null>(null);
+  const [mergeSource, setMergeSource] = useState("");
+  const [mergeSourceBranch, setMergeSourceBranch] = useState("main");
+  const [mergeTargetBranch, setMergeTargetBranch] = useState("main");
+  const [mergeToken, setMergeToken] = useState("");
+  const [merging, setMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState<{ message?: string; error?: string; localInstructions?: Record<string, string> } | null>(null);
+
+  // Transfer state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferSource, setTransferSource] = useState("");
+  const [transferTarget, setTransferTarget] = useState("");
+  const [transferSourceToken, setTransferSourceToken] = useState("");
+  const [transferToken, setTransferToken] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferResult, setTransferResult] = useState<{ message?: string; error?: string; note?: string } | null>(null);
 
   const fetchRepos = useCallback(async () => {
     const res = await fetch(`/api/github/repos?search=${encodeURIComponent(search)}`);
@@ -163,6 +191,86 @@ export default function GitHubReposPage() {
     fetchRepos();
   };
 
+  const handleRename = async () => {
+    if (!renameRepoId || !newRepoName.trim()) return;
+    setRenaming(true);
+    setRenameResult(null);
+    try {
+      const res = await fetch(`/api/github/repos/${renameRepoId}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newName: newRepoName.trim(), token: renameToken || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRenameResult(data.message);
+        fetchRepos();
+        setTimeout(() => { setRenameRepoId(null); setRenameResult(null); }, 2000);
+      } else {
+        setRenameResult(data.error || "Rename failed");
+      }
+    } catch {
+      setRenameResult("Network error");
+    }
+    setRenaming(false);
+  };
+
+  const handleMerge = async () => {
+    if (!mergeRepoId || !mergeSource.trim()) return;
+    setMerging(true);
+    setMergeResult(null);
+    try {
+      const res = await fetch(`/api/github/repos/${mergeRepoId}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceRepo: mergeSource.trim(),
+          sourceBranch: mergeSourceBranch || "main",
+          targetBranch: mergeTargetBranch || "main",
+          token: mergeToken || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMergeResult({ message: data.message });
+        fetchRepos();
+      } else {
+        setMergeResult({ error: data.error, localInstructions: data.localInstructions });
+      }
+    } catch {
+      setMergeResult({ error: "Network error" });
+    }
+    setMerging(false);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferSource.trim()) return;
+    setTransferring(true);
+    setTransferResult(null);
+    try {
+      const res = await fetch("/api/github/repos/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceRepo: transferSource.trim(),
+          targetOwner: transferTarget.trim() || undefined,
+          token: transferToken || undefined,
+          sourceToken: transferSourceToken || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTransferResult({ message: data.message, note: data.note });
+        fetchRepos();
+      } else {
+        setTransferResult({ error: data.error });
+      }
+    } catch {
+      setTransferResult({ error: "Network error" });
+    }
+    setTransferring(false);
+  };
+
   const LANG_COLORS: Record<string, string> = {
     TypeScript: "bg-blue-500",
     JavaScript: "bg-yellow-400",
@@ -200,13 +308,22 @@ export default function GitHubReposPage() {
             Sync repos from GitHub and assign them to customers
           </p>
         </div>
-        <button
-          onClick={() => setShowSyncModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition shadow-sm"
-        >
-          <RefreshCw size={16} />
-          Sync from GitHub
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition shadow-sm"
+          >
+            <ArrowRightLeft size={16} />
+            Transfer Repo
+          </button>
+          <button
+            onClick={() => setShowSyncModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition shadow-sm"
+          >
+            <RefreshCw size={16} />
+            Sync from GitHub
+          </button>
+        </div>
       </div>
 
       {/* Sync Modal */}
@@ -253,6 +370,249 @@ export default function GitHubReposPage() {
           </div>
         </div>
       )}
+
+      {/* Transfer Repo Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <ArrowRightLeft size={18} /> Transfer Repository
+              </h2>
+              <button onClick={() => { setShowTransferModal(false); setTransferResult(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Transfer a repository from another GitHub account to your main account. The source account token must have admin access to the repo.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Repo (owner/name) *</label>
+                <input
+                  type="text"
+                  value={transferSource}
+                  onChange={(e) => setTransferSource(e.target.value)}
+                  placeholder="other-user/repo-name"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Owner/Org (leave blank for PAT owner)</label>
+                <input
+                  type="text"
+                  value={transferTarget}
+                  onChange={(e) => setTransferTarget(e.target.value)}
+                  placeholder="GlobalWebServe"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Account Token (admin on source repo)</label>
+                <input
+                  type="password"
+                  value={transferSourceToken}
+                  onChange={(e) => setTransferSourceToken(e.target.value)}
+                  placeholder="ghp_xxxx (source account PAT)"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Account Token (or use server GITHUB_PAT)</label>
+                <input
+                  type="password"
+                  value={transferToken}
+                  onChange={(e) => setTransferToken(e.target.value)}
+                  placeholder="ghp_xxxx (optional)"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                />
+              </div>
+            </div>
+            {transferResult && (
+              <div className={`text-sm mt-4 p-3 rounded-lg ${transferResult.message ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
+                {transferResult.message || transferResult.error}
+                {transferResult.note && <p className="mt-1 text-xs opacity-75">{transferResult.note}</p>}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end mt-4">
+              <button
+                onClick={() => { setShowTransferModal(false); setTransferResult(null); }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={transferring || !transferSource.trim()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition disabled:opacity-50"
+              >
+                {transferring ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
+                {transferring ? "Transferring..." : "Transfer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Repo Modal */}
+      {renameRepoId && (() => {
+        const renameRepo = repos.find((r) => r.id === renameRepoId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Pencil size={18} /> Rename Repository
+                </h2>
+                <button onClick={() => { setRenameRepoId(null); setRenameResult(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Rename <strong>{renameRepo?.fullName}</strong> on GitHub. GitHub will set up redirects from the old URL.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">New Name *</label>
+                  <input
+                    type="text"
+                    value={newRepoName}
+                    onChange={(e) => setNewRepoName(e.target.value)}
+                    placeholder="new-repo-name"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">GitHub Token (or uses server GITHUB_PAT)</label>
+                  <input
+                    type="password"
+                    value={renameToken}
+                    onChange={(e) => setRenameToken(e.target.value)}
+                    placeholder="ghp_xxxx (optional)"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+              </div>
+              {renameResult && (
+                <div className={`text-sm mt-4 p-3 rounded-lg ${renameResult.startsWith("Repo renamed") ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
+                  {renameResult}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end mt-4">
+                <button
+                  onClick={() => { setRenameRepoId(null); setRenameResult(null); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRename}
+                  disabled={renaming || !newRepoName.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 transition disabled:opacity-50"
+                >
+                  {renaming ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
+                  {renaming ? "Renaming..." : "Rename"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Merge History Modal */}
+      {mergeRepoId && (() => {
+        const mergeRepo = repos.find((r) => r.id === mergeRepoId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <GitMerge size={18} /> Merge Repository History
+                </h2>
+                <button onClick={() => { setMergeRepoId(null); setMergeResult(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Merge commit history from another repo into <strong>{mergeRepo?.fullName}</strong>.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Repo (owner/name) *</label>
+                  <input
+                    type="text"
+                    value={mergeSource}
+                    onChange={(e) => setMergeSource(e.target.value)}
+                    placeholder="other-org/source-repo"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Branch</label>
+                    <input
+                      type="text"
+                      value={mergeSourceBranch}
+                      onChange={(e) => setMergeSourceBranch(e.target.value)}
+                      placeholder="main"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Branch</label>
+                    <input
+                      type="text"
+                      value={mergeTargetBranch}
+                      onChange={(e) => setMergeTargetBranch(e.target.value)}
+                      placeholder="main"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">GitHub Token (or uses server GITHUB_PAT)</label>
+                  <input
+                    type="password"
+                    value={mergeToken}
+                    onChange={(e) => setMergeToken(e.target.value)}
+                    placeholder="ghp_xxxx (optional)"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+              </div>
+              {mergeResult && (
+                <div className={`text-sm mt-4 p-3 rounded-lg ${mergeResult.message ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
+                  {mergeResult.message || mergeResult.error}
+                  {mergeResult.localInstructions && (
+                    <div className="mt-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                      <p className="font-medium text-slate-700 dark:text-slate-300 text-xs mb-2">Manual merge steps (for unrelated histories):</p>
+                      <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+{Object.values(mergeResult.localInstructions).join("\n")}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end mt-4">
+                <button
+                  onClick={() => { setMergeRepoId(null); setMergeResult(null); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleMerge}
+                  disabled={merging || !mergeSource.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition disabled:opacity-50"
+                >
+                  {merging ? <Loader2 size={14} className="animate-spin" /> : <GitMerge size={14} />}
+                  {merging ? "Merging..." : "Merge History"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Search */}
       <div className="relative mb-6">
@@ -323,7 +683,21 @@ export default function GitHubReposPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    <button
+                      onClick={() => { setRenameRepoId(repo.id); setNewRepoName(repo.name); setRenameResult(null); }}
+                      className="text-slate-400 hover:text-brand-500 transition p-1"
+                      title="Rename repo"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      onClick={() => { setMergeRepoId(repo.id); setMergeSource(""); setMergeResult(null); }}
+                      className="text-slate-400 hover:text-purple-500 transition p-1"
+                      title="Merge history from another repo"
+                    >
+                      <GitMerge size={16} />
+                    </button>
                     <button
                       onClick={() => handleDeleteRepo(repo.id)}
                       className="text-slate-400 hover:text-red-500 transition p-1"
