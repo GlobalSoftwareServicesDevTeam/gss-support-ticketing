@@ -15,6 +15,9 @@ import {
   ChevronDown,
   ChevronRight,
   AlertCircle,
+  HardDrive,
+  Power,
+  PowerOff,
 } from "lucide-react";
 
 interface PleskDomain {
@@ -22,6 +25,8 @@ interface PleskDomain {
   name: string;
   hosting_type: string;
   status: string;
+  disk_usage: number | null;
+  disk_limit: number | null;
 }
 
 interface ClientHosting {
@@ -53,6 +58,7 @@ export default function HostingClientsPage() {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "hosted" | "not-hosted">("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [togglingDomains, setTogglingDomains] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (session?.user?.role === "ADMIN") {
@@ -80,6 +86,50 @@ export default function HostingClientsPage() {
       else next.add(id);
       return next;
     });
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }
+
+  async function toggleDomainStatus(domainId: number, currentStatus: string) {
+    const action = currentStatus === "active" ? "suspend" : "activate";
+    const label = action === "suspend" ? "Suspend" : "Activate";
+    if (!confirm(`Are you sure you want to ${label.toLowerCase()} this domain?`)) return;
+
+    setTogglingDomains((prev) => new Set(prev).add(domainId));
+    try {
+      const res = await fetch("/api/hosting/clients/status", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domainId, action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClients((prev) =>
+          prev.map((c) => ({
+            ...c,
+            domains: c.domains.map((d) =>
+              d.id === domainId ? { ...d, status: data.newStatus } : d
+            ),
+          }))
+        );
+      } else {
+        alert(data.error || "Failed to update status");
+      }
+    } catch {
+      alert("Failed to update subscription status");
+    } finally {
+      setTogglingDomains((prev) => {
+        const next = new Set(prev);
+        next.delete(domainId);
+        return next;
+      });
+    }
   }
 
   const filtered = clients.filter((c) => {
@@ -297,42 +347,104 @@ export default function HostingClientsPage() {
                         <tr className="text-left text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-gray-200 dark:border-gray-700">
                           <th className="px-6 py-2">Domain</th>
                           <th className="px-4 py-2">Type</th>
+                          <th className="px-4 py-2">Disk Usage</th>
                           <th className="px-4 py-2">Status</th>
                           <th className="px-4 py-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {client.domains.map((d) => (
-                          <tr
-                            key={d.id}
-                            className="border-b border-gray-100 dark:border-gray-700/50"
-                          >
-                            <td className="px-6 py-2.5 text-gray-900 dark:text-white flex items-center gap-2">
-                              <Globe size={14} className="text-blue-500 flex-shrink-0" />
-                              {d.name}
-                            </td>
-                            <td className="px-4 py-2.5 capitalize text-gray-600 dark:text-gray-300">
-                              {d.hosting_type || "Virtual"}
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[d.status?.toLowerCase()] || "bg-gray-100 text-gray-700"}`}
-                              >
-                                {d.status || "Active"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <a
-                                href={`http://${d.name}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
-                              >
-                                Visit <ExternalLink size={11} />
-                              </a>
-                            </td>
-                          </tr>
-                        ))}
+                        {client.domains.map((d) => {
+                          const usagePct = d.disk_usage != null && d.disk_limit != null && d.disk_limit > 0
+                            ? Math.min(100, Math.round((d.disk_usage / d.disk_limit) * 100))
+                            : null;
+                          return (
+                            <tr
+                              key={d.id}
+                              className="border-b border-gray-100 dark:border-gray-700/50"
+                            >
+                              <td className="px-6 py-2.5 text-gray-900 dark:text-white flex items-center gap-2">
+                                <Globe size={14} className="text-blue-500 flex-shrink-0" />
+                                {d.name}
+                              </td>
+                              <td className="px-4 py-2.5 capitalize text-gray-600 dark:text-gray-300">
+                                {d.hosting_type || "Virtual"}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {d.disk_usage != null ? (
+                                  <div className="min-w-[120px]">
+                                    <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 mb-1">
+                                      <HardDrive size={12} className="text-gray-400" />
+                                      <span>{formatBytes(d.disk_usage)}</span>
+                                      {d.disk_limit != null && d.disk_limit > 0 && (
+                                        <span className="text-gray-400">/ {formatBytes(d.disk_limit)}</span>
+                                      )}
+                                    </div>
+                                    {usagePct != null && (
+                                      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${
+                                            usagePct > 90 ? "bg-red-500" : usagePct > 70 ? "bg-yellow-500" : "bg-green-500"
+                                          }`}
+                                          style={{ width: `${usagePct}%` }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[d.status?.toLowerCase()] || "bg-gray-100 text-gray-700"}`}
+                                >
+                                  {d.status || "Active"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={`http://${d.name}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                                  >
+                                    Visit <ExternalLink size={11} />
+                                  </a>
+                                  {d.status?.toLowerCase() === "active" ? (
+                                    <button
+                                      title="Suspend subscription"
+                                      onClick={() => toggleDomainStatus(d.id, "active")}
+                                      disabled={togglingDomains.has(d.id)}
+                                      className="text-red-600 hover:text-red-800 text-xs flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {togglingDomains.has(d.id) ? (
+                                        <Loader2 size={11} className="animate-spin" />
+                                      ) : (
+                                        <PowerOff size={11} />
+                                      )}
+                                      Suspend
+                                    </button>
+                                  ) : (
+                                    <button
+                                      title="Activate subscription"
+                                      onClick={() => toggleDomainStatus(d.id, "disabled")}
+                                      disabled={togglingDomains.has(d.id)}
+                                      className="text-green-600 hover:text-green-800 text-xs flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {togglingDomains.has(d.id) ? (
+                                        <Loader2 size={11} className="animate-spin" />
+                                      ) : (
+                                        <Power size={11} />
+                                      )}
+                                      Activate
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}

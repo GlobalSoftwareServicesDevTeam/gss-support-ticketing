@@ -15,7 +15,7 @@ export async function GET() {
 
   // Dynamic imports to avoid bundling issues
   const { default: prisma } = await import("@/lib/prisma");
-  const { findCustomerByEmail, listSubscriptions, createSessionUrl } = await import("@/lib/plesk");
+  const { findCustomerByEmail, listSubscriptions, createSessionUrl, getSubscription } = await import("@/lib/plesk");
 
   // Get all customers from DB
   const customers = await prisma.customer.findMany({
@@ -40,16 +40,41 @@ export async function GET() {
         };
       }
 
-      let domains: { id: number; name: string; hosting_type: string; status: string }[] = [];
+      let domains: { id: number; name: string; hosting_type: string; status: string; disk_usage: number | null; disk_limit: number | null }[] = [];
       try {
         const raw = await listSubscriptions(pleskCustomer.id);
         if (Array.isArray(raw)) {
-          domains = raw.map((d: Record<string, unknown>) => ({
-            id: d.id as number,
-            name: d.name as string,
-            hosting_type: (d.hosting_type as string) || "virtual",
-            status: (d.status as string) || "active",
-          }));
+          // Fetch detailed info for each domain to get disk usage
+          const domainDetails = await Promise.allSettled(
+            raw.map(async (d: Record<string, unknown>) => {
+              let disk_usage: number | null = null;
+              let disk_limit: number | null = null;
+              try {
+                const detail = await getSubscription(d.id as number);
+                if (detail) {
+                  // Plesk API returns disk_usage in bytes
+                  disk_usage = typeof detail.disk_usage === "number" ? detail.disk_usage : null;
+                  // Check various places Plesk might store limits
+                  if (detail.limits?.disk_space !== undefined) {
+                    disk_limit = typeof detail.limits.disk_space === "number" ? detail.limits.disk_space : null;
+                  }
+                }
+              } catch {
+                // disk info may not be available
+              }
+              return {
+                id: d.id as number,
+                name: d.name as string,
+                hosting_type: (d.hosting_type as string) || "virtual",
+                status: (d.status as string) || "active",
+                disk_usage,
+                disk_limit,
+              };
+            })
+          );
+          domains = domainDetails
+            .filter((r) => r.status === "fulfilled")
+            .map((r) => (r as PromiseFulfilledResult<{ id: number; name: string; hosting_type: string; status: string; disk_usage: number | null; disk_limit: number | null }>).value);
         }
       } catch {
         // domains may fail
