@@ -50,7 +50,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { name, bundleId, storeUrl, packageName, appleId, iconUrl, isActive } = body;
+  const { name, bundleId, storeUrl, packageName, appleId, iconUrl, isActive, customerId } = body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -60,6 +60,7 @@ export async function PATCH(
   if (appleId !== undefined) data.appleId = appleId || null;
   if (iconUrl !== undefined) data.iconUrl = iconUrl || null;
   if (isActive !== undefined) data.isActive = isActive;
+  if (customerId !== undefined) data.customerId = customerId;
 
   const app = await prisma.mobileApp.update({
     where: { id },

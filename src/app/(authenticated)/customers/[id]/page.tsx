@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Building2,
@@ -29,6 +30,7 @@ import {
   Server,
   Globe,
   LogIn,
+  Smartphone,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -174,6 +176,9 @@ export default function CustomerDetailPage() {
   // Vault
   const [vaultCount, setVaultCount] = useState(0);
 
+  // Mobile Apps
+  const [mobileApps, setMobileApps] = useState<{ id: string; name: string; bundleId: string; platform: string; storeUrl: string | null; iconUrl: string | null; _count: { stats: number; builds: number } }[]>([]);
+
   // Plesk hosting
   const [pleskLoading, setPleskLoading] = useState(true);
   const [pleskFound, setPleskFound] = useState(false);
@@ -260,6 +265,12 @@ export default function CustomerDetailPage() {
       fetch(`/api/customers/${id}/vault`)
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => { if (Array.isArray(data)) setVaultCount(data.length); })
+        .catch(() => {});
+
+      // Fetch mobile apps
+      fetch(`/api/mobile-apps?customerId=${id}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => { if (Array.isArray(data)) setMobileApps(data); })
         .catch(() => {});
 
       // Fetch Plesk hosting info
@@ -1000,6 +1011,62 @@ export default function CustomerDetailPage() {
                     <X size={14} />
                   </button>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Apps Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Smartphone size={20} className="text-brand-500" /> Mobile Apps ({mobileApps.length})
+          </h2>
+          <Link
+            href="/mobile-apps"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Eye size={14} /> Manage Apps
+          </Link>
+        </div>
+        {mobileApps.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No mobile apps assigned to this customer. Go to Mobile Apps to add or import apps.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {mobileApps.map((app) => (
+              <div key={app.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {app.iconUrl ? (
+                    <Image src={app.iconUrl} alt="" width={40} height={40} className="w-10 h-10 object-cover rounded-lg" unoptimized />
+                  ) : (
+                    <Smartphone size={20} className="text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white text-sm truncate">{app.name}</span>
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                      app.platform === "GOOGLE_PLAY"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                    }`}>
+                      {app.platform === "GOOGLE_PLAY" ? "Android" : "iOS"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{app.bundleId}</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span title="Builds">{app._count.builds} builds</span>
+                  <span title="Stats">{app._count.stats} stats</span>
+                </div>
+                {app.storeUrl && (
+                  <a href={app.storeUrl} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-500 transition" title="Open in store">
+                    <ExternalLink size={14} />
+                  </a>
+                )}
               </div>
             ))}
           </div>
