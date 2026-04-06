@@ -558,10 +558,13 @@ model SslCertificate {
   validFrom          DateTime?
   validTo            DateTime?
   issuedAt           DateTime?
+  renewalInvoiceId   String?   // Invoice Ninja invoice ID for renewal
+  reminderSentAt     DateTime? // last SSL expiry reminder sent
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   @@index([digicertOrderId])
+  @@index([validTo])
   @@map("ssl_certificates")
 }
 

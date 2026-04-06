@@ -431,3 +431,52 @@ export function buildApprovalTemplate(params: {
     </html>
   `;
 }
+
+export function sslExpiryReminderTemplate(
+  recipientName: string,
+  commonName: string,
+  productType: string,
+  expiryDate: string,
+  daysLeft: number,
+  invoiceNumber: string | null,
+  amount: string | null
+): string {
+  const urgencyColor = daysLeft <= 7 ? "#c53030" : daysLeft <= 14 ? "#c05621" : "#2b6cb0";
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: ${urgencyColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center; }
+        .ssl-box { background-color: #edf2f7; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid ${urgencyColor}; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;">SSL Certificate Renewal</h1>
+          <p style="margin:5px 0 0;">GSS Support</p>
+        </div>
+        <p>Dear ${recipientName},</p>
+        <p>Your SSL certificate is approaching its expiry date and needs to be renewed to maintain secure connections for your website.</p>
+        <div class="ssl-box">
+          <p style="margin:0;"><strong>Domain:</strong> ${commonName}</p>
+          <p style="margin:5px 0 0;"><strong>Certificate Type:</strong> ${productType}</p>
+          <p style="margin:5px 0 0;"><strong>Expiry Date:</strong> ${expiryDate}</p>
+          <p style="margin:5px 0 0;color:${urgencyColor};font-weight:bold;">${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining</p>
+        </div>
+        ${invoiceNumber ? `<p>An invoice <strong>#${invoiceNumber}</strong>${amount ? ` for <strong>R${amount}</strong>` : ""} has been generated for the SSL certificate renewal. Please arrange payment at your earliest convenience to avoid any interruption to your secure connection.</p>` : ""}
+        <p>If your SSL certificate expires, your website visitors will see security warnings and your site may become inaccessible via HTTPS.</p>
+        <p>If you have already arranged payment or wish to discuss your SSL renewal, please contact our support team.</p>
+        <p>Best regards,<br/>GSS Support Team</p>
+        <div class="footer">
+          <p>This is an automated reminder from GSS Support. An expired SSL certificate will cause browser security warnings for your visitors.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
