@@ -73,6 +73,7 @@ model Customer {
   repos    CustomerRepo[]
   vault    SecureNote[]
   quotes   Quote[]
+  apps     MobileApp[]
 
   @@map("customers")
 }
@@ -768,4 +769,75 @@ model TrustedDevice {
   @@index([userId])
   @@index([tokenHash])
   @@map("trusted_devices")
+}
+
+// ─── App Store Statistics ────────────────────────────
+
+model MobileApp {
+  id            String   @id @default(uuid())
+  name          String
+  bundleId      String   // e.g. com.company.app
+  platform      String   // GOOGLE_PLAY, APPLE
+  storeUrl      String?  @db.NVarChar(Max)
+  packageName   String?  // Google Play package name (same as bundleId for Android)
+  appleId       String?  // Apple numeric app ID
+  iconUrl       String?  @db.NVarChar(Max)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  stats         AppStoreStatistic[]
+  builds        AppBuild[]
+
+  @@unique([bundleId, platform])
+  @@index([customerId])
+  @@map("mobile_apps")
+}
+
+model AppStoreStatistic {
+  id            String   @id @default(uuid())
+  date          DateTime // the date this stat covers
+  downloads     Int      @default(0)
+  updates       Int      @default(0)
+  activeDevices Int      @default(0)
+  revenue       Decimal  @default(0) @db.Decimal(18, 2)
+  ratings       Int      @default(0)
+  averageRating Decimal? @db.Decimal(3, 2)
+  crashes       Int      @default(0)
+  uninstalls    Int      @default(0)
+  country       String?  // ISO 3166-1 alpha-2 or null for aggregate
+  createdAt     DateTime @default(now())
+
+  appId         String
+  app           MobileApp @relation(fields: [appId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([appId, date, country])
+  @@index([appId, date])
+  @@map("app_store_statistics")
+}
+
+model AppBuild {
+  id              String    @id @default(uuid())
+  version         String    // e.g. 1.2.3
+  buildNumber     String    // e.g. 42
+  status          String    @default("SUBMITTED") // SUBMITTED, IN_REVIEW, APPROVED, REJECTED, RELEASED
+  trackOrChannel  String?   // production, beta, alpha / App Store, TestFlight
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  releasedAt      DateTime?
+  releaseNotes    String?   @db.NVarChar(Max)
+  rejectionReason String?   @db.NVarChar(Max)
+  notifiedAt      DateTime? // when we notified the client
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  appId           String
+  app             MobileApp @relation(fields: [appId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([appId, status])
+  @@index([status])
+  @@map("app_builds")
 }

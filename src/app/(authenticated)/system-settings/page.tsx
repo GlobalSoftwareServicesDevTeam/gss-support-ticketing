@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck, Smartphone } from "lucide-react";
 
-type Tab = "plesk" | "smtp" | "imap" | "digicert";
+type Tab = "plesk" | "smtp" | "imap" | "digicert" | "googleplay" | "apple";
 
 interface PleskPlan {
   id: number;
@@ -52,6 +52,10 @@ export default function SystemSettingsPage() {
     IMAP_PASSWORD: "",
     DIGICERT_API_KEY: "",
     DIGICERT_ORG_ID: "",
+    GOOGLE_PLAY_SERVICE_ACCOUNT_KEY: "",
+    APPLE_CONNECT_KEY_ID: "",
+    APPLE_CONNECT_ISSUER_ID: "",
+    APPLE_CONNECT_PRIVATE_KEY: "",
   });
 
   const isAdmin = session?.user?.role === "ADMIN";
@@ -83,6 +87,8 @@ export default function SystemSettingsPage() {
       smtp: ["SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME"],
       imap: ["IMAP_HOST", "IMAP_PORT", "IMAP_TLS", "IMAP_USER", "IMAP_PASSWORD"],
       digicert: ["DIGICERT_API_KEY", "DIGICERT_ORG_ID"],
+      googleplay: ["GOOGLE_PLAY_SERVICE_ACCOUNT_KEY"],
+      apple: ["APPLE_CONNECT_KEY_ID", "APPLE_CONNECT_ISSUER_ID", "APPLE_CONNECT_PRIVATE_KEY"],
     };
 
     const payload: Record<string, string> = {};
@@ -204,6 +210,8 @@ export default function SystemSettingsPage() {
     { key: "smtp", label: "SMTP (Outgoing)", icon: <Mail size={16} /> },
     { key: "imap", label: "IMAP (Incoming)", icon: <Inbox size={16} /> },
     { key: "digicert", label: "DigiCert SSL", icon: <ShieldCheck size={16} /> },
+    { key: "googleplay", label: "Google Play", icon: <Smartphone size={16} /> },
+    { key: "apple", label: "Apple Connect", icon: <Smartphone size={16} /> },
   ];
 
   function renderInput(key: string, label: string, opts?: { type?: string; placeholder?: string; help?: string }) {
@@ -513,6 +521,115 @@ export default function SystemSettingsPage() {
                   <li>Domain validation (DNS or Email) must be completed</li>
                   <li>Once validated, DigiCert issues the certificate</li>
                   <li>Admin or customer can download the certificate files</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Google Play Tab */}
+          {activeTab === "googleplay" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Google Play Developer API</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Configure Google Play Developer API credentials to track app builds and statistics.
+                  Create a Service Account in{" "}
+                  <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    Google Cloud Console
+                  </a>{" "}
+                  and grant it access in the Play Console.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Service Account Key (JSON)</label>
+                  <textarea
+                    value={settings.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY || ""}
+                    onChange={(e) => updateSetting("GOOGLE_PLAY_SERVICE_ACCOUNT_KEY", e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white font-mono"
+                    placeholder='{"type": "service_account", "project_id": "...", ...}'
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Paste the full JSON contents of your service account key file.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("googleplay")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Setup Instructions</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Go to Google Cloud Console &gt; IAM &gt; Service Accounts</li>
+                  <li>Create a new service account (or use an existing one)</li>
+                  <li>Create a JSON key and download it</li>
+                  <li>In Google Play Console &gt; Settings &gt; API access, link the service account</li>
+                  <li>Grant the service account &quot;View app information and download bulk reports&quot; permission</li>
+                  <li>Paste the JSON key contents above</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Apple App Store Connect Tab */}
+          {activeTab === "apple" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Apple App Store Connect API</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Configure App Store Connect API credentials to track iOS app builds and statistics.
+                  Generate an API key in{" "}
+                  <a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    App Store Connect
+                  </a>.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {renderInput("APPLE_CONNECT_KEY_ID", "Key ID", { placeholder: "ABC123DEF4", help: "Found in App Store Connect > Users and Access > Integrations > Keys" })}
+                {renderInput("APPLE_CONNECT_ISSUER_ID", "Issuer ID", { placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", help: "Found at the top of the Keys page" })}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Private Key (.p8 contents)</label>
+                  <textarea
+                    value={settings.APPLE_CONNECT_PRIVATE_KEY || ""}
+                    onChange={(e) => updateSetting("APPLE_CONNECT_PRIVATE_KEY", e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white font-mono"
+                    placeholder="-----BEGIN PRIVATE KEY-----&#10;MIGTAgEAMBMGByqGSM49...&#10;-----END PRIVATE KEY-----"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Paste the full contents of your .p8 private key file.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("apple")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Setup Instructions</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Go to App Store Connect &gt; Users and Access &gt; Integrations &gt; App Store Connect API</li>
+                  <li>Click &quot;Generate API Key&quot; (or use an existing one)</li>
+                  <li>Note the Key ID and Issuer ID shown on the page</li>
+                  <li>Download the .p8 private key file (only available once!)</li>
+                  <li>Paste the Key ID, Issuer ID, and .p8 file contents above</li>
+                  <li>Grant the key &quot;Admin&quot; or &quot;App Manager&quot; role for full access</li>
                 </ol>
               </div>
             </div>

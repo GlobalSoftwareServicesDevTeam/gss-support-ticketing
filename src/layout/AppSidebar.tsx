@@ -35,6 +35,8 @@ import {
   Wrench,
   Send,
   Shield,
+  Smartphone,
+  BarChart3,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -82,6 +84,7 @@ const adminOtherItems: NavItem[] = [
   { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Send size={24} />, name: "Bulk Email", path: "/bulk-email" },
+  { icon: <Smartphone size={24} />, name: "Mobile Apps", path: "/mobile-apps" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
   { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings" },
@@ -111,6 +114,7 @@ const userNavItems: NavItem[] = [
   { icon: <Globe size={24} />, name: "Domains", path: "/domains" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
+  { icon: <BarChart3 size={24} />, name: "App Stats", path: "/app-stats" },
   { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 

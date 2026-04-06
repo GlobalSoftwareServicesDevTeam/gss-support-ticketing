@@ -366,3 +366,68 @@ export function hostingCredentialsTemplate(params: {
     </html>
   `;
 }
+
+export function buildApprovalTemplate(params: {
+  recipientName: string;
+  appName: string;
+  platform: string;
+  version: string;
+  buildNumber: string;
+  status: string;
+  trackOrChannel?: string | null;
+}): string {
+  const { recipientName, appName, platform, version, buildNumber, status, trackOrChannel } = params;
+  const platformLabel = platform === "GOOGLE_PLAY" ? "Google Play Store" : "Apple App Store";
+  const statusColors: Record<string, string> = {
+    APPROVED: "#276749",
+    RELEASED: "#2b6cb0",
+    REJECTED: "#c53030",
+    IN_REVIEW: "#c05621",
+  };
+  const headerColor = statusColors[status] || "#2b6cb0";
+  const statusLabel = status === "RELEASED" ? "Released" : status === "APPROVED" ? "Approved" : status === "REJECTED" ? "Rejected" : "In Review";
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background-color: ${headerColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center; }
+        .build-box { background-color: #f7fafc; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid ${headerColor}; }
+        .build-box p { margin: 6px 0; }
+        .label { font-weight: bold; color: #2d3748; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 13px; color: white; background-color: ${headerColor}; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;">Build ${statusLabel}</h1>
+          <p style="margin:5px 0 0;">${platformLabel}</p>
+        </div>
+        <p>Dear ${recipientName},</p>
+        <p>We're writing to let you know that your app build status has been updated:</p>
+        <div class="build-box">
+          <p><span class="label">App:</span> ${appName}</p>
+          <p><span class="label">Platform:</span> ${platformLabel}</p>
+          <p><span class="label">Version:</span> ${version}</p>
+          <p><span class="label">Build Number:</span> ${buildNumber}</p>
+          ${trackOrChannel ? `<p><span class="label">Track / Channel:</span> ${trackOrChannel}</p>` : ""}
+          <p><span class="label">Status:</span> <span class="status-badge">${statusLabel}</span></p>
+        </div>
+        ${status === "RELEASED" ? "<p>Your app is now live and available for users to download.</p>" : ""}
+        ${status === "APPROVED" ? "<p>Your build has been approved and is ready for release.</p>" : ""}
+        ${status === "REJECTED" ? "<p>Unfortunately, this build was rejected. Please check the store console for details and resubmit after making the required changes.</p>" : ""}
+        <p>You can view detailed app statistics and build history in the GSS Support portal.</p>
+        <p>Best regards,<br/>GSS Support Team</p>
+        <div class="footer">
+          <p>This is an automated notification from GSS Support. You received this because your organization has an app registered on the ${platformLabel}.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}

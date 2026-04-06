@@ -7,6 +7,8 @@ const SENSITIVE_KEYS = new Set([
   "SMTP_PASSWORD",
   "IMAP_PASSWORD",
   "DIGICERT_API_KEY",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_KEY",
+  "APPLE_CONNECT_PRIVATE_KEY",
 ]);
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -106,4 +108,16 @@ export async function getImapConfig() {
 
 export async function getDigicertConfig() {
   return getSettings(["DIGICERT_API_KEY", "DIGICERT_ORG_ID"]);
+}
+
+export async function getGooglePlayConfig() {
+  return getSettings(["GOOGLE_PLAY_SERVICE_ACCOUNT_KEY"]);
+}
+
+export async function getAppleConnectConfig() {
+  return getSettings([
+    "APPLE_CONNECT_KEY_ID",
+    "APPLE_CONNECT_ISSUER_ID",
+    "APPLE_CONNECT_PRIVATE_KEY",
+  ]);
 }
