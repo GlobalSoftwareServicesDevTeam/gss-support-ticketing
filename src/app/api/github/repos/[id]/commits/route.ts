@@ -35,7 +35,7 @@ export async function GET(
   // Non-admin users can only see repos assigned to their company's customer
   if (role !== "ADMIN") {
     const hasAccess = repo.customers.some(
-      (cr) => cr.customer.company === company
+      (cr: { customer: { company: string } }) => cr.customer.company === company
     );
     if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

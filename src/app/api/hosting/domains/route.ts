@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { promises as dns } from "dns";
 
 // POST: check domain availability (single or multiple TLDs)
 export async function POST(req: NextRequest) {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Clean domain input
-  let cleanDomain = domain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
+  const cleanDomain = domain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
 
   // Get domain products for TLD pricing
   const domainProducts = await prisma.hostingProduct.findMany({
@@ -57,8 +58,6 @@ export async function POST(req: NextRequest) {
   if (validDomains.length === 0) {
     return NextResponse.json({ error: "Invalid domain format" }, { status: 400 });
   }
-
-  const { promises: dns } = require("dns");
 
   // Check availability for each domain
   const results = await Promise.all(

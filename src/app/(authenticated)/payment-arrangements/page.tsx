@@ -128,7 +128,8 @@ export default function PaymentArrangementsPage() {
 
   useEffect(() => {
     if (session?.user) fetchArrangements();
-  }, [session, fetchArrangements]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   const handleCreate = async () => {
     if (!newForm.invoiceNumber || !newForm.totalAmount || !newForm.numberOfMonths) {

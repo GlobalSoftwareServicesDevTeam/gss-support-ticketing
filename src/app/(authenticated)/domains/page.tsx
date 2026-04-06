@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Bell,
   CalendarClock,
-  User,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -94,6 +93,18 @@ const EXPIRY_BG: Record<string, string> = {
 type SortField = "domain" | "expiryDate" | "status" | "createdAt" | "user";
 type SortDir = "asc" | "desc";
 
+function SortHeader({ field, label, sortField, onToggle }: { field: SortField; label: string; sortField: SortField; onToggle: (f: SortField) => void }) {
+  return (
+    <button
+      onClick={() => onToggle(field)}
+      className="flex items-center gap-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+    >
+      {label}
+      <ArrowUpDown size={12} className={sortField === field ? "text-brand-500" : "opacity-40"} />
+    </button>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────
 
 export default function DomainsManagerPage() {
@@ -137,8 +148,11 @@ export default function DomainsManagerPage() {
   }, [filterTab, showMessage]);
 
   useEffect(() => {
-    if (session?.user) fetchDomains();
-  }, [session, fetchDomains]);
+    if (session?.user) {
+      fetchDomains();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, filterTab]);
 
   // ─── Sorting ──────────────────────────────────────────
 
@@ -320,18 +334,6 @@ export default function DomainsManagerPage() {
     return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(v);
   }
 
-  function SortHeader({ field, label }: { field: SortField; label: string }) {
-    return (
-      <button
-        onClick={() => toggleSort(field)}
-        className="flex items-center gap-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
-      >
-        {label}
-        <ArrowUpDown size={12} className={sortField === field ? "text-brand-500" : "opacity-40"} />
-      </button>
-    );
-  }
-
   // ─── Filter tabs ──────────────────────────────────────
 
   const filterTabs: { key: FilterTab; label: string; count: number; color: string }[] = [
@@ -431,12 +433,12 @@ export default function DomainsManagerPage() {
         <>
           {/* Table Header */}
           <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-4 py-2">
-            <div className="col-span-3"><SortHeader field="domain" label="Domain" /></div>
-            {isAdmin && <div className="col-span-2"><SortHeader field="user" label="Owner" /></div>}
-            <div className={isAdmin ? "col-span-1" : "col-span-2"}><SortHeader field="status" label="Status" /></div>
-            <div className="col-span-2"><SortHeader field="expiryDate" label="Expiry" /></div>
+            <div className="col-span-3"><SortHeader field="domain" label="Domain" sortField={sortField} onToggle={toggleSort} /></div>
+            {isAdmin && <div className="col-span-2"><SortHeader field="user" label="Owner" sortField={sortField} onToggle={toggleSort} /></div>}
+            <div className={isAdmin ? "col-span-1" : "col-span-2"}><SortHeader field="status" label="Status" sortField={sortField} onToggle={toggleSort} /></div>
+            <div className="col-span-2"><SortHeader field="expiryDate" label="Expiry" sortField={sortField} onToggle={toggleSort} /></div>
             <div className="col-span-1"><span className="text-xs uppercase text-slate-500">Renewal</span></div>
-            <div className={isAdmin ? "col-span-2" : "col-span-3"}><SortHeader field="createdAt" label="Registered" /></div>
+            <div className={isAdmin ? "col-span-2" : "col-span-3"}><SortHeader field="createdAt" label="Registered" sortField={sortField} onToggle={toggleSort} /></div>
             <div className="col-span-1"></div>
           </div>
 
@@ -660,6 +662,7 @@ export default function DomainsManagerPage() {
                           {isAdmin && editingNotes === d.id ? (
                             <div className="flex items-start gap-1 mt-0.5">
                               <textarea
+                                title="Domain notes"
                                 value={notesValue}
                                 onChange={(e) => setNotesValue(e.target.value)}
                                 rows={2}

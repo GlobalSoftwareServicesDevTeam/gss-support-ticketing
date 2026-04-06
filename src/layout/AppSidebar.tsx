@@ -26,10 +26,10 @@ import {
   CalendarClock,
   Building2,
   Bell,
-  Github,
   GitCommit,
   Wallet,
 } from "lucide-react";
+import { GitHubIcon } from "@/components/icons";
 
 type NavItem = {
   name: string;
@@ -67,7 +67,7 @@ const adminOtherItems: NavItem[] = [
   { icon: <ShieldCheck size={24} />, name: "Hosting Admin", path: "/hosting-admin" },
   { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule" },
   { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads" },
-  { icon: <Github size={24} />, name: "GitHub Repos", path: "/github-repos" },
+  { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos" },
   { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
   { icon: <Mail size={24} />, name: "Email Settings", path: "/email-settings" },

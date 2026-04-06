@@ -228,6 +228,7 @@ export default function CustomersPage() {
                 value={form.company}
                 onChange={(e) => setForm({ ...form, company: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Company name"
                 required
               />
             </div>
@@ -238,6 +239,7 @@ export default function CustomersPage() {
                 value={form.contactPerson}
                 onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Contact person"
                 required
               />
             </div>
@@ -248,6 +250,7 @@ export default function CustomersPage() {
                 value={form.emailAddress}
                 onChange={(e) => setForm({ ...form, emailAddress: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="email@example.com"
                 required
               />
             </div>
@@ -258,6 +261,7 @@ export default function CustomersPage() {
                 value={form.phoneNumber}
                 onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Phone number"
               />
             </div>
             <div className="md:col-span-2">
@@ -267,6 +271,7 @@ export default function CustomersPage() {
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Address"
               />
             </div>
             <div>
@@ -276,6 +281,7 @@ export default function CustomersPage() {
                 value={form.vatNumber}
                 onChange={(e) => setForm({ ...form, vatNumber: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="VAT number"
               />
             </div>
             <div>
@@ -285,6 +291,7 @@ export default function CustomersPage() {
                 value={form.regNumber}
                 onChange={(e) => setForm({ ...form, regNumber: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Registration number"
               />
             </div>
             <div className="md:col-span-2 flex justify-end gap-2">
@@ -370,6 +377,7 @@ export default function CustomersPage() {
                     <button
                       onClick={() => setActionMenu(actionMenu === c.id ? null : c.id)}
                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      aria-label="Actions"
                     >
                       <MoreVertical size={16} className="text-gray-500" />
                     </button>
@@ -406,6 +414,7 @@ export default function CustomersPage() {
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
               className="p-2 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700"
+              aria-label="Previous page"
             >
               <ChevronLeft size={16} />
             </button>
@@ -413,6 +422,7 @@ export default function CustomersPage() {
               disabled={page >= totalPages}
               onClick={() => setPage(page + 1)}
               className="p-2 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-700"
+              aria-label="Next page"
             >
               <ChevronRight size={16} />
             </button>

@@ -276,7 +276,7 @@ export default function CustomerDetailPage() {
     <div>
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.push("/customers")} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+        <button onClick={() => router.push("/customers")} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Back to customers">
           <ArrowLeft size={20} className="text-gray-500" />
         </button>
         <Building2 size={28} className="text-brand-500" />
@@ -318,31 +318,31 @@ export default function CustomerDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name</label>
-              <input type="text" value={editForm.company} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.company} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} placeholder="Company name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Person</label>
-              <input type="text" value={editForm.contactPerson} onChange={(e) => setEditForm({ ...editForm, contactPerson: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.contactPerson} onChange={(e) => setEditForm({ ...editForm, contactPerson: e.target.value })} placeholder="Contact person" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input type="email" value={editForm.emailAddress} onChange={(e) => setEditForm({ ...editForm, emailAddress: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="email" value={editForm.emailAddress} onChange={(e) => setEditForm({ ...editForm, emailAddress: e.target.value })} placeholder="email@example.com" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
-              <input type="text" value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} placeholder="Phone number" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
-              <input type="text" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} placeholder="Address" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">VAT Number</label>
-              <input type="text" value={editForm.vatNumber} onChange={(e) => setEditForm({ ...editForm, vatNumber: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.vatNumber} onChange={(e) => setEditForm({ ...editForm, vatNumber: e.target.value })} placeholder="VAT number" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reg Number</label>
-              <input type="text" value={editForm.regNumber} onChange={(e) => setEditForm({ ...editForm, regNumber: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+              <input type="text" value={editForm.regNumber} onChange={(e) => setEditForm({ ...editForm, regNumber: e.target.value })} placeholder="Registration number" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -455,24 +455,24 @@ export default function CustomerDetailPage() {
                       <>
                         <td className="px-4 py-2">
                           <div className="flex gap-1">
-                            <input type="text" value={editContactForm.firstName} onChange={(e) => setEditContactForm({ ...editContactForm, firstName: e.target.value })} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
-                            <input type="text" value={editContactForm.lastName} onChange={(e) => setEditContactForm({ ...editContactForm, lastName: e.target.value })} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
+                            <input type="text" value={editContactForm.firstName} onChange={(e) => setEditContactForm({ ...editContactForm, firstName: e.target.value })} placeholder="First name" className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
+                            <input type="text" value={editContactForm.lastName} onChange={(e) => setEditContactForm({ ...editContactForm, lastName: e.target.value })} placeholder="Last name" className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
                           </div>
                         </td>
                         <td className="px-4 py-2">
-                          <input type="email" value={editContactForm.email} onChange={(e) => setEditContactForm({ ...editContactForm, email: e.target.value })} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-40" />
+                          <input type="email" value={editContactForm.email} onChange={(e) => setEditContactForm({ ...editContactForm, email: e.target.value })} placeholder="email@example.com" className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-40" />
                         </td>
                         <td className="px-4 py-2">
-                          <input type="text" value={editContactForm.phone} onChange={(e) => setEditContactForm({ ...editContactForm, phone: e.target.value })} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-28" />
+                          <input type="text" value={editContactForm.phone} onChange={(e) => setEditContactForm({ ...editContactForm, phone: e.target.value })} placeholder="Phone" className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-28" />
                         </td>
                         <td className="px-4 py-2">
-                          <input type="text" value={editContactForm.position} onChange={(e) => setEditContactForm({ ...editContactForm, position: e.target.value })} className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
+                          <input type="text" value={editContactForm.position} onChange={(e) => setEditContactForm({ ...editContactForm, position: e.target.value })} placeholder="Position" className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24" />
                         </td>
                         <td className="px-4 py-2"></td>
                         <td className="px-4 py-2">
                           <div className="flex gap-1">
-                            <button onClick={handleUpdateContact} className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"><Check size={14} /></button>
-                            <button onClick={() => setEditingContact(null)} className="p-1 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={14} /></button>
+                            <button onClick={handleUpdateContact} className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20" aria-label="Save contact"><Check size={14} /></button>
+                            <button onClick={() => setEditingContact(null)} className="p-1 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cancel editing"><X size={14} /></button>
                           </div>
                         </td>
                       </>
@@ -564,7 +564,7 @@ export default function CustomerDetailPage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Notification Preferences
               </h3>
-              <button onClick={() => setNotifContact(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+              <button onClick={() => setNotifContact(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
                 <X size={18} className="text-gray-500" />
               </button>
             </div>

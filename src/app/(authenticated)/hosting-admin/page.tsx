@@ -145,7 +145,8 @@ export default function HostingAdminPage() {
 
   useEffect(() => {
     if (session?.user) fetchData();
-  }, [session, fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   if (!isAdmin) {
     return (

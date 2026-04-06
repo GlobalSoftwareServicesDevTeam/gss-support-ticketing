@@ -115,6 +115,7 @@ export default function NotificationPreferencesPage() {
               <button
                 type="button"
                 onClick={() => toggle(cat)}
+                aria-label={`Toggle ${cat.toLowerCase()} notifications`}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                   isEnabled(cat) ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-600"
                 }`}

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
-  Github,
   RefreshCw,
   Search,
   Lock,
@@ -17,6 +16,7 @@ import {
   Code2,
   Trash2,
 } from "lucide-react";
+import { GitHubIcon } from "@/components/icons";
 
 interface CustomerAssignment {
   id: string;
@@ -83,7 +83,8 @@ export default function GitHubReposPage() {
       fetchRepos();
       fetchCustomers();
     }
-  }, [isAdmin, fetchRepos, fetchCustomers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -169,7 +170,7 @@ export default function GitHubReposPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Github size={28} /> GitHub Repositories
+            <GitHubIcon size={28} /> GitHub Repositories
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Sync repos from GitHub and assign them to customers
@@ -190,7 +191,7 @@ export default function GitHubReposPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Sync GitHub Repos</h2>
-              <button onClick={() => { setShowSyncModal(false); setSyncResult(null); }} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setShowSyncModal(false); setSyncResult(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
@@ -356,6 +357,7 @@ export default function GitHubReposPage() {
                   {assigningRepoId === repo.id && (
                     <div className="flex items-center gap-2 mt-2">
                       <select
+                        title="Select a customer"
                         value={selectedCustomerId}
                         onChange={(e) => setSelectedCustomerId(e.target.value)}
                         className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"

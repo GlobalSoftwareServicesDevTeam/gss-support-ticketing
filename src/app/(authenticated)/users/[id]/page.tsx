@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,7 +19,6 @@ import {
   CreditCard,
   CalendarClock,
   Loader2,
-  ExternalLink,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -186,24 +185,28 @@ export default function UserProfilePage() {
 
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/users/${userId}/profile`);
-      if (res.ok) {
-        setProfile(await res.json());
-      } else if (res.status === 403) {
-        router.push("/users");
-      }
-    } catch {
-      // ignore
-    }
-    setLoading(false);
-  }, [userId, router]);
-
   useEffect(() => {
-    if (session?.user && isAdmin) fetchProfile();
-    else if (session?.user && !isAdmin) router.push("/dashboard");
-  }, [session, isAdmin, fetchProfile, router]);
+    if (!session?.user) return;
+    if (isAdmin) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await fetch(`/api/users/${userId}/profile`);
+          if (!cancelled && res.ok) {
+            setProfile(await res.json());
+          } else if (!cancelled && res.status === 403) {
+            router.push("/users");
+          }
+        } catch {
+          // ignore
+        }
+        if (!cancelled) setLoading(false);
+      })();
+      return () => { cancelled = true; };
+    } else {
+      router.push("/dashboard");
+    }
+  }, [session, isAdmin, userId, router]);
 
   if (loading) {
     return (

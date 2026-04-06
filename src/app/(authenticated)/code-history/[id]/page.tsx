@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   GitCommit,
@@ -81,29 +82,30 @@ export default function RepoCommitsPage() {
     patch?: string;
   }
 
-  const fetchCommits = useCallback(async () => {
-    setLoading(true);
-    try {
-      const qs = new URLSearchParams({ page: String(page), per_page: "30" });
-      if (branch) qs.set("sha", branch);
-      const res = await fetch(`/api/github/repos/${repoId}/commits?${qs}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCommits(data.commits);
-        setBranches(data.branches);
-        setRepo(data.repo);
-      } else if (res.status === 403) {
-        router.push("/code-history");
-      }
-    } catch {
-      // ignore
-    }
-    setLoading(false);
-  }, [repoId, page, branch, router]);
-
   useEffect(() => {
-    if (session?.user) fetchCommits();
-  }, [session, fetchCommits]);
+    if (!session?.user) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const qs = new URLSearchParams({ page: String(page), per_page: "30" });
+        if (branch) qs.set("sha", branch);
+        const res = await fetch(`/api/github/repos/${repoId}/commits?${qs}`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setCommits(data.commits);
+          setBranches(data.branches);
+          setRepo(data.repo);
+        } else if (res.status === 403) {
+          router.push("/code-history");
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [session, repoId, page, branch, router]);
 
   const fetchCommitDetail = async (sha: string) => {
     if (commitDetail[sha]) {
@@ -113,7 +115,6 @@ export default function RepoCommitsPage() {
     setLoadingDetail(sha);
     setExpandedSha(sha);
     try {
-      const ghToken = ""; // server-side only, we use our commits API
       // For detail we'll fetch via the GitHub API through our proxy
       const res = await fetch(`/api/github/repos/${repoId}/commits/${sha}`);
       if (res.ok) {
@@ -215,6 +216,7 @@ export default function RepoCommitsPage() {
               <select
                 value={branch}
                 onChange={(e) => { setBranch(e.target.value); setPage(1); }}
+                title="Select branch"
                 className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
               >
                 <option value="">Default branch</option>
@@ -259,9 +261,11 @@ export default function RepoCommitsPage() {
                       {/* Avatar */}
                       <div className="flex-shrink-0 mt-0.5">
                         {commit.author?.avatar_url ? (
-                          <img
+                          <Image
                             src={commit.author.avatar_url}
                             alt={commit.author.login}
+                            width={32}
+                            height={32}
                             className="w-8 h-8 rounded-full"
                           />
                         ) : (

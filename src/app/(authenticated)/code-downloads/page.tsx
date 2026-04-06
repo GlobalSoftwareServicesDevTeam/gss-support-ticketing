@@ -31,18 +31,25 @@ export default function CodeDownloadsPage() {
   const limit = 30;
 
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-    if (projectFilter) params.set("projectId", projectFilter);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (projectFilter) params.set("projectId", projectFilter);
 
-    fetch(`/api/code-downloads?${params}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setLogs(data.logs || []);
-        setTotal(data.total || 0);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      try {
+        const r = await fetch(`/api/code-downloads?${params}`);
+        const data = await r.json();
+        if (!cancelled) {
+          setLogs(data.logs || []);
+          setTotal(data.total || 0);
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, [page, projectFilter]);
 
   const totalPages = Math.ceil(total / limit);
@@ -73,6 +80,7 @@ export default function CodeDownloadsPage() {
           <select
             value={projectFilter}
             onChange={(e) => { setProjectFilter(e.target.value); setPage(1); }}
+            title="Filter by project"
             className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900"
           >
             <option value="">All Projects</option>
@@ -137,6 +145,7 @@ export default function CodeDownloadsPage() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   className="p-2 rounded-lg border border-slate-300 hover:bg-white transition disabled:opacity-40"
+                  aria-label="Previous page"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -144,6 +153,7 @@ export default function CodeDownloadsPage() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="p-2 rounded-lg border border-slate-300 hover:bg-white transition disabled:opacity-40"
+                  aria-label="Next page"
                 >
                   <ChevronRight size={16} />
                 </button>

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  Github,
   Search,
   Lock,
   Unlock,
@@ -14,6 +13,7 @@ import {
   GitCommit,
   Clock,
 } from "lucide-react";
+import { GitHubIcon } from "@/components/icons";
 
 interface Repo {
   id: string;
@@ -54,19 +54,20 @@ export default function CodeHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const fetchRepos = useCallback(async () => {
-    try {
-      const res = await fetch("/api/github/my-repos");
-      if (res.ok) setRepos(await res.json());
-    } catch {
-      // ignore
-    }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    if (session?.user) fetchRepos();
-  }, [session, fetchRepos]);
+    if (!session?.user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/github/my-repos");
+        if (res.ok && !cancelled) setRepos(await res.json());
+      } catch {
+        // ignore
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [session]);
 
   const filtered = repos.filter(
     (r) =>
@@ -130,7 +131,7 @@ export default function CodeHistoryPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Github size={18} className="text-slate-400 group-hover:text-brand-500 transition flex-shrink-0" />
+                    <GitHubIcon size={18} className="text-slate-400 group-hover:text-brand-500 transition flex-shrink-0" />
                     <span className="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition">
                       {repo.fullName}
                     </span>
@@ -172,6 +173,7 @@ export default function CodeHistoryPage() {
                     rel="noopener noreferrer"
                     className="text-slate-400 hover:text-brand-500 transition p-1"
                     onClick={(e) => e.stopPropagation()}
+                    title="Open on GitHub"
                   >
                     <ExternalLink size={16} />
                   </a>
