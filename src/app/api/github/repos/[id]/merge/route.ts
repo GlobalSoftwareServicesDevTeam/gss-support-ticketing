@@ -24,7 +24,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { sourceRepo, sourceBranch, targetBranch, token } = await req.json();
+  const { sourceRepo, sourceBranch, targetBranch, token, conflictStrategy } = await req.json();
 
   if (!sourceRepo || typeof sourceRepo !== "string") {
     return NextResponse.json(
@@ -56,6 +56,8 @@ export async function POST(
   const srcBranch = sourceBranch || "main";
   const tgtBranch = targetBranch || "main";
   const targetFullName = `${repo.owner}/${repo.name}`;
+  // "ours" = keep target files on conflict, "theirs" = keep source files
+  const strategy = conflictStrategy === "theirs" ? "theirs" : "ours";
 
   try {
     // Step 1: Verify source repo exists
@@ -112,6 +114,10 @@ on:
       pat_token:
         required: true
         type: string
+      conflict_strategy:
+        required: false
+        type: string
+        default: ours
 jobs:
   merge:
     runs-on: ubuntu-latest
@@ -129,7 +135,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add source https://x-access-token:\${{ inputs.pat_token }}@github.com/\${{ inputs.source_repo }}.git
           git fetch source
-          git merge source/\${{ inputs.source_branch }} --allow-unrelated-histories -m "Merge history from \${{ inputs.source_repo }} (\${{ inputs.source_branch }})"
+          git merge source/\${{ inputs.source_branch }} --allow-unrelated-histories -X \${{ inputs.conflict_strategy }} -m "Merge history from \${{ inputs.source_repo }} (\${{ inputs.source_branch }})"
           git push origin \${{ inputs.target_branch }}
           git remote remove source
 `;
@@ -188,6 +194,7 @@ jobs:
             source_branch: srcBranch,
             target_branch: tgtBranch,
             pat_token: ghToken,
+            conflict_strategy: strategy,
           },
         }),
       }

@@ -81,6 +81,7 @@ export default function GitHubReposPage() {
   const [mergeSourceBranch, setMergeSourceBranch] = useState("main");
   const [mergeTargetBranch, setMergeTargetBranch] = useState("main");
   const [mergeToken, setMergeToken] = useState("");
+  const [mergeConflictStrategy, setMergeConflictStrategy] = useState("ours");
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState<{ message?: string; error?: string; localInstructions?: Record<string, string> } | null>(null);
 
@@ -228,6 +229,7 @@ export default function GitHubReposPage() {
           sourceBranch: mergeSourceBranch || "main",
           targetBranch: mergeTargetBranch || "main",
           token: mergeToken || undefined,
+          conflictStrategy: mergeConflictStrategy,
         }),
       });
       const data = await res.json();
@@ -578,6 +580,18 @@ export default function GitHubReposPage() {
                     placeholder="ghp_xxxx (optional)"
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">On Conflict</label>
+                  <select
+                    value={mergeConflictStrategy}
+                    onChange={(e) => setMergeConflictStrategy(e.target.value)}
+                    title="Conflict resolution strategy"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  >
+                    <option value="ours">Keep target repo files (recommended)</option>
+                    <option value="theirs">Keep source repo files</option>
+                  </select>
                 </div>
               </div>
               {mergeResult && (
