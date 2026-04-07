@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
     include: {
       product: { select: { name: true, type: true, monthlyPrice: true } },
       user: { select: { id: true, firstName: true, lastName: true, email: true, company: true } },
+      customer: { select: { id: true, company: true } },
+      project: { select: { id: true, projectName: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -79,6 +81,8 @@ export async function GET(req: NextRequest) {
       createdAt: order.createdAt.toISOString(),
       product: order.product,
       user: order.user,
+      customer: order.customer,
+      project: order.project,
     };
   });
 

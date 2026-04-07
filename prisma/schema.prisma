@@ -77,6 +77,7 @@ model Customer {
   apps      MobileApp[]
   referrals     Referral[]
   projectIdeas  ProjectIdea[]
+  hostingOrders HostingOrder[]
 
   @@map("customers")
 }
@@ -160,6 +161,7 @@ model Project {
   codeReleases CodeRelease[]
   repos       GitHubRepo[]
   quotes      Quote[]
+  hostingOrders HostingOrder[]
 
   @@map("projects")
 }
@@ -535,6 +537,10 @@ model HostingOrder {
   user      User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   productId String?
   product   HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   sslCertificate SslCertificate?
 

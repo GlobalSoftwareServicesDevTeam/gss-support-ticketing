@@ -25,6 +25,11 @@ import {
   Edit3,
   Save,
   X,
+  Upload,
+  Building2,
+  FolderKanban,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────
@@ -48,6 +53,28 @@ interface DomainEntry {
   createdAt: string;
   product: { name: string; type: string; monthlyPrice: number } | null;
   user: { id: string; firstName: string; lastName: string; email: string; company: string | null } | null;
+  customer: { id: string; company: string } | null;
+  project: { id: string; projectName: string } | null;
+}
+
+interface CustomerOption {
+  id: string;
+  company: string;
+}
+
+interface ProjectOption {
+  id: string;
+  projectName: string;
+}
+
+interface ImportRow {
+  domain: string;
+  expiryDate: string;
+  status: string;
+  customerId: string;
+  projectId: string;
+  notes: string;
+  amount: string;
 }
 
 interface DomainStats {
@@ -126,6 +153,21 @@ export default function DomainsManagerPage() {
   const [expiryValue, setExpiryValue] = useState("");
   const [notesValue, setNotesValue] = useState("");
 
+  // Import modal state
+  const [showImport, setShowImport] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([{ domain: "", expiryDate: "", status: "ACTIVE", customerId: "", projectId: "", notes: "", amount: "" }]);
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState<{ domain: string; status: string; reason?: string }[] | null>(null);
+
+  // Assignment editing
+  const [editingAssign, setEditingAssign] = useState<string | null>(null);
+  const [assignCustomerId, setAssignCustomerId] = useState("");
+  const [assignProjectId, setAssignProjectId] = useState("");
+
+  // Lookup data for customers & projects
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+
   const showMessage = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
@@ -153,6 +195,109 @@ export default function DomainsManagerPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, filterTab]);
+
+  // Load customers & projects for assignment dropdowns (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/customers?limit=1000").then((r) => r.json()).then((data) => {
+      const list = data.customers || data;
+      if (Array.isArray(list)) setCustomers(list.map((c: { id: string; company: string }) => ({ id: c.id, company: c.company })));
+    }).catch(() => {});
+    fetch("/api/projects").then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setProjects(data.map((p: { id: string; projectName: string }) => ({ id: p.id, projectName: p.projectName })));
+    }).catch(() => {});
+  }, [isAdmin]);
+
+  // ─── Import ───────────────────────────────────────────
+
+  function addImportRow() {
+    setImportRows([...importRows, { domain: "", expiryDate: "", status: "ACTIVE", customerId: "", projectId: "", notes: "", amount: "" }]);
+  }
+
+  function removeImportRow(i: number) {
+    setImportRows(importRows.filter((_, idx) => idx !== i));
+  }
+
+  function updateImportRow(i: number, field: keyof ImportRow, value: string) {
+    setImportRows(importRows.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  }
+
+  function handleCsvPaste(text: string) {
+    const lines = text.split("\n").filter((l) => l.trim());
+    const rows: ImportRow[] = [];
+    for (const line of lines) {
+      const parts = line.split(/[,\t]/).map((p) => p.trim().replace(/^"|"$/g, ""));
+      if (parts[0]) {
+        rows.push({
+          domain: parts[0],
+          expiryDate: parts[1] || "",
+          status: parts[2] || "ACTIVE",
+          customerId: "",
+          projectId: "",
+          notes: parts[3] || "",
+          amount: parts[4] || "",
+        });
+      }
+    }
+    if (rows.length > 0) setImportRows(rows);
+  }
+
+  async function submitImport() {
+    const validRows = importRows.filter((r) => r.domain.trim());
+    if (validRows.length === 0) return;
+    setImporting(true);
+    setImportResults(null);
+    try {
+      const payload = validRows.map((r) => ({
+        domain: r.domain.trim(),
+        expiryDate: r.expiryDate || undefined,
+        status: r.status || "ACTIVE",
+        customerId: r.customerId || undefined,
+        projectId: r.projectId || undefined,
+        notes: r.notes || undefined,
+        amount: r.amount ? parseFloat(r.amount) : undefined,
+      }));
+      const res = await fetch("/api/hosting/domains/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domains: payload }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResults(data.results);
+        showMessage("success", `Imported ${data.summary.created} domains (${data.summary.skipped} skipped, ${data.summary.errors} errors)`);
+        fetchDomains();
+      } else {
+        showMessage("error", data.error || "Import failed");
+      }
+    } catch {
+      showMessage("error", "Network error");
+    }
+    setImporting(false);
+  }
+
+  // ─── Assignment ───────────────────────────────────────
+
+  async function saveAssignment(orderId: string) {
+    setActionLoading(orderId);
+    try {
+      const res = await fetch(`/api/hosting/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: assignCustomerId || null, projectId: assignProjectId || null }),
+      });
+      if (res.ok) {
+        showMessage("success", "Assignment updated");
+        setEditingAssign(null);
+        fetchDomains();
+      } else {
+        showMessage("error", "Failed to update assignment");
+      }
+    } catch {
+      showMessage("error", "Network error");
+    }
+    setActionLoading("");
+  }
 
   // ─── Sorting ──────────────────────────────────────────
 
@@ -356,6 +501,14 @@ export default function DomainsManagerPage() {
           <p className="text-sm text-slate-500 mt-1">Track, manage, and renew domain registrations</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => { setShowImport(true); setImportResults(null); setImportRows([{ domain: "", expiryDate: "", status: "ACTIVE", customerId: "", projectId: "", notes: "", amount: "" }]); }}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+            >
+              <Upload size={14} /> Import Domains
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={sendReminders}
@@ -608,6 +761,76 @@ export default function DomainsManagerPage() {
                           </div>
                         )}
 
+                        {/* Client Assignment */}
+                        <div>
+                          <p className="text-xs text-slate-400 uppercase flex items-center gap-1">
+                            <Building2 size={10} /> Client
+                          </p>
+                          {isAdmin && editingAssign === d.id ? (
+                            <select
+                              title="Assign client"
+                              value={assignCustomerId}
+                              onChange={(e) => setAssignCustomerId(e.target.value)}
+                              className="mt-0.5 px-1.5 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300 dark:bg-slate-700 w-full"
+                            >
+                              <option value="">— None —</option>
+                              {customers.map((c) => (
+                                <option key={c.id} value={c.id}>{c.company}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <p className="text-slate-700 dark:text-slate-300 text-xs">{d.customer?.company || "—"}</p>
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAssignCustomerId(d.customer?.id || "");
+                                    setAssignProjectId(d.project?.id || "");
+                                    setEditingAssign(d.id);
+                                  }}
+                                  className="text-slate-400 hover:text-brand-500"
+                                  title="Edit assignment"
+                                >
+                                  <Edit3 size={10} />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Project Assignment */}
+                        <div>
+                          <p className="text-xs text-slate-400 uppercase flex items-center gap-1">
+                            <FolderKanban size={10} /> Project
+                          </p>
+                          {isAdmin && editingAssign === d.id ? (
+                            <div>
+                              <select
+                                title="Assign project"
+                                value={assignProjectId}
+                                onChange={(e) => setAssignProjectId(e.target.value)}
+                                className="mt-0.5 px-1.5 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300 dark:bg-slate-700 w-full"
+                              >
+                                <option value="">— None —</option>
+                                {projects.map((p) => (
+                                  <option key={p.id} value={p.id}>{p.projectName}</option>
+                                ))}
+                              </select>
+                              <div className="flex gap-1 mt-1">
+                                <button onClick={() => saveAssignment(d.id)} className="text-green-600 hover:text-green-700" title="Save">
+                                  <Save size={12} />
+                                </button>
+                                <button onClick={() => setEditingAssign(null)} className="text-slate-400 hover:text-slate-600" title="Cancel">
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-slate-700 dark:text-slate-300 text-xs mt-0.5">{d.project?.projectName || "—"}</p>
+                          )}
+                        </div>
+
                         {/* Expiry Date - Editable */}
                         <div>
                           <p className="text-xs text-slate-400 uppercase flex items-center gap-1">
@@ -765,6 +988,167 @@ export default function DomainsManagerPage() {
             Showing {filteredAndSorted.length} of {stats.total} domains
           </p>
         </>
+      )}
+
+      {/* ─── Import Modal ─── */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowImport(false)}>
+          <div
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Upload size={20} className="text-brand-500" /> Import Domains
+              </h2>
+              <button onClick={() => setShowImport(false)} className="text-slate-400 hover:text-slate-600" title="Close"><X size={20} /></button>
+            </div>
+
+            {/* CSV Paste area */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                Paste CSV (domain, expiry, status, notes, amount) — or add rows manually
+              </label>
+              <textarea
+                placeholder={"example.com,2027-01-15,ACTIVE,Client domain,150\nother.co.za,2026-06-30,ACTIVE,,200"}
+                rows={3}
+                onPaste={(e) => {
+                  const text = e.clipboardData.getData("text");
+                  if (text.includes(",") || text.includes("\t") || text.includes("\n")) {
+                    e.preventDefault();
+                    handleCsvPaste(text);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white dark:bg-slate-700 font-mono"
+              />
+            </div>
+
+            {/* Import rows */}
+            <div className="space-y-2 mb-4 max-h-[40vh] overflow-y-auto">
+              {importRows.map((row, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-start">
+                  <div className="col-span-3">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">Domain *</label>}
+                    <input
+                      type="text"
+                      placeholder="example.com"
+                      value={row.domain}
+                      onChange={(e) => updateImportRow(i, "domain", e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white dark:bg-slate-700"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">Expiry</label>}
+                    <input
+                      type="date"
+                      title="Expiry date"
+                      value={row.expiryDate}
+                      onChange={(e) => updateImportRow(i, "expiryDate", e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white dark:bg-slate-700"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">Client</label>}
+                    <select
+                      title="Assign to client"
+                      value={row.customerId}
+                      onChange={(e) => updateImportRow(i, "customerId", e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white dark:bg-slate-700"
+                    >
+                      <option value="">— None —</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>{c.company}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">Project</label>}
+                    <select
+                      title="Assign to project"
+                      value={row.projectId}
+                      onChange={(e) => updateImportRow(i, "projectId", e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white dark:bg-slate-700"
+                    >
+                      <option value="">— None —</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.projectName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">Amount (ZAR)</label>}
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={row.amount}
+                      onChange={(e) => updateImportRow(i, "amount", e.target.value)}
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white dark:bg-slate-700"
+                    />
+                  </div>
+                  <div className="col-span-1 flex items-end">
+                    {i === 0 && <label className="block text-[10px] text-slate-500 mb-0.5">&nbsp;</label>}
+                    <button
+                      onClick={() => removeImportRow(i)}
+                      disabled={importRows.length <= 1}
+                      className="p-1.5 text-red-400 hover:text-red-600 disabled:opacity-30"
+                      title="Remove row"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                onClick={addImportRow}
+                className="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
+              >
+                <Plus size={12} /> Add Row
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">
+                  {importRows.filter((r) => r.domain.trim()).length} domain(s)
+                </span>
+                <button
+                  onClick={() => setShowImport(false)}
+                  className="px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition text-slate-700 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitImport}
+                  disabled={importing || importRows.filter((r) => r.domain.trim()).length === 0}
+                  className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  Import
+                </button>
+              </div>
+            </div>
+
+            {/* Import Results */}
+            {importResults && (
+              <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Import Results</h3>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {importResults.map((r, i) => (
+                    <div key={i} className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
+                      r.status === "created" ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" :
+                      r.status === "skipped" ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                      "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                    }`}>
+                      {r.status === "created" ? <CheckCircle2 size={12} /> : r.status === "skipped" ? <AlertTriangle size={12} /> : <XCircle size={12} />}
+                      <span className="font-mono">{r.domain}</span>
+                      <span>— {r.status}{r.reason ? `: ${r.reason}` : ""}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { status, amount, notes, expiryDate } = body;
+  const { status, amount, notes, expiryDate, customerId, projectId } = body;
 
   const order = await prisma.hostingOrder.findUnique({ where: { id } });
   if (!order) {
@@ -33,6 +33,8 @@ export async function PATCH(
   if (amount != null) data.amount = amount;
   if (notes !== undefined) data.notes = notes;
   if (expiryDate !== undefined) data.expiryDate = expiryDate ? new Date(expiryDate) : null;
+  if (customerId !== undefined) data.customerId = customerId || null;
+  if (projectId !== undefined) data.projectId = projectId || null;
 
   const updated = await prisma.hostingOrder.update({
     where: { id },
