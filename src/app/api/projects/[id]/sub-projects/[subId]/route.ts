@@ -21,9 +21,27 @@ export async function PUT(
   if (body.status !== undefined) data.status = body.status;
   if (body.order !== undefined) data.order = body.order;
 
+  // Handle repo linking: { repoIds: ["id1", "id2"] }
+  if (body.repoIds !== undefined) {
+    // Unlink all repos from this sub-project first, then link the specified ones
+    await prisma.gitHubRepo.updateMany({
+      where: { subProjectId: subId },
+      data: { subProjectId: null },
+    });
+    if (Array.isArray(body.repoIds) && body.repoIds.length > 0) {
+      await prisma.gitHubRepo.updateMany({
+        where: { id: { in: body.repoIds } },
+        data: { subProjectId: subId },
+      });
+    }
+  }
+
   const updated = await prisma.subProject.update({
     where: { id: subId },
     data,
+    include: {
+      repos: { select: { id: true, fullName: true, htmlUrl: true, isPrivate: true, language: true } },
+    },
   });
 
   return NextResponse.json(updated);

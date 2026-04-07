@@ -30,6 +30,10 @@ export async function GET(
         },
         orderBy: { order: "asc" },
       },
+      repos: {
+        select: { id: true, fullName: true, htmlUrl: true, isPrivate: true, language: true },
+        orderBy: { fullName: "asc" },
+      },
     },
     orderBy: { order: "asc" },
   });
@@ -69,6 +73,7 @@ export async function POST(
     },
     include: {
       stages: { include: { tasks: { include: { assignments: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } } } } } },
+      repos: { select: { id: true, fullName: true, htmlUrl: true, isPrivate: true, language: true } },
     },
   });
 

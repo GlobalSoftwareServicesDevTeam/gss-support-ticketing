@@ -119,6 +119,7 @@ interface SubProject {
   status: string;
   order: number;
   stages: SubProjectStage[];
+  repos: LinkedRepo[];
 }
 
 interface Project {
@@ -179,6 +180,8 @@ export default function ProjectDetailPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
   const [addingTask, setAddingTask] = useState(false);
+  const [linkingRepoFor, setLinkingRepoFor] = useState<string | null>(null);
+  const [linkingRepo, setLinkingRepo] = useState(false);
 
   const fetchProject = useCallback(() => {
     fetch(`/api/projects/${id}`)
@@ -641,9 +644,92 @@ export default function ProjectDetailPage() {
                       )}
                     </div>
 
-                    {/* Expanded: stages */}
+                    {/* Expanded: repos + stages */}
                     {isExpanded && (
                       <div className="border-t border-slate-200 bg-slate-50/50">
+                        {/* Linked Repos */}
+                        {(sub.repos.length > 0 || (isAdmin && project.repos.length > 0)) && (
+                          <div className="px-4 py-3 border-b border-slate-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <GitBranch size={14} className="text-slate-500" />
+                              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Linked Repos</span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => setLinkingRepoFor(linkingRepoFor === sub.id ? null : sub.id)}
+                                  className="ml-auto text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                >
+                                  <Edit2 size={12} /> Manage
+                                </button>
+                              )}
+                            </div>
+                            {sub.repos.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {sub.repos.map((repo) => (
+                                  <a
+                                    key={repo.id}
+                                    href={repo.htmlUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-md text-xs text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition"
+                                  >
+                                    <Code2 size={12} className="text-slate-400" />
+                                    {repo.fullName}
+                                    {repo.isPrivate && <Lock size={10} className="text-yellow-500" />}
+                                    {repo.language && <span className="text-slate-400">· {repo.language}</span>}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400">No repos linked yet.</p>
+                            )}
+                            {/* Repo linking dropdown */}
+                            {linkingRepoFor === sub.id && (
+                              <div className="mt-2 p-3 bg-white rounded-lg border border-slate-200">
+                                <p className="text-xs text-slate-500 mb-2">Select repos from the project to link:</p>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                  {project.repos.map((repo) => {
+                                    const isLinked = sub.repos.some((r) => r.id === repo.id);
+                                    return (
+                                      <label key={repo.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-50 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={isLinked}
+                                          onChange={async () => {
+                                            setLinkingRepo(true);
+                                            const newRepoIds = isLinked
+                                              ? sub.repos.filter((r) => r.id !== repo.id).map((r) => r.id)
+                                              : [...sub.repos.map((r) => r.id), repo.id];
+                                            await fetch(`/api/projects/${id}/sub-projects/${sub.id}`, {
+                                              method: "PUT",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ repoIds: newRepoIds }),
+                                            });
+                                            fetchSubProjects();
+                                            setLinkingRepo(false);
+                                          }}
+                                          disabled={linkingRepo}
+                                          className="rounded border-slate-300"
+                                        />
+                                        <Code2 size={12} className="text-slate-400" />
+                                        <span className="text-sm text-slate-700">{repo.fullName}</span>
+                                        {repo.isPrivate && <Lock size={10} className="text-yellow-500" />}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                {project.repos.length === 0 && (
+                                  <p className="text-xs text-slate-400">No repos linked to this project. Link repos on the GitHub Repos page first.</p>
+                                )}
+                                <button
+                                  onClick={() => setLinkingRepoFor(null)}
+                                  className="mt-2 text-xs text-slate-500 hover:text-slate-700"
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {sub.stages.length === 0 && !addingStageFor ? (
                           <div className="px-6 py-6 text-center text-sm text-slate-400">
                             No stages yet.
