@@ -26,6 +26,27 @@ async function ninjaFetch(endpoint: string, options: RequestInit = {}) {
   return res.json();
 }
 
+/**
+ * Fetch all pages from a paginated Invoice Ninja endpoint.
+ */
+async function ninjaFetchAll<T>(endpoint: string): Promise<T[]> {
+  const separator = endpoint.includes("?") ? "&" : "?";
+  let page = 1;
+  const allItems: T[] = [];
+
+  while (true) {
+    const data = await ninjaFetch(`${endpoint}${separator}page=${page}`);
+    const items: T[] = data.data || [];
+    allItems.push(...items);
+
+    const meta = data.meta?.pagination;
+    if (!meta || page >= meta.total_pages) break;
+    page++;
+  }
+
+  return allItems;
+}
+
 // ─── Clients ──────────────────────────────────────────
 
 export interface INClient {
@@ -36,8 +57,7 @@ export interface INClient {
 }
 
 export async function listClients(): Promise<INClient[]> {
-  const data = await ninjaFetch("clients?per_page=500&is_deleted=false");
-  return data.data || [];
+  return ninjaFetchAll<INClient>("clients?per_page=500&is_deleted=false");
 }
 
 export async function findClientByEmail(email: string): Promise<INClient | null> {
@@ -256,8 +276,7 @@ export async function listQuotes(params?: {
   const parts = [`per_page=${params?.perPage || 500}`, "is_deleted=false"];
   if (params?.clientId) parts.push(`client_id=${encodeURIComponent(params.clientId)}`);
   if (params?.status) parts.push(`status=${encodeURIComponent(params.status)}`);
-  const data = await ninjaFetch(`quotes?${parts.join("&")}`);
-  return data.data || [];
+  return ninjaFetchAll<INQuote>(`quotes?${parts.join("&")}`);
 }
 
 export async function getQuote(quoteId: string): Promise<INQuote> {
