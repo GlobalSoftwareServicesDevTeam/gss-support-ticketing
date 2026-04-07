@@ -108,13 +108,9 @@ export async function POST(req: NextRequest) {
 
         try {
           const existingContact = await prisma.contact.findFirst({
-            where: { email: inContact.email },
+            where: { customerId: customer.id, email: inContact.email },
           });
-          if (existingContact) {
-            // Link existing contact to this customer if needed
-            if (existingContact.customerId !== customer.id) continue;
-            continue;
-          }
+          if (existingContact) continue;
           const contact = await prisma.contact.create({
             data: {
               firstName: inContact.first_name || inClient.name,
