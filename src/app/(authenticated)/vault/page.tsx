@@ -167,7 +167,11 @@ export default function VaultPage() {
 
   // Load vault notes once we have customer context
   useEffect(() => {
-    if (!ctx?.customer?.id) return;
+    if (!ctx) return;
+    if (!ctx.customer?.id) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     fetch(`/api/customers/${ctx.customer.id}/vault`)
