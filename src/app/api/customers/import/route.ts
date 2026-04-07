@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   const results = {
     imported: 0,
     skipped: 0,
+    contacts_created: 0,
     errors: [] as string[],
   };
 
@@ -77,8 +78,8 @@ export async function POST(req: NextRequest) {
                   isPrimary: false,
                 },
               });
-              // Create default notification preferences
               await createDefaultPrefs(contact.id);
+              results.contacts_created++;
             }
           } catch {
             // Skip duplicate contacts
@@ -120,8 +121,8 @@ export async function POST(req: NextRequest) {
               isPrimary: i === 0,
             },
           });
-
           await createDefaultPrefs(contact.id);
+          results.contacts_created++;
         } catch {
           // Skip duplicate contacts
         }
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
   logAudit({
     action: "IMPORT",
     entity: "CUSTOMER",
-    description: `Imported ${results.imported} customers from Invoice Ninja (${results.skipped} skipped, ${results.errors.length} errors)`,
+    description: `Imported ${results.imported} customers, ${results.contacts_created} contacts from Invoice Ninja (${results.skipped} skipped, ${results.errors.length} errors)`,
     userId: session.user.id,
     userName: session.user.name || undefined,
     metadata: { imported: results.imported, skipped: results.skipped, errors: results.errors },

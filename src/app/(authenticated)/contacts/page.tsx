@@ -8,6 +8,7 @@ import {
   Search,
   Loader2,
   Mail,
+  RefreshCw,
   Send,
   CheckCircle2,
   Clock,
@@ -56,6 +57,7 @@ export default function ContactsPage() {
   const limit = 25;
   const [actionMsg, setActionMsg] = useState("");
   const [invitingIds, setInvitingIds] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
 
   function fetchContacts() {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -101,6 +103,34 @@ export default function ContactsPage() {
         return next;
       });
       setTimeout(() => setActionMsg(""), 4000);
+    }
+  }
+
+  async function handleSyncFromNinja() {
+    setSyncing(true);
+    setActionMsg("");
+    try {
+      const res = await fetch("/api/customers/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMsg(
+          `Sync complete: ${data.imported} new customers, ${data.contacts_created || 0} new contacts imported` +
+          (data.skipped ? ` (${data.skipped} existing skipped)` : "") +
+          (data.errors?.length ? ` — ${data.errors.length} errors` : "")
+        );
+        fetchContacts();
+      } else {
+        setActionMsg(data.error || "Sync failed");
+      }
+    } catch {
+      setActionMsg("Failed to sync from Invoice Ninja");
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setActionMsg(""), 8000);
     }
   }
 
@@ -179,14 +209,25 @@ export default function ContactsPage() {
             All customer contacts and portal invitations
           </p>
         </div>
-        <button
-          onClick={handleBulkInvite}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm font-medium"
-          title="Send invites to all uninvited contacts"
-        >
-          <Send size={16} />
-          Bulk Invite Uninvited
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncFromNinja}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition text-sm font-medium disabled:opacity-50"
+            title="Import all clients and contacts from Invoice Ninja"
+          >
+            <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "Syncing..." : "Sync from Invoice Ninja"}
+          </button>
+          <button
+            onClick={handleBulkInvite}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm font-medium"
+            title="Send invites to all uninvited contacts"
+          >
+            <Send size={16} />
+            Bulk Invite Uninvited
+          </button>
+        </div>
       </div>
 
       {actionMsg && (
