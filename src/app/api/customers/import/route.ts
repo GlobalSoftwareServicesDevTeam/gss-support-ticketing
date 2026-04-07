@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
                   email: inContact.email,
                   customerId: existing.id,
                   isPrimary: false,
+                  inviteToken: randomUUID(),
                 },
               });
               await createDefaultPrefs(contact.id);
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
               email: inContact.email,
               customerId: customer.id,
               isPrimary: i === 0,
+              inviteToken: randomUUID(),
             },
           });
           await createDefaultPrefs(contact.id);

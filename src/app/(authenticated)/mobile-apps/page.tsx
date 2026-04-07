@@ -21,6 +21,14 @@ import {
   Upload,
   Download,
   AlertCircle,
+  Star,
+  Bug,
+  ShieldCheck,
+  Package,
+  CreditCard,
+  Gamepad2,
+  Tags,
+  MessageSquare,
 } from "lucide-react";
 
 interface Customer {
@@ -101,6 +109,28 @@ export default function MobileAppsPage() {
   // Auto-fetch from Play Store for Add App form
   const [fetchingPackage, setFetchingPackage] = useState(false);
 
+  // Detail tabs (new API panels)
+  type DetailTab = "builds" | "reporting" | "reviews" | "products" | "subscriptions" | "integrity" | "games" | "grouping";
+  const [activeTab, setActiveTab] = useState<DetailTab>("builds");
+  const [tabData, setTabData] = useState<Record<string, unknown>>({});
+  const [tabLoading, setTabLoading] = useState(false);
+  const [tabError, setTabError] = useState("");
+
+  // Integrity check form
+  const [integrityToken, setIntegrityToken] = useState("");
+  const [integrityPkg, setIntegrityPkg] = useState("");
+  const [integrityResult, setIntegrityResult] = useState<Record<string, unknown> | null>(null);
+  const [integrityLoading, setIntegrityLoading] = useState(false);
+
+  // Games config form
+  const [gamesAppId, setGamesAppId] = useState("");
+
+  // Grouping form
+  const [groupingPkg, setGroupingPkg] = useState("");
+  const [groupingToken, setGroupingToken] = useState("");
+  const [groupingTag, setGroupingTag] = useState("");
+  const [groupingValue, setGroupingValue] = useState("");
+
   const loadApps = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -148,7 +178,28 @@ export default function MobileAppsPage() {
       setExpandedApp(null);
     } else {
       setExpandedApp(appId);
+      setActiveTab("builds");
+      setTabData({});
+      setTabError("");
       if (!builds[appId]) loadBuilds(appId);
+    }
+  }
+
+  function switchTab(appId: string, tab: DetailTab, app: MobileApp) {
+    setActiveTab(tab);
+    setTabData({});
+    setTabError("");
+    setIntegrityResult(null);
+    if (tab === "builds") {
+      if (!builds[appId]) loadBuilds(appId);
+    } else if (["reporting", "reviews", "products", "subscriptions"].includes(tab)) {
+      loadTabData(appId, tab);
+    }
+    if (tab === "integrity") {
+      setIntegrityPkg(app.packageName || app.bundleId);
+    }
+    if (tab === "grouping") {
+      setGroupingPkg(app.packageName || app.bundleId);
     }
   }
 
@@ -315,6 +366,147 @@ export default function MobileAppsPage() {
       }
     } catch { /* ignore */ }
     setFetchingPackage(false);
+  }
+
+  async function loadTabData(appId: string, tab: DetailTab) {
+    setTabLoading(true);
+    setTabError("");
+    setTabData({});
+    try {
+      let res: Response;
+      switch (tab) {
+        case "reporting":
+          res = await fetch(`/api/mobile-apps/${appId}/reporting?type=overview`);
+          break;
+        case "reviews":
+          res = await fetch(`/api/mobile-apps/${appId}/reviews?maxResults=20`);
+          break;
+        case "products":
+          res = await fetch(`/api/mobile-apps/${appId}/products`);
+          break;
+        case "subscriptions":
+          res = await fetch(`/api/mobile-apps/${appId}/subscriptions`);
+          break;
+        default:
+          setTabLoading(false);
+          return;
+      }
+      if (res.ok) {
+        setTabData(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setTabError(err.error || "Request failed");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setTabLoading(false);
+  }
+
+  async function handleIntegrityCheck() {
+    if (!integrityPkg || !integrityToken) return;
+    setIntegrityLoading(true);
+    setIntegrityResult(null);
+    setTabError("");
+    try {
+      const res = await fetch("/api/mobile-apps/integrity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageName: integrityPkg, integrityToken }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIntegrityResult(data);
+      } else {
+        setTabError(data.error || "Verification failed");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setIntegrityLoading(false);
+  }
+
+  async function loadGamesData(applicationId: string) {
+    setTabLoading(true);
+    setTabError("");
+    setTabData({});
+    try {
+      const res = await fetch(`/api/mobile-apps/games?applicationId=${encodeURIComponent(applicationId)}`);
+      if (res.ok) {
+        setTabData(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setTabError(err.error || "Failed to load game data");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setTabLoading(false);
+  }
+
+  async function loadGroupingTags() {
+    if (!groupingPkg || !groupingToken) return;
+    setTabLoading(true);
+    setTabError("");
+    setTabData({});
+    try {
+      const res = await fetch(`/api/mobile-apps/grouping?appPackage=${encodeURIComponent(groupingPkg)}&token=${encodeURIComponent(groupingToken)}`);
+      if (res.ok) {
+        setTabData(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setTabError(err.error || "Failed to load tags");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setTabLoading(false);
+  }
+
+  async function handleGroupingAction(action: "verify" | "tag") {
+    setTabLoading(true);
+    setTabError("");
+    try {
+      const res = await fetch("/api/mobile-apps/grouping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          appPackage: groupingPkg,
+          token: groupingToken,
+          ...(action === "tag" ? { tag: groupingTag, value: groupingValue } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTabData(data);
+      } else {
+        setTabError(data.error || "Action failed");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setTabLoading(false);
+  }
+
+  async function handleGameReset(action: "resetAchievements" | "resetEvents" | "resetLeaderboard", leaderboardId?: string) {
+    if (!confirm(`Are you sure you want to ${action.replace("reset", "reset ")}? This cannot be undone.`)) return;
+    setTabLoading(true);
+    setTabError("");
+    try {
+      const res = await fetch("/api/mobile-apps/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, leaderboardId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTabError(data.error || "Reset failed");
+      }
+    } catch {
+      setTabError("Network error");
+    }
+    setTabLoading(false);
   }
 
   if (!isAdmin) {
@@ -809,56 +1001,623 @@ export default function MobileAppsPage() {
                 </div>
               </div>
 
-              {/* Expanded: Build History */}
+              {/* Expanded: Tabbed Detail View */}
               {expandedApp === app.id && (
-                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-gray-800/50 p-4">
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Build History</h4>
-                  {loadingBuilds === app.id ? (
-                    <div className="text-center py-4">
-                      <Loader2 size={16} className="animate-spin text-slate-400 mx-auto" />
-                    </div>
-                  ) : (builds[app.id] || []).length === 0 ? (
-                    <p className="text-sm text-slate-400 py-2">No builds recorded. Click sync to fetch from the store.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-slate-500 dark:text-slate-400">
-                            <th className="pb-2 pr-4 font-medium">Version</th>
-                            <th className="pb-2 pr-4 font-medium">Build</th>
-                            <th className="pb-2 pr-4 font-medium">Status</th>
-                            <th className="pb-2 pr-4 font-medium">Track</th>
-                            <th className="pb-2 pr-4 font-medium">Submitted</th>
-                            <th className="pb-2 pr-4 font-medium">Released</th>
-                            <th className="pb-2 font-medium">Notified</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                          {(builds[app.id] || []).map((build) => (
-                            <tr key={build.id} className="text-slate-600 dark:text-slate-300">
-                              <td className="py-2 pr-4 font-medium">{build.version}</td>
-                              <td className="py-2 pr-4 font-mono text-xs">{build.buildNumber}</td>
-                              <td className="py-2 pr-4">{statusBadge(build.status)}</td>
-                              <td className="py-2 pr-4 text-xs">{build.trackOrChannel || "—"}</td>
-                              <td className="py-2 pr-4 text-xs">
-                                {build.submittedAt ? new Date(build.submittedAt).toLocaleDateString() : "—"}
-                              </td>
-                              <td className="py-2 pr-4 text-xs">
-                                {build.releasedAt ? new Date(build.releasedAt).toLocaleDateString() : "—"}
-                              </td>
-                              <td className="py-2 text-xs">
-                                {build.notifiedAt ? (
-                                  <span className="text-green-500" title={new Date(build.notifiedAt).toLocaleString()}>Sent</span>
-                                ) : (
-                                  <span className="text-slate-400">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-gray-800/50">
+                  {/* Tab Bar */}
+                  <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-700 px-4">
+                    {([
+                      { key: "builds", label: "Builds", icon: Upload },
+                      ...(app.platform === "GOOGLE_PLAY" ? [
+                        { key: "reporting", label: "Vitals", icon: Bug },
+                        { key: "reviews", label: "Reviews", icon: MessageSquare },
+                        { key: "products", label: "Products", icon: Package },
+                        { key: "subscriptions", label: "Subscriptions", icon: CreditCard },
+                        { key: "integrity", label: "Integrity", icon: ShieldCheck },
+                        { key: "games", label: "Games", icon: Gamepad2 },
+                        { key: "grouping", label: "Grouping", icon: Tags },
+                      ] : []),
+                    ] as { key: DetailTab; label: string; icon: typeof Upload }[]).map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => switchTab(app.id, t.key, app)}
+                        className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition ${
+                          activeTab === t.key
+                            ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                      >
+                        <t.icon size={14} />
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="p-4">
+                    {/* Tab Error */}
+                    {tabError && (
+                      <div className="flex items-center gap-2 p-3 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                        <AlertCircle size={14} />
+                        {tabError}
+                      </div>
+                    )}
+
+                    {/* BUILDS TAB */}
+                    {activeTab === "builds" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Build History</h4>
+                        {loadingBuilds === app.id ? (
+                          <div className="text-center py-4">
+                            <Loader2 size={16} className="animate-spin text-slate-400 mx-auto" />
+                          </div>
+                        ) : (builds[app.id] || []).length === 0 ? (
+                          <p className="text-sm text-slate-400 py-2">No builds recorded. Click sync to fetch from the store.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left text-slate-500 dark:text-slate-400">
+                                  <th className="pb-2 pr-4 font-medium">Version</th>
+                                  <th className="pb-2 pr-4 font-medium">Build</th>
+                                  <th className="pb-2 pr-4 font-medium">Status</th>
+                                  <th className="pb-2 pr-4 font-medium">Track</th>
+                                  <th className="pb-2 pr-4 font-medium">Submitted</th>
+                                  <th className="pb-2 pr-4 font-medium">Released</th>
+                                  <th className="pb-2 font-medium">Notified</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {(builds[app.id] || []).map((build) => (
+                                  <tr key={build.id} className="text-slate-600 dark:text-slate-300">
+                                    <td className="py-2 pr-4 font-medium">{build.version}</td>
+                                    <td className="py-2 pr-4 font-mono text-xs">{build.buildNumber}</td>
+                                    <td className="py-2 pr-4">{statusBadge(build.status)}</td>
+                                    <td className="py-2 pr-4 text-xs">{build.trackOrChannel || "—"}</td>
+                                    <td className="py-2 pr-4 text-xs">
+                                      {build.submittedAt ? new Date(build.submittedAt).toLocaleDateString() : "—"}
+                                    </td>
+                                    <td className="py-2 pr-4 text-xs">
+                                      {build.releasedAt ? new Date(build.releasedAt).toLocaleDateString() : "—"}
+                                    </td>
+                                    <td className="py-2 text-xs">
+                                      {build.notifiedAt ? (
+                                        <span className="text-green-500" title={new Date(build.notifiedAt).toLocaleString()}>Sent</span>
+                                      ) : (
+                                        <span className="text-slate-400">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* REPORTING / VITALS TAB */}
+                    {activeTab === "reporting" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <Bug size={16} />
+                          App Vitals (Developer Reporting API)
+                        </h4>
+                        {tabLoading ? (
+                          <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-slate-400 mx-auto" /></div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Crash Rate */}
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Crash Rate</h5>
+                              {((tabData as Record<string, { rows?: unknown[] }>)?.crashes?.rows || []).length === 0 ? (
+                                <p className="text-sm text-slate-400">No crash data available</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {((tabData as Record<string, { rows: { metrics: Record<string, { decimalValue?: { value: string } }> }[] }>)?.crashes?.rows || []).slice(0, 5).map((row, i) => (
+                                    <div key={i} className="flex items-center justify-between text-sm">
+                                      <span className="text-slate-600 dark:text-slate-300">
+                                        API {row.metrics?.apiLevel?.decimalValue?.value || "—"}
+                                      </span>
+                                      <span className="font-mono text-red-600 dark:text-red-400">
+                                        {row.metrics?.crashRate?.decimalValue?.value
+                                          ? `${(parseFloat(row.metrics.crashRate.decimalValue.value) * 100).toFixed(3)}%`
+                                          : "—"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {/* ANR Rate */}
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">ANR Rate</h5>
+                              {((tabData as Record<string, { rows?: unknown[] }>)?.anrs?.rows || []).length === 0 ? (
+                                <p className="text-sm text-slate-400">No ANR data available</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {((tabData as Record<string, { rows: { metrics: Record<string, { decimalValue?: { value: string } }> }[] }>)?.anrs?.rows || []).slice(0, 5).map((row, i) => (
+                                    <div key={i} className="flex items-center justify-between text-sm">
+                                      <span className="text-slate-600 dark:text-slate-300">
+                                        API {row.metrics?.apiLevel?.decimalValue?.value || "—"}
+                                      </span>
+                                      <span className="font-mono text-orange-600 dark:text-orange-400">
+                                        {row.metrics?.anrRate?.decimalValue?.value
+                                          ? `${(parseFloat(row.metrics.anrRate.decimalValue.value) * 100).toFixed(3)}%`
+                                          : "—"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {/* Excessive Wakeups */}
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Excessive Wakeups</h5>
+                              {((tabData as Record<string, { rows?: unknown[] }>)?.wakeups?.rows || []).length === 0 ? (
+                                <p className="text-sm text-slate-400">No wakeup data available</p>
+                              ) : (
+                                <p className="text-sm text-slate-600 dark:text-slate-300">
+                                  {((tabData as Record<string, { rows: unknown[] }>)?.wakeups?.rows || []).length} data points
+                                </p>
+                              )}
+                            </div>
+                            {/* Stuck Wakelocks */}
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Stuck Wakelocks</h5>
+                              {((tabData as Record<string, { rows?: unknown[] }>)?.wakelocks?.rows || []).length === 0 ? (
+                                <p className="text-sm text-slate-400">No wakelock data available</p>
+                              ) : (
+                                <p className="text-sm text-slate-600 dark:text-slate-300">
+                                  {((tabData as Record<string, { rows: unknown[] }>)?.wakelocks?.rows || []).length} data points
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* REVIEWS TAB */}
+                    {activeTab === "reviews" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <MessageSquare size={16} />
+                          Play Store Reviews
+                        </h4>
+                        {tabLoading ? (
+                          <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-slate-400 mx-auto" /></div>
+                        ) : ((tabData as { reviews?: unknown[] })?.reviews || []).length === 0 ? (
+                          <p className="text-sm text-slate-400 py-2">No reviews found</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {((tabData as { reviews: { reviewId: string; authorName: string; comments: { userComment?: { text: string; starRating: number; lastModified: { seconds: string } } }[] }[] }).reviews || []).map((review) => {
+                              const uc = review.comments?.[0]?.userComment;
+                              if (!uc) return null;
+                              return (
+                                <div key={review.reviewId} className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{review.authorName || "Anonymous"}</span>
+                                    <div className="flex items-center gap-0.5">
+                                      {Array.from({ length: 5 }, (_, i) => (
+                                        <Star key={i} size={12} className={i < uc.starRating ? "text-yellow-400 fill-yellow-400" : "text-slate-300 dark:text-slate-600"} />
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-slate-600 dark:text-slate-400">{uc.text}</p>
+                                  <p className="text-xs text-slate-400 mt-1">
+                                    {uc.lastModified?.seconds ? new Date(parseInt(uc.lastModified.seconds) * 1000).toLocaleDateString() : ""}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* IN-APP PRODUCTS TAB */}
+                    {activeTab === "products" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <Package size={16} />
+                          In-App Products
+                        </h4>
+                        {tabLoading ? (
+                          <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-slate-400 mx-auto" /></div>
+                        ) : ((tabData as { inappproduct?: unknown[] })?.inappproduct || []).length === 0 ? (
+                          <p className="text-sm text-slate-400 py-2">No in-app products found</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left text-slate-500 dark:text-slate-400">
+                                  <th className="pb-2 pr-4 font-medium">SKU</th>
+                                  <th className="pb-2 pr-4 font-medium">Title</th>
+                                  <th className="pb-2 pr-4 font-medium">Type</th>
+                                  <th className="pb-2 pr-4 font-medium">Price</th>
+                                  <th className="pb-2 font-medium">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {((tabData as { inappproduct: { sku: string; purchaseType: string; status: string; defaultPrice?: { priceMicros: string; currency: string }; listings?: Record<string, { title: string }> }[] }).inappproduct || []).map((p) => {
+                                  const listing = Object.values(p.listings || {})[0];
+                                  const price = p.defaultPrice ? (parseInt(p.defaultPrice.priceMicros) / 1_000_000).toFixed(2) : "—";
+                                  return (
+                                    <tr key={p.sku} className="text-slate-600 dark:text-slate-300">
+                                      <td className="py-2 pr-4 font-mono text-xs">{p.sku}</td>
+                                      <td className="py-2 pr-4">{listing?.title || "—"}</td>
+                                      <td className="py-2 pr-4">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          p.purchaseType === "subscription"
+                                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                        }`}>
+                                          {p.purchaseType === "subscription" ? "Subscription" : "Managed"}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 pr-4">{p.defaultPrice?.currency} {price}</td>
+                                      <td className="py-2">{p.status}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* SUBSCRIPTIONS TAB */}
+                    {activeTab === "subscriptions" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <CreditCard size={16} />
+                          Subscriptions
+                        </h4>
+                        {tabLoading ? (
+                          <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-slate-400 mx-auto" /></div>
+                        ) : ((tabData as { subscriptions?: unknown[] })?.subscriptions || []).length === 0 ? (
+                          <p className="text-sm text-slate-400 py-2">No subscriptions found</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {((tabData as { subscriptions: { productId: string; basePlans: { basePlanId: string; state: string; renewalType: string; autoRenewingBasePlanType?: { billingPeriodDuration: string }; prices?: { currencyCode: string; priceMicros: string }[] }[]; listings?: { languageCode: string; title: string; benefits?: string[] }[] }[] }).subscriptions || []).map((sub) => {
+                              const listing = sub.listings?.[0];
+                              return (
+                                <div key={sub.productId} className="bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                      <h5 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{listing?.title || sub.productId}</h5>
+                                      <p className="text-xs text-slate-400 font-mono">{sub.productId}</p>
+                                    </div>
+                                  </div>
+                                  {sub.basePlans?.map((plan) => {
+                                    const price = plan.prices?.[0];
+                                    return (
+                                      <div key={plan.basePlanId} className="flex items-center gap-3 mt-2 text-sm">
+                                        <span className="font-mono text-xs text-slate-500">{plan.basePlanId}</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                          plan.state === "ACTIVE" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                                        }`}>{plan.state}</span>
+                                        <span className="text-slate-600 dark:text-slate-400">
+                                          {plan.autoRenewingBasePlanType?.billingPeriodDuration || plan.renewalType}
+                                        </span>
+                                        {price && (
+                                          <span className="font-medium">{price.currencyCode} {(parseInt(price.priceMicros) / 1_000_000).toFixed(2)}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  {listing?.benefits && listing.benefits.length > 0 && (
+                                    <ul className="mt-2 text-xs text-slate-500 dark:text-slate-400 list-disc list-inside">
+                                      {listing.benefits.map((b, i) => <li key={i}>{b}</li>)}
+                                    </ul>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* INTEGRITY TAB */}
+                    {activeTab === "integrity" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <ShieldCheck size={16} />
+                          Play Integrity API
+                        </h4>
+                        <p className="text-xs text-slate-400 mb-4">Decode and verify integrity tokens sent from your Android app to check device &amp; app authenticity.</p>
+                        <div className="space-y-3 max-w-xl">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Package Name</label>
+                            <input
+                              type="text"
+                              value={integrityPkg}
+                              onChange={(e) => setIntegrityPkg(e.target.value)}
+                              placeholder="com.example.app"
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Integrity Token</label>
+                            <textarea
+                              value={integrityToken}
+                              onChange={(e) => setIntegrityToken(e.target.value)}
+                              rows={3}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white font-mono"
+                              placeholder="Paste integrity token from your Android app..."
+                            />
+                          </div>
+                          <button
+                            onClick={handleIntegrityCheck}
+                            disabled={integrityLoading || !integrityPkg || !integrityToken}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                          >
+                            {integrityLoading && <Loader2 size={14} className="animate-spin" />}
+                            <ShieldCheck size={14} />
+                            Verify Token
+                          </button>
+                          {integrityResult && (
+                            <div className="mt-3 bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-3">Verdict</h5>
+                              {(() => {
+                                const payload = (integrityResult as { tokenPayloadExternal?: Record<string, unknown> })?.tokenPayloadExternal;
+                                if (!payload) return <p className="text-sm text-slate-400">No payload data</p>;
+                                return (
+                                  <div className="space-y-2 text-sm">
+                                    {/* App Integrity */}
+                                    {(payload.appIntegrity as { appRecognitionVerdict?: string; packageName?: string; versionCode?: string }) && (
+                                      <div>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300">App: </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          (payload.appIntegrity as { appRecognitionVerdict: string }).appRecognitionVerdict === "PLAY_RECOGNIZED"
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                        }`}>
+                                          {(payload.appIntegrity as { appRecognitionVerdict: string }).appRecognitionVerdict}
+                                        </span>
+                                        <span className="text-xs text-slate-400 ml-2">
+                                          v{(payload.appIntegrity as { versionCode?: string }).versionCode}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {/* Device Integrity */}
+                                    {(payload.deviceIntegrity as { deviceRecognitionVerdict?: string[] }) && (
+                                      <div>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300">Device: </span>
+                                        {((payload.deviceIntegrity as { deviceRecognitionVerdict: string[] }).deviceRecognitionVerdict || []).map((v) => (
+                                          <span key={v} className={`px-2 py-0.5 rounded-full text-xs font-medium mr-1 ${
+                                            v.includes("MEETS") ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                          }`}>{v}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {/* Account */}
+                                    {(payload.accountDetails as { appLicensingVerdict?: string }) && (
+                                      <div>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300">License: </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          (payload.accountDetails as { appLicensingVerdict: string }).appLicensingVerdict === "LICENSED"
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                        }`}>
+                                          {(payload.accountDetails as { appLicensingVerdict: string }).appLicensingVerdict}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* GAMES TAB */}
+                    {activeTab === "games" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <Gamepad2 size={16} />
+                          Games Services
+                        </h4>
+                        <p className="text-xs text-slate-400 mb-3">View achievement &amp; leaderboard configurations and manage game data.</p>
+                        <div className="flex items-center gap-2 mb-4">
+                          <input
+                            type="text"
+                            value={gamesAppId}
+                            onChange={(e) => setGamesAppId(e.target.value)}
+                            placeholder="Games Application ID"
+                            className="flex-1 max-w-xs px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                          />
+                          <button
+                            onClick={() => gamesAppId && loadGamesData(gamesAppId)}
+                            disabled={tabLoading || !gamesAppId}
+                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                          >
+                            {tabLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                            Load
+                          </button>
+                        </div>
+
+                        {tabLoading ? (
+                          <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-slate-400 mx-auto" /></div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Achievements */}
+                            {((tabData as { achievements?: unknown[] })?.achievements || []).length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">
+                                  Achievements ({((tabData as { achievements: unknown[] }).achievements).length})
+                                </h5>
+                                <div className="space-y-2">
+                                  {((tabData as { achievements: { id: string; achievementType: string; initialState: string; stepsToUnlock?: number; published?: { name?: { translations?: { locale: string; value: string }[] }; pointValue?: number } }[] }).achievements || []).map((a) => {
+                                    const name = a.published?.name?.translations?.[0]?.value || a.id;
+                                    return (
+                                      <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm">
+                                        <div>
+                                          <span className="font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                                          <span className="text-xs text-slate-400 ml-2">{a.achievementType}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-slate-500">{a.published?.pointValue || 0} pts</span>
+                                          <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                            a.initialState === "REVEALED" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                            : a.initialState === "UNLOCKED" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                                          }`}>{a.initialState}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Leaderboards */}
+                            {((tabData as { leaderboards?: unknown[] })?.leaderboards || []).length > 0 && (
+                              <div>
+                                <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">
+                                  Leaderboards ({((tabData as { leaderboards: unknown[] }).leaderboards).length})
+                                </h5>
+                                <div className="space-y-2">
+                                  {((tabData as { leaderboards: { id: string; scoreOrder: string; published?: { name?: { translations?: { locale: string; value: string }[] } } }[] }).leaderboards || []).map((lb) => {
+                                    const name = lb.published?.name?.translations?.[0]?.value || lb.id;
+                                    return (
+                                      <div key={lb.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm">
+                                        <span className="font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-slate-500">{lb.scoreOrder}</span>
+                                          <button
+                                            onClick={() => lb.id && handleGameReset("resetLeaderboard", lb.id)}
+                                            className="text-xs text-red-500 hover:text-red-700 transition"
+                                          >
+                                            Reset
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Management Actions */}
+                            {Object.keys(tabData).length > 0 && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <span className="text-xs text-slate-400">Management:</span>
+                                <button
+                                  onClick={() => handleGameReset("resetAchievements")}
+                                  className="px-3 py-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition"
+                                >
+                                  Reset All Achievements
+                                </button>
+                                <button
+                                  onClick={() => handleGameReset("resetEvents")}
+                                  className="px-3 py-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition"
+                                >
+                                  Reset All Events
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* GROUPING TAB */}
+                    {activeTab === "grouping" && (
+                      <>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                          <Tags size={16} />
+                          Play Grouping API
+                        </h4>
+                        <p className="text-xs text-slate-400 mb-4">Verify grouping tokens and manage user group tags.</p>
+                        <div className="space-y-3 max-w-xl">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Package Name</label>
+                              <input
+                                type="text"
+                                value={groupingPkg}
+                                onChange={(e) => setGroupingPkg(e.target.value)}
+                                placeholder="com.example.app"
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Token</label>
+                              <input
+                                type="text"
+                                value={groupingToken}
+                                onChange={(e) => setGroupingToken(e.target.value)}
+                                placeholder="User grouping token"
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleGroupingAction("verify")}
+                              disabled={tabLoading || !groupingPkg || !groupingToken}
+                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                            >
+                              {tabLoading && <Loader2 size={14} className="animate-spin" />}
+                              Verify Token
+                            </button>
+                            <button
+                              onClick={loadGroupingTags}
+                              disabled={tabLoading || !groupingPkg || !groupingToken}
+                              className="flex items-center gap-2 px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50 text-sm"
+                            >
+                              List Tags
+                            </button>
+                          </div>
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Create/Update Tag</h5>
+                            <div className="grid grid-cols-2 gap-3 mb-2">
+                              <input
+                                type="text"
+                                value={groupingTag}
+                                onChange={(e) => setGroupingTag(e.target.value)}
+                                placeholder="Tag name"
+                                className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                              />
+                              <input
+                                type="text"
+                                value={groupingValue}
+                                onChange={(e) => setGroupingValue(e.target.value)}
+                                placeholder="Tag value"
+                                className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-gray-800 dark:text-white"
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleGroupingAction("tag")}
+                              disabled={tabLoading || !groupingPkg || !groupingToken || !groupingTag || !groupingValue}
+                              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-sm"
+                            >
+                              Save Tag
+                            </button>
+                          </div>
+                          {/* Show tags result */}
+                          {((tabData as { tags?: { tag: string; stringValue?: string; booleanValue?: boolean; int64Value?: string }[] })?.tags || []).length > 0 && (
+                            <div className="mt-3">
+                              <h5 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-2">Tags</h5>
+                              <div className="space-y-1">
+                                {((tabData as { tags: { tag: string; stringValue?: string; booleanValue?: boolean; int64Value?: string }[] }).tags).map((t) => (
+                                  <div key={t.tag} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
+                                    <span className="font-mono text-xs text-slate-600 dark:text-slate-300">{t.tag}</span>
+                                    <span className="text-slate-500 dark:text-slate-400">{t.stringValue || t.int64Value || String(t.booleanValue ?? "")}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
