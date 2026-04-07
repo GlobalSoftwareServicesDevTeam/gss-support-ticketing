@@ -18,6 +18,8 @@ import {
   HardDrive,
   Power,
   PowerOff,
+  Link,
+  X,
 } from "lucide-react";
 
 interface PleskDomain {
@@ -44,6 +46,14 @@ interface ClientHosting {
   sessionUrl: string | null;
 }
 
+interface UnassignedPleskClient {
+  id: number;
+  login: string;
+  name: string;
+  email: string;
+  domains: { id: number; name: string; status: string }[];
+}
+
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   disabled: "bg-red-100 text-red-700",
@@ -59,6 +69,10 @@ export default function HostingClientsPage() {
   const [filterMode, setFilterMode] = useState<"all" | "hosted" | "not-hosted">("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [togglingDomains, setTogglingDomains] = useState<Set<number>>(new Set());
+  const [unassignedClients, setUnassignedClients] = useState<UnassignedPleskClient[]>([]);
+  const [assignModalFor, setAssignModalFor] = useState<ClientHosting | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const [loadingUnassigned, setLoadingUnassigned] = useState(false);
 
   useEffect(() => {
     if (session?.user?.role === "ADMIN") {
@@ -129,6 +143,56 @@ export default function HostingClientsPage() {
         next.delete(domainId);
         return next;
       });
+    }
+  }
+
+  async function openAssignModal(client: ClientHosting) {
+    setAssignModalFor(client);
+    setLoadingUnassigned(true);
+    try {
+      const res = await fetch("/api/hosting/clients/unassigned");
+      const data = await res.json();
+      setUnassignedClients(data.clients || []);
+    } catch {
+      setUnassignedClients([]);
+    } finally {
+      setLoadingUnassigned(false);
+    }
+  }
+
+  async function assignPleskClient(pleskClientId: number) {
+    if (!assignModalFor) return;
+    if (!confirm(`Assign this Plesk account to ${assignModalFor.company}? This will update the Plesk client's email to match the customer.`)) return;
+
+    setAssigning(true);
+    try {
+      const res = await fetch("/api/hosting/clients/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: assignModalFor.customerId,
+          pleskClientId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAssignModalFor(null);
+        // Reload the page data
+        setLoading(true);
+        try {
+          const r = await fetch("/api/hosting/clients");
+          const d = await r.json();
+          if (!d.error) setClients(d.clients || []);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        alert(data.error || "Failed to assign hosting");
+      }
+    } catch {
+      alert("Failed to assign hosting");
+    } finally {
+      setAssigning(false);
     }
   }
 
@@ -314,6 +378,19 @@ export default function HostingClientsPage() {
                     Login to Plesk
                   </a>
                 )}
+
+                {!client.found && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAssignModal(client);
+                    }}
+                    className="flex items-center gap-1.5 bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 transition text-xs font-medium flex-shrink-0"
+                  >
+                    <Link size={13} />
+                    Assign Hosting
+                  </button>
+                )}
               </div>
 
               {/* Expanded domains */}
@@ -452,6 +529,108 @@ export default function HostingClientsPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Assign Modal */}
+      {assignModalFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Assign Plesk Hosting
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Assign an unassigned Plesk account to{" "}
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {assignModalFor.company}
+                  </span>
+                </p>
+              </div>
+              <button
+                onClick={() => setAssignModalFor(null)}
+                title="Close"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingUnassigned ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-blue-600" size={24} />
+                  <span className="ml-2 text-gray-500 text-sm">Loading unassigned Plesk accounts...</span>
+                </div>
+              ) : unassignedClients.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Server size={40} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No unassigned Plesk accounts found</p>
+                  <p className="text-xs mt-1">All Plesk clients are already matched to a customer</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500 mb-3">
+                    Select a Plesk account to assign. This will update the Plesk client&apos;s email to{" "}
+                    <span className="font-medium">{assignModalFor.email}</span> so it matches this customer.
+                  </p>
+                  {unassignedClients.map((pc) => (
+                    <div
+                      key={pc.id}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-300 dark:hover:border-blue-600 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {pc.name || pc.login}
+                            </span>
+                            <span className="text-xs text-gray-400">#{pc.id}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                            <span className="flex items-center gap-1">
+                              <User size={11} /> {pc.login}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Mail size={11} /> {pc.email}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Globe size={11} /> {pc.domains.length} domain{pc.domains.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          {pc.domains.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {pc.domains.map((d) => (
+                                <span
+                                  key={d.id}
+                                  className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                >
+                                  {d.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => assignPleskClient(pc.id)}
+                          disabled={assigning}
+                          className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 flex-shrink-0 ml-4"
+                        >
+                          {assigning ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Link size={14} />
+                          )}
+                          Assign
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
