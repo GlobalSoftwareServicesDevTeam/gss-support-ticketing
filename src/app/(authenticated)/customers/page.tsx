@@ -74,6 +74,7 @@ export default function CustomersPage() {
   // Action messages
   const [actionMsg, setActionMsg] = useState("");
   const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   function fetchCustomers() {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -330,7 +331,7 @@ export default function CustomersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="animate-spin text-brand-500" size={32} />
@@ -384,42 +385,22 @@ export default function CustomersPage() {
                       {c.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 relative">
+                  <td className="px-4 py-3">
                     <button
-                      onClick={() => setActionMenu(actionMenu === c.id ? null : c.id)}
+                      onClick={(e) => {
+                        if (actionMenu === c.id) {
+                          setActionMenu(null);
+                        } else {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setMenuPos({ top: rect.bottom + 4, left: rect.right - 160 });
+                          setActionMenu(c.id);
+                        }
+                      }}
                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                       aria-label="Actions"
                     >
                       <MoreVertical size={16} className="text-gray-500" />
                     </button>
-                    {actionMenu === c.id && (
-                      <div className="absolute right-4 top-10 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                        <Link
-                          href={`/customers/${c.id}`}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <Pencil size={14} /> Edit
-                        </Link>
-                        <Link
-                          href={`/customers/${c.id}#contacts`}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <Users size={14} /> Contacts
-                        </Link>
-                        <Link
-                          href={`/customers/${c.id}#contacts`}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20"
-                        >
-                          <Send size={14} /> Invite Contacts
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(c.id, c.company)}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -427,6 +408,46 @@ export default function CustomersPage() {
           </table>
         )}
       </div>
+
+      {/* Floating Action Menu */}
+      {actionMenu && (() => {
+        const c = customers.find((cust) => cust.id === actionMenu);
+        if (!c) return null;
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setActionMenu(null)} />
+            <div
+              className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]"
+              style={{ top: menuPos.top, left: menuPos.left }}
+            >
+              <Link
+                href={`/customers/${c.id}`}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <Pencil size={14} /> Edit
+              </Link>
+              <Link
+                href={`/customers/${c.id}#contacts`}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <Users size={14} /> Contacts
+              </Link>
+              <Link
+                href={`/customers/${c.id}#contacts`}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20"
+              >
+                <Send size={14} /> Invite Contacts
+              </Link>
+              <button
+                onClick={() => handleDelete(c.id, c.company)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Pagination */}
       {totalPages > 1 && (
