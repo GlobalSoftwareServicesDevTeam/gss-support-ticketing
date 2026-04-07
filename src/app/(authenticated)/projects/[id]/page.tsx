@@ -19,6 +19,14 @@ import {
   GitBranch,
   Lock,
   Unlock,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Circle,
+  PlayCircle,
+  Edit2,
+  X,
 } from "lucide-react";
 
 interface Assignment {
@@ -84,6 +92,35 @@ interface LinkedRepo {
   language: string | null;
 }
 
+interface StageTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  order: number;
+  assignments: Assignment[];
+}
+
+interface SubProjectStage {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  order: number;
+  tasks: StageTask[];
+}
+
+interface SubProject {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  order: number;
+  stages: SubProjectStage[];
+}
+
 interface Project {
   id: string;
   projectName: string;
@@ -103,7 +140,7 @@ interface Project {
   _count: { issues: number; tasks: number; documents: number };
 }
 
-type TabType = "overview" | "tasks" | "documents" | "tickets" | "code";
+type TabType = "overview" | "tasks" | "documents" | "tickets" | "code" | "sub-projects";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -125,6 +162,23 @@ export default function ProjectDetailPage() {
   const [viewHistoryId, setViewHistoryId] = useState<string | null>(null);
   const [downloadHistory, setDownloadHistory] = useState<CodeDownloadLogEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Sub-projects state
+  const [subProjects, setSubProjects] = useState<SubProject[]>([]);
+  const [subLoading, setSubLoading] = useState(false);
+  const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
+  const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+  const [showAddSub, setShowAddSub] = useState(false);
+  const [newSubName, setNewSubName] = useState("");
+  const [newSubDesc, setNewSubDesc] = useState("");
+  const [addingSub, setAddingSub] = useState(false);
+  const [addingStageFor, setAddingStageFor] = useState<string | null>(null);
+  const [newStageName, setNewStageName] = useState("");
+  const [addingStage, setAddingStage] = useState(false);
+  const [addingTaskFor, setAddingTaskFor] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState("MEDIUM");
+  const [addingTask, setAddingTask] = useState(false);
 
   const fetchProject = useCallback(() => {
     fetch(`/api/projects/${id}`)
@@ -151,6 +205,19 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (tab === "code") fetchCodeReleases();
   }, [tab, fetchCodeReleases]);
+
+  const fetchSubProjects = useCallback(() => {
+    setSubLoading(true);
+    fetch(`/api/projects/${id}/sub-projects`)
+      .then((r) => r.json())
+      .then((data) => setSubProjects(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setSubLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    if (tab === "sub-projects") fetchSubProjects();
+  }, [tab, fetchSubProjects]);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -245,6 +312,7 @@ export default function ProjectDetailPage() {
 
   const tabs: { key: TabType; label: string; count?: number }[] = [
     { key: "overview", label: "Overview" },
+    { key: "sub-projects", label: "Sub Projects", count: subProjects.length || undefined },
     { key: "tasks", label: "Tasks", count: project._count.tasks },
     { key: "documents", label: "Documents", count: project._count.documents },
     { key: "code", label: "Code" },
@@ -415,6 +483,461 @@ export default function ProjectDetailPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "sub-projects" && (
+        <div>
+          {/* Add Sub-Project button */}
+          {isAdmin && (
+            <div className="mb-6">
+              {!showAddSub ? (
+                <button
+                  onClick={() => setShowAddSub(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm"
+                >
+                  <Plus size={16} />
+                  Add Sub Project
+                </button>
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={newSubName}
+                      onChange={(e) => setNewSubName(e.target.value)}
+                      placeholder="Sub-project name"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+                      autoFocus
+                    />
+                  </div>
+                  <textarea
+                    value={newSubDesc}
+                    onChange={(e) => setNewSubDesc(e.target.value)}
+                    placeholder="Description (optional)"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!newSubName.trim()) return;
+                        setAddingSub(true);
+                        const res = await fetch(`/api/projects/${id}/sub-projects`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: newSubName.trim(), description: newSubDesc.trim() || null }),
+                        });
+                        if (res.ok) {
+                          setNewSubName("");
+                          setNewSubDesc("");
+                          setShowAddSub(false);
+                          fetchSubProjects();
+                        }
+                        setAddingSub(false);
+                      }}
+                      disabled={addingSub || !newSubName.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {addingSub && <Loader2 size={14} className="animate-spin" />}
+                      Create
+                    </button>
+                    <button
+                      onClick={() => { setShowAddSub(false); setNewSubName(""); setNewSubDesc(""); }}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {subLoading ? (
+            <div className="text-center py-12">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+              <p className="mt-2 text-sm text-slate-500">Loading sub-projects...</p>
+            </div>
+          ) : subProjects.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Package className="mx-auto h-12 w-12 text-slate-300" />
+              <p className="mt-3 text-sm text-slate-500">No sub-projects yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {subProjects.map((sub) => {
+                const isExpanded = expandedSubs.has(sub.id);
+                const totalTasks = sub.stages.reduce((sum, s) => sum + s.tasks.length, 0);
+                const doneTasks = sub.stages.reduce((sum, s) => sum + s.tasks.filter((t) => t.status === "DONE").length, 0);
+                const subStatusColors: Record<string, string> = {
+                  ACTIVE: "bg-green-100 text-green-800",
+                  ON_HOLD: "bg-yellow-100 text-yellow-800",
+                  COMPLETED: "bg-blue-100 text-blue-800",
+                };
+
+                return (
+                  <div key={sub.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    {/* Sub-project header */}
+                    <div
+                      className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-slate-50 transition"
+                      onClick={() => setExpandedSubs((p) => { const n = new Set(p); n.has(sub.id) ? n.delete(sub.id) : n.add(sub.id); return n; })}
+                    >
+                      {isExpanded ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-slate-900">{sub.name}</h3>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subStatusColors[sub.status] || "bg-gray-100 text-gray-800"}`}>
+                            {sub.status.replace("_", " ")}
+                          </span>
+                        </div>
+                        {sub.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{sub.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>{sub.stages.length} stage{sub.stages.length !== 1 ? "s" : ""}</span>
+                        <span>{doneTasks}/{totalTasks} tasks done</span>
+                        {totalTasks > 0 && (
+                          <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 rounded-full transition-all"
+                              style={{ width: `${Math.round((doneTasks / totalTasks) * 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={sub.status}
+                            onChange={async (e) => {
+                              await fetch(`/api/projects/${id}/sub-projects/${sub.id}`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: e.target.value }),
+                              });
+                              fetchSubProjects();
+                            }}
+                            title="Change sub-project status"
+                            className="text-xs border border-slate-300 rounded px-1.5 py-1 bg-white text-slate-700"
+                          >
+                            <option value="ACTIVE">Active</option>
+                            <option value="ON_HOLD">On Hold</option>
+                            <option value="COMPLETED">Completed</option>
+                          </select>
+                          <button
+                            title="Delete sub-project"
+                            onClick={async () => {
+                              if (!confirm(`Delete "${sub.name}" and all its stages and tasks?`)) return;
+                              await fetch(`/api/projects/${id}/sub-projects/${sub.id}`, { method: "DELETE" });
+                              fetchSubProjects();
+                            }}
+                            className="p-1 text-red-400 hover:text-red-600"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expanded: stages */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-200 bg-slate-50/50">
+                        {sub.stages.length === 0 && !addingStageFor ? (
+                          <div className="px-6 py-6 text-center text-sm text-slate-400">
+                            No stages yet.
+                            {isAdmin && (
+                              <button
+                                onClick={() => setAddingStageFor(sub.id)}
+                                className="ml-2 text-blue-600 hover:underline"
+                              >
+                                Add a stage
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-4 space-y-3">
+                            {sub.stages.map((stage) => {
+                              const stageExpanded = expandedStages.has(stage.id);
+                              const stageDoneTasks = stage.tasks.filter((t) => t.status === "DONE").length;
+                              const stageStatusIcon = stage.status === "COMPLETED" ? (
+                                <CheckCircle2 size={16} className="text-green-600" />
+                              ) : stage.status === "IN_PROGRESS" ? (
+                                <PlayCircle size={16} className="text-blue-600" />
+                              ) : (
+                                <Circle size={16} className="text-slate-400" />
+                              );
+
+                              return (
+                                <div key={stage.id} className="bg-white rounded-lg border border-slate-200">
+                                  {/* Stage header */}
+                                  <div
+                                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition"
+                                    onClick={() => setExpandedStages((p) => { const n = new Set(p); n.has(stage.id) ? n.delete(stage.id) : n.add(stage.id); return n; })}
+                                  >
+                                    {stageStatusIcon}
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm font-medium text-slate-900">{stage.name}</span>
+                                      {stage.description && <span className="text-xs text-slate-400 ml-2">{stage.description}</span>}
+                                    </div>
+                                    <span className="text-xs text-slate-500">{stageDoneTasks}/{stage.tasks.length} tasks</span>
+                                    {isAdmin && (
+                                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <select
+                                          value={stage.status}
+                                          onChange={async (e) => {
+                                            await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages/${stage.id}`, {
+                                              method: "PUT",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ status: e.target.value }),
+                                            });
+                                            fetchSubProjects();
+                                          }}
+                                          title="Change stage status"
+                                          className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-600"
+                                        >
+                                          <option value="NOT_STARTED">Not Started</option>
+                                          <option value="IN_PROGRESS">In Progress</option>
+                                          <option value="COMPLETED">Completed</option>
+                                        </select>
+                                        <button
+                                          title="Delete stage"
+                                          onClick={async () => {
+                                            if (!confirm(`Delete stage "${stage.name}"?`)) return;
+                                            await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages/${stage.id}`, { method: "DELETE" });
+                                            fetchSubProjects();
+                                          }}
+                                          className="p-1 text-red-400 hover:text-red-600"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    )}
+                                    {stageExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                                  </div>
+
+                                  {/* Expanded: tasks */}
+                                  {stageExpanded && (
+                                    <div className="border-t border-slate-100 px-4 py-3 space-y-2">
+                                      {stage.tasks.length === 0 && addingTaskFor !== stage.id && (
+                                        <p className="text-xs text-slate-400 text-center py-2">
+                                          No tasks.
+                                          {isAdmin && (
+                                            <button onClick={() => { setAddingTaskFor(stage.id); setNewTaskTitle(""); }} className="ml-1 text-blue-600 hover:underline">Add one</button>
+                                          )}
+                                        </p>
+                                      )}
+                                      {stage.tasks.map((task) => {
+                                        const taskPriorityColors: Record<string, string> = {
+                                          LOW: "text-slate-500",
+                                          MEDIUM: "text-blue-600",
+                                          HIGH: "text-orange-600",
+                                          CRITICAL: "text-red-600",
+                                        };
+                                        const taskStatusColors: Record<string, string> = {
+                                          TODO: "bg-slate-100 text-slate-700",
+                                          IN_PROGRESS: "bg-blue-100 text-blue-700",
+                                          IN_REVIEW: "bg-purple-100 text-purple-700",
+                                          DONE: "bg-green-100 text-green-700",
+                                        };
+                                        return (
+                                          <div key={task.id} className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-slate-50">
+                                            <button
+                                              title={task.status === "DONE" ? "Mark as TODO" : "Mark as DONE"}
+                                              onClick={async () => {
+                                                const newStatus = task.status === "DONE" ? "TODO" : "DONE";
+                                                await fetch(`/api/tasks/${task.id}`, {
+                                                  method: "PUT",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({ status: newStatus }),
+                                                });
+                                                fetchSubProjects();
+                                              }}
+                                              className="flex-shrink-0"
+                                            >
+                                              {task.status === "DONE" ? (
+                                                <CheckCircle2 size={16} className="text-green-600" />
+                                              ) : (
+                                                <Circle size={16} className="text-slate-300 hover:text-green-400" />
+                                              )}
+                                            </button>
+                                            <span className={`text-sm flex-1 ${task.status === "DONE" ? "line-through text-slate-400" : "text-slate-800"}`}>
+                                              {task.title}
+                                            </span>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${taskStatusColors[task.status] || ""}`}>
+                                              {task.status.replace("_", " ")}
+                                            </span>
+                                            <span className={`text-xs font-medium ${taskPriorityColors[task.priority] || ""}`}>
+                                              {task.priority}
+                                            </span>
+                                            {task.assignments.length > 0 && (
+                                              <span className="text-xs text-slate-400">
+                                                {task.assignments.map((a) => `${a.user.firstName}`).join(", ")}
+                                              </span>
+                                            )}
+                                            {isAdmin && (
+                                              <button
+                                                title="Delete task"
+                                                onClick={async () => {
+                                                  await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+                                                  fetchSubProjects();
+                                                }}
+                                                className="p-0.5 text-red-400 hover:text-red-600"
+                                              >
+                                                <Trash2 size={12} />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+
+                                      {/* Add task form */}
+                                      {isAdmin && addingTaskFor === stage.id ? (
+                                        <div className="flex items-center gap-2 pt-1">
+                                          <input
+                                            type="text"
+                                            value={newTaskTitle}
+                                            onChange={(e) => setNewTaskTitle(e.target.value)}
+                                            placeholder="Task title"
+                                            className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-sm text-slate-900"
+                                            autoFocus
+                                            onKeyDown={async (e) => {
+                                              if (e.key === "Enter" && newTaskTitle.trim()) {
+                                                setAddingTask(true);
+                                                const res = await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages/${stage.id}/tasks`, {
+                                                  method: "POST",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({ title: newTaskTitle.trim(), priority: newTaskPriority }),
+                                                });
+                                                if (res.ok) {
+                                                  setNewTaskTitle("");
+                                                  fetchSubProjects();
+                                                }
+                                                setAddingTask(false);
+                                              } else if (e.key === "Escape") {
+                                                setAddingTaskFor(null);
+                                              }
+                                            }}
+                                          />
+                                          <select
+                                            value={newTaskPriority}
+                                            onChange={(e) => setNewTaskPriority(e.target.value)}
+                                            title="Priority"
+                                            className="px-2 py-1.5 border border-slate-300 rounded text-xs text-slate-700"
+                                          >
+                                            <option value="LOW">Low</option>
+                                            <option value="MEDIUM">Medium</option>
+                                            <option value="HIGH">High</option>
+                                            <option value="CRITICAL">Critical</option>
+                                          </select>
+                                          <button
+                                            onClick={async () => {
+                                              if (!newTaskTitle.trim()) return;
+                                              setAddingTask(true);
+                                              const res = await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages/${stage.id}/tasks`, {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ title: newTaskTitle.trim(), priority: newTaskPriority }),
+                                              });
+                                              if (res.ok) {
+                                                setNewTaskTitle("");
+                                                fetchSubProjects();
+                                              }
+                                              setAddingTask(false);
+                                            }}
+                                            disabled={addingTask || !newTaskTitle.trim()}
+                                            className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                                          >
+                                            {addingTask ? <Loader2 size={12} className="animate-spin" /> : "Add"}
+                                          </button>
+                                          <button onClick={() => setAddingTaskFor(null)} title="Cancel" className="p-1 text-slate-400 hover:text-slate-600">
+                                            <X size={14} />
+                                          </button>
+                                        </div>
+                                      ) : isAdmin && stage.tasks.length > 0 ? (
+                                        <button
+                                          onClick={() => { setAddingTaskFor(stage.id); setNewTaskTitle(""); }}
+                                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 pt-1"
+                                        >
+                                          <Plus size={12} /> Add Task
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {/* Add stage form */}
+                            {isAdmin && addingStageFor === sub.id ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={newStageName}
+                                  onChange={(e) => setNewStageName(e.target.value)}
+                                  placeholder="Stage name"
+                                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+                                  autoFocus
+                                  onKeyDown={async (e) => {
+                                    if (e.key === "Enter" && newStageName.trim()) {
+                                      setAddingStage(true);
+                                      const res = await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ name: newStageName.trim() }),
+                                      });
+                                      if (res.ok) {
+                                        setNewStageName("");
+                                        setAddingStageFor(null);
+                                        fetchSubProjects();
+                                      }
+                                      setAddingStage(false);
+                                    } else if (e.key === "Escape") {
+                                      setAddingStageFor(null);
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={async () => {
+                                    if (!newStageName.trim()) return;
+                                    setAddingStage(true);
+                                    const res = await fetch(`/api/projects/${id}/sub-projects/${sub.id}/stages`, {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ name: newStageName.trim() }),
+                                    });
+                                    if (res.ok) {
+                                      setNewStageName("");
+                                      setAddingStageFor(null);
+                                      fetchSubProjects();
+                                    }
+                                    setAddingStage(false);
+                                  }}
+                                  disabled={addingStage || !newStageName.trim()}
+                                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {addingStage ? <Loader2 size={14} className="animate-spin" /> : "Add"}
+                                </button>
+                                <button onClick={() => setAddingStageFor(null)} title="Cancel" className="p-1 text-slate-400 hover:text-slate-600">
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ) : isAdmin ? (
+                              <button
+                                onClick={() => { setAddingStageFor(sub.id); setNewStageName(""); }}
+                                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800"
+                              >
+                                <Plus size={14} /> Add Stage
+                              </button>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

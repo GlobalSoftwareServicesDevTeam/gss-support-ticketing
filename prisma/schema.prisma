@@ -162,6 +162,7 @@ model Project {
   repos       GitHubRepo[]
   quotes      Quote[]
   hostingOrders HostingOrder[]
+  subProjects SubProject[]
 
   @@map("projects")
 }
@@ -196,9 +197,46 @@ model Task {
   issueId     String?
   issue       Issue?    @relation(fields: [issueId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  stageId     String?
+  stage       SubProjectStage? @relation(fields: [stageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   assignments TaskAssignment[]
 
   @@map("tasks")
+}
+
+model SubProject {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.NVarChar(Max)
+  status      String   @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  stages      SubProjectStage[]
+
+  @@map("sub_projects")
+}
+
+model SubProjectStage {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.NVarChar(Max)
+  status      String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subProjectId String
+  subProject   SubProject @relation(fields: [subProjectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  tasks        Task[]
+
+  @@map("sub_project_stages")
 }
 
 model TaskAssignment {
