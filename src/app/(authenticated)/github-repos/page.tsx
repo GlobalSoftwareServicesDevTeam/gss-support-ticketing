@@ -19,6 +19,8 @@ import {
   Pencil,
   GitMerge,
   ArrowRightLeft,
+  UserCircle2,
+  Settings,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 import Link from "next/link";
@@ -28,6 +30,15 @@ interface CustomerAssignment {
   customerId: string;
   customer: { id: string; company: string; emailAddress: string };
   assignedAt: string;
+}
+
+interface GitHubAccount {
+  id: string;
+  label: string;
+  owner: string;
+  createdAt: string;
+  updatedAt: string;
+  _count: { repos: number };
 }
 
 interface Repo {
@@ -43,6 +54,8 @@ interface Repo {
   customers: CustomerAssignment[];
   projectId: string | null;
   project: { id: string; projectName: string } | null;
+  accountId: string | null;
+  account: { id: string; label: string; owner: string } | null;
 }
 
 interface Customer {
@@ -67,6 +80,16 @@ export default function GitHubReposPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [assigningRepoId, setAssigningRepoId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+
+  // Account state
+  const [accounts, setAccounts] = useState<GitHubAccount[]>([]);
+  const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const [newAccountLabel, setNewAccountLabel] = useState("");
+  const [newAccountPat, setNewAccountPat] = useState("");
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
+  const [accountFilter, setAccountFilter] = useState<string>("all");
 
   // Rename state
   const [renameRepoId, setRenameRepoId] = useState<string | null>(null);
@@ -117,6 +140,11 @@ export default function GitHubReposPage() {
     }
   }, []);
 
+  const fetchAccounts = useCallback(async () => {
+    const res = await fetch("/api/github/accounts");
+    if (res.ok) setAccounts(await res.json());
+  }, []);
+
   useEffect(() => {
     if (session?.user && !isAdmin) router.push("/dashboard");
   }, [session, isAdmin, router]);
@@ -126,6 +154,7 @@ export default function GitHubReposPage() {
       fetchRepos();
       fetchCustomers();
       fetchProjects();
+      fetchAccounts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
@@ -134,22 +163,91 @@ export default function GitHubReposPage() {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch("/api/github/repos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: ghToken || undefined }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSyncResult(`Synced ${data.synced} repos from GitHub`);
+      if (accounts.length > 0) {
+        // Sync all saved accounts
+        const results: string[] = [];
+        for (const acc of accounts) {
+          const res = await fetch(`/api/github/accounts/${acc.id}/sync`, {
+            method: "POST",
+          });
+          const data = await res.json();
+          if (res.ok) {
+            results.push(`${acc.label}: ${data.synced} repos`);
+          } else {
+            results.push(`${acc.label}: ${data.error || "failed"}`);
+          }
+        }
+        setSyncResult(`Synced: ${results.join(", ")}`);
         fetchRepos();
+        fetchAccounts();
+      } else if (ghToken) {
+        // Fallback: sync with manual token
+        const res = await fetch("/api/github/repos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: ghToken }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSyncResult(`Synced ${data.synced} repos from GitHub`);
+          fetchRepos();
+        } else {
+          setSyncResult(data.error || "Sync failed");
+        }
       } else {
-        setSyncResult(data.error || "Sync failed");
+        setSyncResult("Add a GitHub account first, or enter a token below.");
       }
     } catch {
       setSyncResult("Network error");
     }
     setSyncing(false);
+  };
+
+  const handleSyncAccount = async (accountId: string) => {
+    setSyncingAccountId(accountId);
+    try {
+      const res = await fetch(`/api/github/accounts/${accountId}/sync`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncResult(`Synced ${data.synced} repos from ${data.account}`);
+        fetchRepos();
+        fetchAccounts();
+      }
+    } catch { /* ignore */ }
+    setSyncingAccountId(null);
+  };
+
+  const handleAddAccount = async () => {
+    if (!newAccountLabel.trim() || !newAccountPat.trim()) return;
+    setAddingAccount(true);
+    setAccountError(null);
+    try {
+      const res = await fetch("/api/github/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: newAccountLabel.trim(), pat: newAccountPat.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNewAccountLabel("");
+        setNewAccountPat("");
+        fetchAccounts();
+      } else {
+        setAccountError(data.error || "Failed to add account");
+      }
+    } catch {
+      setAccountError("Network error");
+    }
+    setAddingAccount(false);
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    if (!confirm("Remove this GitHub account? Repos will be kept but unlinked from this account.")) return;
+    await fetch(`/api/github/accounts/${accountId}`, { method: "DELETE" });
+    fetchAccounts();
+    fetchRepos();
   };
 
   const handleAssign = async (repoId: string) => {
@@ -312,6 +410,13 @@ export default function GitHubReposPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => setShowAccountsModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-700 transition shadow-sm"
+          >
+            <Settings size={16} />
+            Accounts ({accounts.length})
+          </button>
+          <button
             onClick={() => setShowTransferModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition shadow-sm"
           >
@@ -319,11 +424,18 @@ export default function GitHubReposPage() {
             Transfer Repo
           </button>
           <button
-            onClick={() => setShowSyncModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition shadow-sm"
+            onClick={() => {
+              if (accounts.length > 0) {
+                handleSync();
+              } else {
+                setShowSyncModal(true);
+              }
+            }}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition shadow-sm disabled:opacity-50"
           >
-            <RefreshCw size={16} />
-            Sync from GitHub
+            {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            {syncing ? "Syncing..." : `Sync ${accounts.length > 0 ? "All Accounts" : "from GitHub"}`}
           </button>
         </div>
       </div>
@@ -368,6 +480,115 @@ export default function GitHubReposPage() {
                 {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 {syncing ? "Syncing..." : "Sync"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Accounts Modal */}
+      {showAccountsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCircle2 size={18} /> GitHub Accounts
+              </h2>
+              <button onClick={() => { setShowAccountsModal(false); setAccountError(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Add multiple GitHub accounts. Their repos will be synced and managed from a single console.
+            </p>
+
+            {/* Existing accounts */}
+            {accounts.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {accounts.map((acc) => (
+                  <div key={acc.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <UserCircle2 size={18} className="text-slate-400" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{acc.label}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">@{acc.owner} · {acc._count.repos} repos</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleSyncAccount(acc.id)}
+                        disabled={syncingAccountId === acc.id}
+                        title="Sync this account"
+                        className="p-1.5 text-brand-500 hover:text-brand-600 transition disabled:opacity-50"
+                      >
+                        {syncingAccountId === acc.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAccount(acc.id)}
+                        title="Remove account"
+                        className="p-1.5 text-red-400 hover:text-red-600 transition"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {accounts.length === 0 && (
+              <div className="text-center py-4 mb-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                <UserCircle2 size={24} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm text-slate-400">No accounts added yet</p>
+              </div>
+            )}
+
+            {/* Add account form */}
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Add Account</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Label *</label>
+                  <input
+                    type="text"
+                    value={newAccountLabel}
+                    onChange={(e) => setNewAccountLabel(e.target.value)}
+                    placeholder='e.g. "GlobalWebServe" or "Personal"'
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Personal Access Token *</label>
+                  <input
+                    type="password"
+                    value={newAccountPat}
+                    onChange={(e) => setNewAccountPat(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Needs <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">repo</code> scope. Token is encrypted at rest.</p>
+                </div>
+              </div>
+              {accountError && (
+                <div className="text-sm mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+                  {accountError}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end mt-4">
+                <button
+                  onClick={() => { setShowAccountsModal(false); setAccountError(null); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleAddAccount}
+                  disabled={addingAccount || !newAccountLabel.trim() || !newAccountPat.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 transition disabled:opacity-50"
+                >
+                  {addingAccount ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  {addingAccount ? "Adding..." : "Add Account"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -628,32 +849,58 @@ export default function GitHubReposPage() {
         );
       })()}
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search repos..."
-          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-gray-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-        />
+      {/* Search & Filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search repos..."
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-gray-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+          />
+        </div>
+        {accounts.length > 0 && (
+          <select
+            title="Filter by account"
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-gray-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+          >
+            <option value="all">All Accounts</option>
+            <option value="unlinked">No Account</option>
+            {accounts.map((acc) => (
+              <option key={acc.id} value={acc.id}>{acc.label} (@{acc.owner})</option>
+            ))}
+          </select>
+        )}
       </div>
+
+      {/* Sync result banner */}
+      {syncResult && (
+        <div className={`text-sm mb-4 p-3 rounded-lg ${syncResult.startsWith("Synced") ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"}`}>
+          {syncResult}
+          <button onClick={() => setSyncResult(null)} className="ml-2 text-xs underline opacity-70 hover:opacity-100">dismiss</button>
+        </div>
+      )}
 
       {/* Repos List */}
       {repos.length === 0 ? (
         <div className="text-center py-20">
           <Code2 size={48} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
-          <p className="text-slate-500 dark:text-slate-400">No repos synced yet. Click &quot;Sync from GitHub&quot; to get started.</p>
+          <p className="text-slate-500 dark:text-slate-400">No repos synced yet. Click &quot;Sync All Accounts&quot; to get started.</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {repos
             .filter(
               (r) =>
-                !search ||
-                r.fullName.toLowerCase().includes(search.toLowerCase()) ||
-                (r.description || "").toLowerCase().includes(search.toLowerCase())
+                (!search ||
+                  r.fullName.toLowerCase().includes(search.toLowerCase()) ||
+                  (r.description || "").toLowerCase().includes(search.toLowerCase())) &&
+                (accountFilter === "all" ||
+                  (accountFilter === "unlinked" ? !r.accountId : r.accountId === accountFilter))
             )
             .map((repo) => (
               <div
@@ -686,6 +933,11 @@ export default function GitHubReposPage() {
                         <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                           <span className={`w-2.5 h-2.5 rounded-full ${LANG_COLORS[repo.language] || "bg-slate-400"}`} />
                           {repo.language}
+                        </span>
+                      )}
+                      {repo.account && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          <UserCircle2 size={10} /> {repo.account.label}
                         </span>
                       )}
                     </div>

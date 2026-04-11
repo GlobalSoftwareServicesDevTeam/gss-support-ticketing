@@ -714,6 +714,20 @@ model PaymentArrangementInstallment {
   @@map("payment_arrangement_installments")
 }
 
+model GitHubAccount {
+  id           String   @id @default(uuid())
+  label        String   // Display name, e.g. "GlobalWebServe" or "Personal"
+  owner        String   // GitHub username or org name
+  patEncrypted String   @db.NVarChar(Max) // AES-256-GCM encrypted PAT
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  repos        GitHubRepo[]
+
+  @@unique([owner])
+  @@map("github_accounts")
+}
+
 model GitHubRepo {
   id          String   @id @default(uuid())
   owner       String   // GitHub org or user
@@ -732,6 +746,9 @@ model GitHubRepo {
 
   subProjectId String?
   subProject   SubProject? @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  accountId  String?
+  account    GitHubAccount? @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([owner, name])
   @@map("github_repos")

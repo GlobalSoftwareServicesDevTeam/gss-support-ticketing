@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 const GITHUB_API = "https://api.github.com";
 
 async function fetchGitHubRepos(token: string) {
   const repos: Array<{
-    id: number;
     name: string;
     full_name: string;
     owner: { login: string };
@@ -38,57 +38,37 @@ async function fetchGitHubRepos(token: string) {
   return repos;
 }
 
-// GET: list all synced GitHub repos
-export async function GET(req: NextRequest) {
+// POST: sync repos for one or all accounts
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await auth();
   if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const search = searchParams.get("search") || "";
+  const { id } = await params;
 
-  const where: Record<string, unknown> = {};
-  if (search) {
-    where.OR = [
-      { fullName: { contains: search } },
-      { description: { contains: search } },
-    ];
-  }
-
-  const repos = await prisma.gitHubRepo.findMany({
-    where,
-    include: {
-      customers: {
-        include: { customer: { select: { id: true, company: true } } },
-      },
-      project: { select: { id: true, projectName: true } },
-      account: { select: { id: true, label: true, owner: true } },
-    },
-    orderBy: { fullName: "asc" },
+  const account = await prisma.gitHubAccount.findUnique({
+    where: { id },
   });
 
-  return NextResponse.json(repos);
-}
-
-// POST: sync repos from GitHub using a personal access token
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!account) {
+    return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
-  const { token } = await req.json();
-  const ghToken = token || process.env.GITHUB_PAT;
-
-  if (!ghToken) {
+  let pat: string;
+  try {
+    pat = decrypt(account.patEncrypted);
+  } catch {
     return NextResponse.json(
-      { error: "No GitHub token provided and GITHUB_PAT not set" },
-      { status: 400 }
+      { error: "Failed to decrypt PAT. Encryption key may have changed." },
+      { status: 500 }
     );
   }
 
-  const ghRepos = await fetchGitHubRepos(ghToken);
+  const ghRepos = await fetchGitHubRepos(pat);
   let synced = 0;
 
   for (const repo of ghRepos) {
@@ -102,6 +82,7 @@ export async function POST(req: NextRequest) {
         isPrivate: repo.private,
         language: repo.language,
         fullName: repo.full_name,
+        accountId: account.id,
       },
       create: {
         owner: repo.owner.login,
@@ -111,10 +92,11 @@ export async function POST(req: NextRequest) {
         htmlUrl: repo.html_url,
         isPrivate: repo.private,
         language: repo.language,
+        accountId: account.id,
       },
     });
     synced++;
   }
 
-  return NextResponse.json({ synced, total: ghRepos.length });
+  return NextResponse.json({ synced, total: ghRepos.length, account: account.label });
 }
