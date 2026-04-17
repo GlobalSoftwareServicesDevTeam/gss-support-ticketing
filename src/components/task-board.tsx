@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PriorityBadge } from "@/components/badges";
+import { ArrowRight, CalendarClock } from "lucide-react";
 
 interface Assignment {
   id: string;
@@ -54,6 +55,9 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
     assigneeIds: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
+  const [postponeMenuId, setPostponeMenuId] = useState<string | null>(null);
+  const [rescheduleTaskId, setRescheduleTaskId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
 
   useEffect(() => {
     fetch("/api/users")
@@ -125,6 +129,47 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
         ? prev.assigneeIds.filter((id) => id !== userId)
         : [...prev.assigneeIds, userId],
     }));
+  }
+
+  async function postponeTask(taskId: string, days: number) {
+    const task = tasks.find((t) => t.id === taskId);
+    const base = task?.dueDate ? new Date(task.dueDate) : new Date();
+    base.setDate(base.getDate() + days);
+    while (base.getDay() === 0 || base.getDay() === 6) {
+      base.setDate(base.getDate() + 1);
+    }
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate: base.toISOString() }),
+    });
+    if (task?.startDate) {
+      const startBase = new Date(task.startDate);
+      startBase.setDate(startBase.getDate() + days);
+      while (startBase.getDay() === 0 || startBase.getDay() === 6) {
+        startBase.setDate(startBase.getDate() + 1);
+      }
+      await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate: startBase.toISOString() }),
+      });
+    }
+    setPostponeMenuId(null);
+    setRescheduleTaskId(null);
+    onRefresh();
+  }
+
+  async function rescheduleToDate(taskId: string, newDate: string) {
+    if (!newDate) return;
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate: newDate }),
+    });
+    setRescheduleTaskId(null);
+    setRescheduleDate("");
+    onRefresh();
   }
 
   return (
@@ -274,6 +319,39 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
                           <option key={s.key} value={s.key}>{s.label}</option>
                         ))}
                       </select>
+                      <div className="relative">
+                        <button
+                          onClick={() => setPostponeMenuId(postponeMenuId === task.id ? null : task.id)}
+                          className="text-xs px-2 py-1 text-slate-500 hover:bg-slate-50 rounded flex items-center gap-0.5"
+                          title="Reschedule / Postpone"
+                        >
+                          <CalendarClock size={12} />
+                        </button>
+                        {postponeMenuId === task.id && (
+                          <div className="absolute left-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1">
+                            <p className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Postpone</p>
+                            <button onClick={() => postponeTask(task.id, 1)} className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                              <ArrowRight size={12} /> Tomorrow
+                            </button>
+                            <button onClick={() => postponeTask(task.id, 3)} className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                              <ArrowRight size={12} /> 3 Days
+                            </button>
+                            <button onClick={() => postponeTask(task.id, 7)} className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                              <ArrowRight size={12} /> 1 Week
+                            </button>
+                            <button onClick={() => postponeTask(task.id, 14)} className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                              <ArrowRight size={12} /> 2 Weeks
+                            </button>
+                            <div className="border-t border-slate-100 my-1" />
+                            <button
+                              onClick={() => { setRescheduleTaskId(task.id); setRescheduleDate(task.dueDate ? task.dueDate.slice(0, 16) : ""); setPostponeMenuId(null); }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            >
+                              <CalendarClock size={12} /> Pick a date...
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       {isAdmin && (
                         <>
                           <button onClick={() => startEdit(task)} className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded">Edit</button>
@@ -291,6 +369,58 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
           );
         })}
       </div>
+
+      {/* Reschedule Mini Form */}
+      {rescheduleTaskId && (
+        <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+              <CalendarClock size={14} /> Reschedule Task
+            </h4>
+            <button onClick={() => { setRescheduleTaskId(null); setRescheduleDate(""); }} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-xs text-slate-500 mb-1">New Due Date & Time</label>
+              <input
+                type="datetime-local"
+                title="New due date"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+              />
+            </div>
+            <button
+              onClick={() => rescheduleToDate(rescheduleTaskId, rescheduleDate)}
+              disabled={!rescheduleDate}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              Reschedule
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {[
+              { label: "Tomorrow", days: 1 },
+              { label: "+3 Days", days: 3 },
+              { label: "+1 Week", days: 7 },
+              { label: "+2 Weeks", days: 14 },
+            ].map((opt) => (
+              <button
+                key={opt.days}
+                onClick={() => postponeTask(rescheduleTaskId, opt.days)}
+                className="px-2 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50 transition"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Click-away for postpone menus */}
+      {postponeMenuId && (
+        <div className="fixed inset-0 z-10" onClick={() => setPostponeMenuId(null)} />
+      )}
     </div>
   );
 }
