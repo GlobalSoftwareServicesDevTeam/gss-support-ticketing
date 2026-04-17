@@ -13,8 +13,10 @@ import {
   Filter,
   ListTodo,
   Ticket,
+  Timer,
 } from "lucide-react";
 import Link from "next/link";
+import DailyPlanner from "@/components/daily-planner";
 
 interface TaskUser {
   id: string;
@@ -30,6 +32,8 @@ interface Task {
   status: string;
   priority: string;
   dueDate: string | null;
+  startTime: string | null;
+  estimatedDuration: number | null;
   order: number;
   projectId: string;
   issueId: string | null;
@@ -99,6 +103,7 @@ export default function TaskSchedulePage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState("");
+  const [activeTab, setActiveTab] = useState<"planner" | "week" | "list">("planner");
 
   const [form, setForm] = useState({
     projectId: "",
@@ -106,6 +111,8 @@ export default function TaskSchedulePage() {
     description: "",
     priority: "MEDIUM",
     dueDate: "",
+    startTime: "",
+    estimatedDuration: "",
     assigneeIds: [] as string[],
   });
 
@@ -163,7 +170,7 @@ export default function TaskSchedulePage() {
 
   function openAdd(dateStr?: string) {
     setEditingTask(null);
-    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", dueDate: dateStr || "", assigneeIds: [] });
+    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", dueDate: dateStr || "", startTime: "", estimatedDuration: "", assigneeIds: [] });
     setShowAddModal(true);
     setMsg("");
   }
@@ -176,6 +183,8 @@ export default function TaskSchedulePage() {
       description: task.description || "",
       priority: task.priority,
       dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
+      startTime: task.startTime || "",
+      estimatedDuration: task.estimatedDuration ? String(task.estimatedDuration) : "",
       assigneeIds: task.assignments.map((a) => a.user.id),
     });
     setShowAddModal(true);
@@ -198,6 +207,8 @@ export default function TaskSchedulePage() {
             description: form.description || null,
             priority: form.priority,
             dueDate: form.dueDate || null,
+            startTime: form.startTime || null,
+            estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
             assigneeIds: form.assigneeIds,
           }),
         });
@@ -214,6 +225,8 @@ export default function TaskSchedulePage() {
             description: form.description || null,
             priority: form.priority,
             dueDate: form.dueDate || null,
+            startTime: form.startTime || null,
+            estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
             assigneeIds: form.assigneeIds,
           }),
         });
@@ -301,6 +314,48 @@ export default function TaskSchedulePage() {
         </select>
       </div>
 
+      {/* View Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-slate-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab("planner")}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition inline-flex items-center gap-1.5 ${
+            activeTab === "planner"
+              ? "bg-white dark:bg-gray-900 border border-b-0 border-slate-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 -mb-px"
+              : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300"
+          }`}
+        >
+          <Timer size={14} /> Daily Planner
+        </button>
+        <button
+          onClick={() => setActiveTab("week")}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition inline-flex items-center gap-1.5 ${
+            activeTab === "week"
+              ? "bg-white dark:bg-gray-900 border border-b-0 border-slate-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 -mb-px"
+              : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300"
+          }`}
+        >
+          <CalendarDays size={14} /> Week View
+        </button>
+        <button
+          onClick={() => setActiveTab("list")}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition inline-flex items-center gap-1.5 ${
+            activeTab === "list"
+              ? "bg-white dark:bg-gray-900 border border-b-0 border-slate-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 -mb-px"
+              : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300"
+          }`}
+        >
+          <ListTodo size={14} /> All Tasks
+        </button>
+      </div>
+
+      {/* Daily Planner Tab */}
+      {activeTab === "planner" && (
+        <DailyPlanner tasks={tasks} onRefresh={fetchTasks} />
+      )}
+
+      {/* Week View Tab */}
+      {activeTab === "week" && (
+        <>
       {/* Week Navigation */}
       <div className="flex items-center gap-3 mb-4">
         <button title="Previous week" onClick={prevWeek} className="p-1.5 rounded-lg border border-slate-300 dark:border-gray-600 hover:bg-slate-100 dark:hover:bg-gray-800 transition">
@@ -416,8 +471,11 @@ export default function TaskSchedulePage() {
           </div>
         </div>
       )}
+        </>
+      )}
 
-      {/* All Tasks Table */}
+      {/* All Tasks Tab */}
+      {activeTab === "list" && (
       <div>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-3 flex items-center gap-2">
           <ListTodo size={16} /> All Tasks ({tasks.length})
@@ -512,6 +570,7 @@ export default function TaskSchedulePage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Add/Edit Task Modal */}
       {showAddModal && (
@@ -590,6 +649,31 @@ export default function TaskSchedulePage() {
                       title="Due date"
                       value={form.dueDate}
                       onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      title="Start time"
+                      value={form.startTime}
+                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      min="15"
+                      step="15"
+                      title="Estimated duration"
+                      value={form.estimatedDuration}
+                      onChange={(e) => setForm({ ...form, estimatedDuration: e.target.value })}
+                      placeholder="60"
                       className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
                     />
                   </div>

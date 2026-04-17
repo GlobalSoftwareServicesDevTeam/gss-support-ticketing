@@ -37,7 +37,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { title, description, priority, dueDate, assigneeIds } = body;
+  const { title, description, priority, dueDate, assigneeIds, startTime, estimatedDuration } = body;
 
   if (!title) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -54,6 +54,8 @@ export async function POST(
       description: description || null,
       priority: priority || "MEDIUM",
       dueDate: dueDate ? new Date(dueDate) : null,
+      startTime: startTime || null,
+      estimatedDuration: estimatedDuration ? Number(estimatedDuration) : null,
       order: (maxOrder._max.order || 0) + 1,
       projectId: id,
       assignments: assigneeIds?.length

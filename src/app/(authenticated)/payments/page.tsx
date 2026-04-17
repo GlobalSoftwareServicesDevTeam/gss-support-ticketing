@@ -46,6 +46,23 @@ interface Gateways {
   ozow: boolean;
 }
 
+interface UnpaidInvoice {
+  id: string;
+  number: string;
+  amount: number;
+  balance: number;
+  due_date: string | null;
+  line_items: LineItem[];
+}
+
+interface LineItem {
+  product_key: string;
+  notes: string;
+  cost: number;
+  quantity: number;
+  line_total: number;
+}
+
 type Tab = "pay" | "history" | "eft-settings";
 
 const statusColors: Record<string, string> = {
@@ -98,6 +115,9 @@ export default function PaymentsPage() {
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [payWithCard, setPayWithCard] = useState(false);
+  const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoice[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [selectedLineItems, setSelectedLineItems] = useState<number[]>([]);
 
   // EFT form state (admin)
   const [showEftForm, setShowEftForm] = useState(false);
@@ -151,6 +171,19 @@ export default function PaymentsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/invoices?type=invoices")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const all = (data.data || []) as UnpaidInvoice[];
+        setUnpaidInvoices(all.filter((inv) => Number(inv.balance) > 0));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   function refreshPayments() {
     fetch("/api/payments")
       .then((r) => r.json())
@@ -164,6 +197,55 @@ export default function PaymentsPage() {
     fetch("/api/payments/eft")
       .then((r) => r.json())
       .then((data) => setEftDetails(Array.isArray(data) ? data : []));
+  }
+
+  function buildDescriptionFromLineItems(inv: UnpaidInvoice, indices: number[]): string {
+    if (indices.length === 0) return "";
+    return indices
+      .map((i) => {
+        const li = inv.line_items[i];
+        const name = li.product_key || li.notes || "Item";
+        return `${name} (${formatCurrency(Number(li.line_total))})`;
+      })
+      .join(", ");
+  }
+
+  function handleLineItemToggle(inv: UnpaidInvoice, index: number, checked: boolean) {
+    const next = checked
+      ? [...selectedLineItems, index]
+      : selectedLineItems.filter((i) => i !== index);
+    setSelectedLineItems(next);
+    const desc = buildDescriptionFromLineItems(inv, next);
+    const total = next.reduce((sum, i) => sum + Number(inv.line_items[i].line_total), 0);
+    setPayForm((f) => ({
+      ...f,
+      description: desc,
+      amount: next.length > 0 ? Math.min(total, Number(inv.balance)).toFixed(2) : Number(inv.balance).toFixed(2),
+    }));
+  }
+
+  function handleSelectAllLineItems(inv: UnpaidInvoice, selectAll: boolean) {
+    const indices = selectAll ? inv.line_items.map((_, i) => i) : [];
+    setSelectedLineItems(indices);
+    const desc = buildDescriptionFromLineItems(inv, indices);
+    setPayForm((f) => ({
+      ...f,
+      description: desc,
+      amount: Number(inv.balance).toFixed(2),
+    }));
+  }
+
+  function handleInvoiceSelect(invoiceId: string) {
+    setSelectedInvoiceId(invoiceId);
+    setSelectedLineItems([]);
+    if (!invoiceId) {
+      setPayForm((f) => ({ ...f, invoiceNumber: "", amount: "", description: "" }));
+      return;
+    }
+    const inv = unpaidInvoices.find((i) => i.id === invoiceId);
+    if (inv) {
+      setPayForm((f) => ({ ...f, invoiceNumber: inv.number, amount: Number(inv.balance).toFixed(2), description: "" }));
+    }
   }
 
   async function handlePay(e: React.FormEvent) {
@@ -342,6 +424,86 @@ export default function PaymentsPage() {
                   </div>
                 </div>
 
+                {unpaidInvoices.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Select Invoice <span className="text-slate-400 font-normal">(optional)</span></label>
+                    <select
+                      value={selectedInvoiceId}
+                      onChange={(e) => handleInvoiceSelect(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 bg-white"
+                    >
+                      <option value="">— None / Ad-hoc payment —</option>
+                      {unpaidInvoices.map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.number} — Balance: {formatCurrency(Number(inv.balance))}
+                          {inv.due_date ? ` · Due ${new Date(inv.due_date).toLocaleDateString("en-ZA")}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Line items for selected invoice */}
+                {(() => {
+                  const inv = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
+                  if (!inv || !inv.line_items || inv.line_items.length === 0) return null;
+                  return (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between bg-slate-50 px-3 py-2 border-b border-slate-200">
+                        <span className="text-sm font-medium text-slate-700">Invoice Line Items</span>
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => handleSelectAllLineItems(inv, selectedLineItems.length !== inv.line_items.length)}
+                        >
+                          {selectedLineItems.length === inv.line_items.length ? "Deselect all" : "Select all"}
+                        </button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {inv.line_items.map((li, idx) => (
+                          <label
+                            key={idx}
+                            className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition ${
+                              selectedLineItems.includes(idx) ? "bg-blue-50" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedLineItems.includes(idx)}
+                              onChange={(e) => handleLineItemToggle(inv, idx, e.target.checked)}
+                              className="w-4 h-4 mt-0.5 text-blue-600 rounded border-slate-300 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-slate-900 block truncate">
+                                {li.product_key || li.notes || "Item"}
+                              </span>
+                              {li.notes && li.product_key && (
+                                <span className="text-xs text-slate-500 block truncate">{li.notes}</span>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(li.line_total))}</span>
+                              {Number(li.quantity) !== 1 && (
+                                <span className="text-xs text-slate-400 block">{li.quantity} × {formatCurrency(Number(li.cost))}</span>
+                              )}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      {selectedLineItems.length > 0 && (
+                        <div className="bg-blue-50 border-t border-blue-200 px-3 py-2 flex items-center justify-between">
+                          <span className="text-xs text-blue-700">
+                            {selectedLineItems.length} item{selectedLineItems.length !== 1 ? "s" : ""} selected
+                          </span>
+                          <span className="text-sm font-semibold text-blue-800">
+                            {formatCurrency(selectedLineItems.reduce((sum, i) => sum + Number(inv.line_items[i].line_total), 0))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Amount (ZAR) *</label>
                   <div className="relative">
@@ -357,6 +519,30 @@ export default function PaymentsPage() {
                       required
                     />
                   </div>
+                  {(() => {
+                    const inv = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
+                    if (!inv) return null;
+                    const isPartial = payForm.amount !== "" && Number(payForm.amount) < Number(inv.balance);
+                    return (
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-xs text-slate-500">
+                          Balance due: <strong>{formatCurrency(Number(inv.balance))}</strong>
+                          {isPartial && Number(payForm.amount) > 0 && (
+                            <span className="ml-2 text-amber-600 font-medium">(partial payment)</span>
+                          )}
+                        </span>
+                        {isPartial && (
+                          <button
+                            type="button"
+                            className="text-xs text-blue-600 hover:underline ml-2 shrink-0"
+                            onClick={() => setPayForm((f) => ({ ...f, amount: Number(inv.balance).toFixed(2) }))}
+                          >
+                            Use full balance
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

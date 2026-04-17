@@ -1,5 +1,10 @@
+import { Agent, fetch as undiciFetch } from "undici";
+
 const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
 const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
+
+// Invoice Ninja may be hosted behind a mismatched SSL cert (e.g. shared hosting)
+const ninjaAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 export function isInvoiceNinjaConfigured(): boolean {
   return !!(INVOICE_NINJA_URL && INVOICE_NINJA_TOKEN);
@@ -9,13 +14,14 @@ async function ninjaFetch(endpoint: string, options: RequestInit = {}) {
   if (!isInvoiceNinjaConfigured()) throw new Error("Invoice Ninja not configured");
 
   const url = `${INVOICE_NINJA_URL}/api/v1/${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
+  const res = await undiciFetch(url, {
+    ...(options as Parameters<typeof undiciFetch>[1]),
     headers: {
       "X-Api-Token": INVOICE_NINJA_TOKEN,
       "Content-Type": "application/json",
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     },
+    dispatcher: ninjaAgent,
   });
 
   if (!res.ok) {
@@ -23,7 +29,8 @@ async function ninjaFetch(endpoint: string, options: RequestInit = {}) {
     throw new Error(`Invoice Ninja API ${res.status}: ${text}`);
   }
 
-  return res.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return res.json() as Promise<any>;
 }
 
 /**

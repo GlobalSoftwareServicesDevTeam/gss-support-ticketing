@@ -78,6 +78,7 @@ model Customer {
   referrals     Referral[]
   projectIdeas  ProjectIdea[]
   hostingOrders HostingOrder[]
+  projects      Project[]
 
   @@map("customers")
 }
@@ -153,6 +154,8 @@ model Project {
   githubRepo            String?
   description           String?   @db.NVarChar(Max)
   status                String    @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED, ARCHIVED
+  customerId            String?
+  customer              Customer? @relation(fields: [customerId], references: [id])
 
   issues      Issue[]
   tasks       Task[]
@@ -181,15 +184,17 @@ model ProjectAssignment {
 }
 
 model Task {
-  id          String    @id @default(uuid())
-  title       String
-  description String?   @db.NVarChar(Max)
-  status      String    @default("TODO") // TODO, IN_PROGRESS, IN_REVIEW, DONE
-  priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  dueDate     DateTime?
-  order       Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  title             String
+  description       String?   @db.NVarChar(Max)
+  status            String    @default("TODO") // TODO, IN_PROGRESS, IN_REVIEW, DONE
+  priority          String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  dueDate           DateTime?
+  startTime         String?   // HH:mm format e.g. "09:00"
+  estimatedDuration Int?      // duration in minutes
+  order             Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   projectId   String
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -219,6 +224,7 @@ model SubProject {
 
   stages      SubProjectStage[]
   repos       GitHubRepo[]
+  hostingOrders HostingOrder[]
 
   @@map("sub_projects")
 }
@@ -580,6 +586,8 @@ model HostingOrder {
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   projectId  String?
   project    Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subProjectId String?
+  subProject   SubProject? @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   sslCertificate SslCertificate?
 

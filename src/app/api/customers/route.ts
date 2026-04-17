@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
 
 // GET: list all customers (admin) or customers linked to user's company
 export async function GET(req: NextRequest) {
@@ -15,6 +16,21 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
   const skip = (page - 1) * limit;
+
+  const isAdmin = session.user.role === "ADMIN";
+
+  // Non-admins can only see their own linked customer
+  if (!isAdmin) {
+    const ctx = getCustomerContext(session);
+    if (!ctx) {
+      return NextResponse.json({ customers: [], total: 0, page, limit });
+    }
+    const customer = await prisma.customer.findUnique({
+      where: { id: ctx.customerId },
+      include: { _count: { select: { contacts: true, issues: true } } },
+    });
+    return NextResponse.json({ customers: customer ? [customer] : [], total: customer ? 1 : 0, page: 1, limit });
+  }
 
   const where: Record<string, unknown> = {};
   if (search) {

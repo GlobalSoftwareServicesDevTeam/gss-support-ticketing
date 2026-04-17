@@ -20,6 +20,7 @@ export async function GET(
         include: { customer: { select: { id: true, company: true, emailAddress: true } } },
       },
       project: { select: { id: true, projectName: true } },
+      subProject: { select: { id: true, name: true } },
     },
   });
 
@@ -58,13 +59,20 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { projectId } = body;
+  const { projectId, subProjectId } = body;
+
+  const data: Record<string, unknown> = {};
+  if (projectId !== undefined) data.projectId = projectId || null;
+  if (subProjectId !== undefined) data.subProjectId = subProjectId || null;
+  // If changing project, clear subProject since it belongs to the old project
+  if (projectId !== undefined && subProjectId === undefined) data.subProjectId = null;
 
   const repo = await prisma.gitHubRepo.update({
     where: { id },
-    data: { projectId: projectId || null },
+    data,
     include: {
       project: { select: { id: true, projectName: true } },
+      subProject: { select: { id: true, name: true } },
     },
   });
 

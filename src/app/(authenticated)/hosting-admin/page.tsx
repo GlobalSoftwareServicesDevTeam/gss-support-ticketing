@@ -773,18 +773,44 @@ export default function HostingAdminPage() {
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={() => {
-                    setNewProduct(!newProduct);
-                    if (productTypeFilter) {
-                      setNewForm((prev) => ({ ...prev, type: productTypeFilter }));
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
-                >
-                  <Plus size={14} />
-                  Add Product
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Import / sync hosting plans from Plesk? Existing products will be updated, new plans will be added with R0.00 pricing for you to set.")) return;
+                      setActionLoading("sync-plesk");
+                      try {
+                        const res = await fetch("/api/hosting/products/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                        const data = await res.json();
+                        if (res.ok) {
+                          showMessage("success", `Synced ${data.total} plans from Plesk (${data.created} new, ${data.updated} updated)`);
+                          fetchData();
+                        } else {
+                          showMessage("error", data.error || "Sync failed");
+                        }
+                      } catch {
+                        showMessage("error", "Failed to connect to Plesk");
+                      }
+                      setActionLoading("");
+                    }}
+                    disabled={actionLoading === "sync-plesk"}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition disabled:opacity-50"
+                  >
+                    {actionLoading === "sync-plesk" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    Import from Plesk
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewProduct(!newProduct);
+                      if (productTypeFilter) {
+                        setNewForm((prev) => ({ ...prev, type: productTypeFilter }));
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition"
+                  >
+                    <Plus size={14} />
+                    Add Product
+                  </button>
+                </div>
               </div>
 
               {/* New product form */}

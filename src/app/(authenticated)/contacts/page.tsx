@@ -58,6 +58,7 @@ export default function ContactsPage() {
   const [actionMsg, setActionMsg] = useState("");
   const [invitingIds, setInvitingIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
+  const [sendingNotice, setSendingNotice] = useState(false);
 
   function fetchContacts() {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -131,6 +132,25 @@ export default function ContactsPage() {
     } finally {
       setSyncing(false);
       setTimeout(() => setActionMsg(""), 8000);
+    }
+  }
+
+  async function handleSendNotice() {
+    if (!confirm("Send a 'please disregard previous test emails' notice to all uninvited contacts?")) return;
+    setSendingNotice(true);
+    try {
+      const res = await fetch("/api/contacts/send-notice", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMsg(`Notice sent: ${data.sent} delivered, ${data.failed} failed`);
+      } else {
+        setActionMsg(data.error || "Failed to send notice");
+      }
+    } catch {
+      setActionMsg("Failed to send notice");
+    } finally {
+      setSendingNotice(false);
+      setTimeout(() => setActionMsg(""), 6000);
     }
   }
 
@@ -218,6 +238,15 @@ export default function ContactsPage() {
           >
             <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
             {syncing ? "Syncing..." : "Sync from Invoice Ninja"}
+          </button>
+          <button
+            onClick={handleSendNotice}
+            disabled={sendingNotice}
+            className="flex items-center gap-2 px-4 py-2 border border-yellow-400 text-yellow-700 dark:text-yellow-400 dark:border-yellow-600 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition text-sm font-medium disabled:opacity-50"
+            title="Send a one-off notice asking contacts to disregard previous test invite emails"
+          >
+            <Mail size={16} className={sendingNotice ? "animate-pulse" : ""} />
+            {sendingNotice ? "Sending Notice..." : "Send Test Email Notice"}
           </button>
           <button
             onClick={handleBulkInvite}

@@ -15,6 +15,14 @@ export async function GET(
 
   const { id } = await params;
 
+  // Non-admins can only access their own linked customer
+  if (session.user.role !== "ADMIN") {
+    const linkedCustomerId = (session.user as { customerId?: string }).customerId;
+    if (!linkedCustomerId || linkedCustomerId !== id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const customer = await prisma.customer.findUnique({
     where: { id },
     include: {

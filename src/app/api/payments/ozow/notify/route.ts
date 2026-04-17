@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { validateOzowHash } from "@/lib/ozow";
 import { handlePostPaymentSsl } from "@/lib/post-payment-ssl";
 import { handlePostPaymentHosting } from "@/lib/post-payment-hosting";
+import { handlePostPaymentDomain } from "@/lib/post-payment-domain";
 
 // Ozow notification handler (webhook)
 export async function POST(req: NextRequest) {
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest) {
       );
       handlePostPaymentHosting(transactionRef).catch((err) =>
         console.error("Post-payment hosting error:", err)
+      );
+      handlePostPaymentDomain(transactionRef).catch((err) =>
+        console.error("Post-payment domain error:", err)
       );
     }
 

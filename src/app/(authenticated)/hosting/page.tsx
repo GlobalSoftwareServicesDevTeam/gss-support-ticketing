@@ -1,11 +1,16 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
+
+const DomainsManager = dynamic(() => import("../domains/page"), {
+  loading: () => <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" /></div>,
+});
+
 import {
   Globe,
   Server,
-  ShieldCheck,
   FileQuestion,
   Plus,
   Search,
@@ -23,6 +28,9 @@ import {
   Wrench,
   AlertTriangle,
   Info,
+  Edit3,
+  Save,
+  X,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────
@@ -58,7 +66,7 @@ interface HostingOrder {
 
 // ─── Constants ──────────────────────────────────────────
 
-type Tab = "orders" | "hosting" | "domain" | "ssl" | "quote" | "products" | "performance" | "domaintools";
+type Tab = "orders" | "domain" | "dns" | "domains" | "quote" | "products" | "performance" | "domaintools";
 
 const ORDER_STATUS_STYLE: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   PENDING: { bg: "bg-yellow-50 text-yellow-700", text: "Pending", icon: <Clock size={14} /> },
@@ -130,6 +138,11 @@ export default function HostingPage() {
     features: "",
   });
 
+  // Inline product editing
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editProductForm, setEditProductForm] = useState({ name: "", type: "HOSTING", monthlyPrice: "", setupFee: "", pleskPlanName: "" });
+  const [editProductSaving, setEditProductSaving] = useState(false);
+
   // PageSpeed Insights state
   const [psUrl, setPsUrl] = useState("");
   const [psStrategy, setPsStrategy] = useState<"mobile" | "desktop">("mobile");
@@ -166,6 +179,200 @@ export default function HostingPage() {
     reverseDns: string[] | null;
     timestamp: string;
   } | null>(null);
+
+  // DNS Manager state
+  const [dnsDomains, setDnsDomains] = useState<{ id: string; domain: string; orderType: string; status: string }[]>([]);
+  const [dnsSelectedDomain, setDnsSelectedDomain] = useState("");
+  const [dnsCustomDomain, setDnsCustomDomain] = useState("");
+  const [dnsRecords, setDnsRecords] = useState<{ id?: number; type: string; host: string; value: string; opt?: string }[]>([]);
+  const [dnsSource, setDnsSource] = useState<"plesk" | "dns" | "">("");
+  const [dnsLoading, setDnsLoading] = useState(false);
+  const [dnsFilterType, setDnsFilterType] = useState("");
+  const [dnsNameservers, setDnsNameservers] = useState<string[]>([]);
+  const [dnsNsLoading, setDnsNsLoading] = useState(false);
+  const [dnsNsEditing, setDnsNsEditing] = useState(false);
+  const [dnsNsForm, setDnsNsForm] = useState(["", "", "", ""]);
+  const [dnsNsSubmitting, setDnsNsSubmitting] = useState(false);
+  const [dnsShowAddForm, setDnsShowAddForm] = useState(false);
+  const [dnsEditingRecord, setDnsEditingRecord] = useState<{ id?: number; type: string; host: string; value: string; opt?: string } | null>(null);
+  const [dnsForm, setDnsForm] = useState({ type: "A", host: "", value: "", opt: "" });
+  const [dnsSubmitting, setDnsSubmitting] = useState(false);
+  const [dnsMessage, setDnsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dnsActiveSection, setDnsActiveSection] = useState<"dns" | "nameservers">("dns");
+
+  const dnsActiveDomain = dnsCustomDomain || dnsSelectedDomain;
+
+  const dnsShowMsg = (type: "success" | "error", text: string) => {
+    setDnsMessage({ type, text });
+    setTimeout(() => setDnsMessage(null), 5000);
+  };
+
+  const fetchDnsRecords = useCallback(async () => {
+    if (!dnsActiveDomain) return;
+    setDnsLoading(true);
+    try {
+      const res = await fetch(`/api/hosting/dns?domain=${encodeURIComponent(dnsActiveDomain)}`);
+      if (!res.ok) {
+        const data = await res.json();
+        dnsShowMsg("error", data.error || "Failed to fetch DNS records");
+        setDnsRecords([]);
+        setDnsSource("");
+      } else {
+        const data = await res.json();
+        setDnsRecords(data.records || []);
+        setDnsSource(data.source || "dns");
+      }
+    } catch {
+      dnsShowMsg("error", "Failed to fetch DNS records");
+    }
+    setDnsLoading(false);
+  }, [dnsActiveDomain]);
+
+  const fetchDnsNameservers = useCallback(async () => {
+    if (!dnsActiveDomain) return;
+    setDnsNsLoading(true);
+    try {
+      const res = await fetch(`/api/hosting/nameservers?domain=${encodeURIComponent(dnsActiveDomain)}`);
+      const data = await res.json();
+      setDnsNameservers(data.nameservers || []);
+    } catch {
+      setDnsNameservers([]);
+    }
+    setDnsNsLoading(false);
+  }, [dnsActiveDomain]);
+
+  useEffect(() => {
+    if (dnsActiveDomain) {
+      fetchDnsRecords();
+      fetchDnsNameservers();
+    }
+  }, [dnsActiveDomain, fetchDnsRecords, fetchDnsNameservers]);
+
+  // Load DNS domains when DNS tab is active
+  useEffect(() => {
+    if (tab === "dns" && dnsDomains.length === 0) {
+      fetch("/api/hosting/orders?status=ACTIVE")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            const doms = data.filter(
+              (o: { domain?: string; orderType: string }) =>
+                o.domain && ["DOMAIN_REGISTER", "DOMAIN_TRANSFER", "HOSTING"].includes(o.orderType)
+            );
+            setDnsDomains(doms);
+            if (doms.length > 0 && !dnsSelectedDomain) {
+              setDnsSelectedDomain(doms[0].domain);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function dnsHandleAddRecord() {
+    if (!dnsForm.type || !dnsForm.host || !dnsForm.value) {
+      dnsShowMsg("error", "Type, host, and value are required");
+      return;
+    }
+    setDnsSubmitting(true);
+    try {
+      const res = await fetch("/api/hosting/dns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: dnsActiveDomain, type: dnsForm.type, host: dnsForm.host, value: dnsForm.value, opt: dnsForm.opt || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        dnsShowMsg("error", data.error || "Failed to add record");
+      } else {
+        dnsShowMsg("success", `${dnsForm.type} record added successfully`);
+        setDnsForm({ type: "A", host: "", value: "", opt: "" });
+        setDnsShowAddForm(false);
+        fetchDnsRecords();
+      }
+    } catch { dnsShowMsg("error", "Failed to add record"); }
+    setDnsSubmitting(false);
+  }
+
+  async function dnsHandleUpdateRecord() {
+    if (!dnsEditingRecord?.id) return;
+    setDnsSubmitting(true);
+    try {
+      const res = await fetch("/api/hosting/dns", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: dnsEditingRecord.id, domain: dnsActiveDomain, type: dnsForm.type, host: dnsForm.host, value: dnsForm.value, opt: dnsForm.opt || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        dnsShowMsg("error", data.error || "Failed to update record");
+      } else {
+        dnsShowMsg("success", "Record updated successfully");
+        setDnsEditingRecord(null);
+        setDnsForm({ type: "A", host: "", value: "", opt: "" });
+        fetchDnsRecords();
+      }
+    } catch { dnsShowMsg("error", "Failed to update record"); }
+    setDnsSubmitting(false);
+  }
+
+  async function dnsHandleDeleteRecord(recordId: number) {
+    if (!confirm("Delete this DNS record?")) return;
+    try {
+      const res = await fetch(`/api/hosting/dns?recordId=${recordId}&domain=${encodeURIComponent(dnsActiveDomain)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        dnsShowMsg("error", data.error || "Failed to delete record");
+      } else {
+        dnsShowMsg("success", "Record deleted");
+        fetchDnsRecords();
+      }
+    } catch { dnsShowMsg("error", "Failed to delete record"); }
+  }
+
+  async function dnsHandleSubmitNameservers() {
+    const filtered = dnsNsForm.filter((ns) => ns.trim());
+    if (filtered.length < 1) { dnsShowMsg("error", "At least 1 nameserver is required"); return; }
+    setDnsNsSubmitting(true);
+    try {
+      const res = await fetch("/api/hosting/nameservers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: dnsActiveDomain, nameservers: filtered }),
+      });
+      const data = await res.json();
+      if (!res.ok) { dnsShowMsg("error", data.error || "Failed to submit"); }
+      else { dnsShowMsg("success", data.message || "Nameserver change submitted"); setDnsNsEditing(false); }
+    } catch { dnsShowMsg("error", "Failed to submit"); }
+    setDnsNsSubmitting(false);
+  }
+
+  const dnsFilteredRecords = dnsFilterType ? dnsRecords.filter((r) => r.type === dnsFilterType) : dnsRecords;
+  const dnsRecordTypeCounts = dnsRecords.reduce<Record<string, number>>((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {});
+
+  const DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"];
+  const DNS_RECORD_TYPE_COLORS: Record<string, string> = {
+    A: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    AAAA: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+    CNAME: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+    MX: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    TXT: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+    NS: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    SRV: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+    CAA: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    SOA: "bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-400",
+  };
+  const DNS_RECORD_DESCRIPTIONS: Record<string, string> = {
+    A: "Points domain to an IPv4 address",
+    AAAA: "Points domain to an IPv6 address",
+    CNAME: "Alias for another domain name",
+    MX: "Mail server for the domain (set priority in Opt)",
+    TXT: "Text record (SPF, DKIM, verification)",
+    NS: "Nameserver for the domain",
+    SRV: "Service location record",
+    CAA: "Certificate Authority Authorization",
+  };
 
   async function fetchOrders() {
     try {
@@ -317,8 +524,41 @@ export default function HostingPage() {
     setOrderSubmitting(false);
   }
 
+  function startEditingProduct(p: HostingProduct) {
+    setEditingProductId(p.id);
+    setEditProductForm({
+      name: p.name,
+      type: p.type,
+      monthlyPrice: String(p.monthlyPrice),
+      setupFee: String(p.setupFee),
+      pleskPlanName: p.pleskPlanName || "",
+    });
+  }
+
+  async function updateProduct() {
+    if (!editingProductId) return;
+    setEditProductSaving(true);
+    try {
+      const res = await fetch(`/api/hosting/products/${editingProductId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editProductForm.name,
+          type: editProductForm.type,
+          monthlyPrice: parseFloat(editProductForm.monthlyPrice),
+          setupFee: parseFloat(editProductForm.setupFee) || 0,
+          pleskPlanName: editProductForm.pleskPlanName || null,
+        }),
+      });
+      if (res.ok) {
+        setEditingProductId(null);
+        await fetchProducts();
+      }
+    } catch { /* ignore */ }
+    setEditProductSaving(false);
+  }
+
   const hostingProducts = products.filter((p) => p.type === "HOSTING");
-  const sslProducts = products.filter((p) => p.type === "SSL");
   const domainProducts = products.filter((p) => p.type === "DOMAIN");
 
   // ─── PageSpeed handler ──────────────────────────────
@@ -394,9 +634,9 @@ export default function HostingPage() {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: "orders", label: "My Orders", icon: <Package size={16} /> },
-    { id: "hosting", label: "New Hosting", icon: <Server size={16} /> },
-    { id: "domain", label: "Domains", icon: <Globe size={16} /> },
-    { id: "ssl", label: "SSL Certificates", icon: <ShieldCheck size={16} /> },
+    { id: "domain", label: "New Domain", icon: <Globe size={16} /> },
+    { id: "domains", label: "Domains Manager", icon: <Globe size={16} /> },
+    { id: "dns", label: "DNS Manager", icon: <Globe size={16} /> },
     { id: "performance", label: "Performance", icon: <Gauge size={16} /> },
     { id: "domaintools", label: "Domain Tools", icon: <Wrench size={16} /> },
     { id: "quote", label: "Request Quote", icon: <FileQuestion size={16} /> },
@@ -450,12 +690,12 @@ export default function HostingPage() {
           ) : orders.length === 0 ? (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
               <Package className="mx-auto h-12 w-12 text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No orders yet. Get started by requesting new hosting or a domain.</p>
+              <p className="mt-3 text-sm text-slate-500">No orders yet. Get started by requesting a domain or a quote.</p>
               <button
-                onClick={() => setTab("hosting")}
+                onClick={() => setTab("domain")}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
               >
-                Browse Hosting Plans
+                Browse Domains
               </button>
             </div>
           ) : (
@@ -550,67 +790,6 @@ export default function HostingPage() {
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── New Hosting ───────────────────────────── */}
-      {tab === "hosting" && (
-        <div>
-          {hostingProducts.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-              <Server className="mx-auto h-12 w-12 text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No hosting plans available yet. Please check back soon or request a quote.</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {hostingProducts.map((product) => {
-                  const features: string[] = product.features ? JSON.parse(product.features) : [];
-                  return (
-                    <div
-                      key={product.id}
-                      className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col"
-                    >
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">{product.name}</h3>
-                      {product.description && (
-                        <p className="text-sm text-slate-500 mt-1">{product.description}</p>
-                      )}
-                      <div className="mt-4">
-                        <span className="text-3xl font-bold text-slate-900 dark:text-white">
-                          R{Number(product.monthlyPrice).toFixed(0)}
-                        </span>
-                        <span className="text-sm text-slate-500">/month</span>
-                      </div>
-                      {Number(product.setupFee) > 0 && (
-                        <p className="text-xs text-slate-400 mt-1">
-                          + R{Number(product.setupFee).toFixed(0)} setup fee
-                        </p>
-                      )}
-                      {features.length > 0 && (
-                        <ul className="mt-4 space-y-2 flex-1">
-                          {features.map((f, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                              <CheckCircle2 size={14} className="text-green-500 shrink-0" />
-                              {f}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <button
-                        onClick={() => {
-                          setOrderProduct(product.id);
-                          setTab("domain");
-                        }}
-                        className="mt-6 w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
-                      >
-                        Select Plan <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
           )}
         </div>
       )}
@@ -862,76 +1041,6 @@ export default function HostingPage() {
         </div>
       )}
 
-      {/* ─── SSL Certificates ──────────────────────── */}
-      {tab === "ssl" && (
-        <div>
-          {sslProducts.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-              <ShieldCheck className="mx-auto h-12 w-12 text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">No SSL products configured yet. Use &ldquo;Request Quote&rdquo; to ask about SSL certificates.</p>
-              <button
-                onClick={() => setTab("quote")}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-              >
-                Request SSL Quote
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sslProducts.map((product) => {
-                const features: string[] = product.features ? JSON.parse(product.features) : [];
-                return (
-                  <div
-                    key={product.id}
-                    className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck size={20} className="text-green-500" />
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">{product.name}</h3>
-                    </div>
-                    {product.description && (
-                      <p className="text-sm text-slate-500 mt-2">{product.description}</p>
-                    )}
-                    <div className="mt-4">
-                      <span className="text-3xl font-bold text-slate-900 dark:text-white">
-                        R{Number(product.monthlyPrice).toFixed(0)}
-                      </span>
-                      <span className="text-sm text-slate-500">/month</span>
-                    </div>
-                    {features.length > 0 && (
-                      <ul className="mt-4 space-y-2 flex-1">
-                        {features.map((f, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                            <CheckCircle2 size={14} className="text-green-500 shrink-0" />
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="mt-6 space-y-2">
-                      <input
-                        type="text"
-                        placeholder="Domain for SSL..."
-                        value={orderDomain}
-                        onChange={(e) => setOrderDomain(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white dark:bg-slate-700"
-                      />
-                      <button
-                        onClick={() => submitOrder("SSL", orderDomain || undefined, product.id)}
-                        disabled={orderSubmitting}
-                        className="w-full px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                      >
-                        {orderSubmitting ? "Submitting..." : "Order SSL Certificate"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ─── Request Quote ─────────────────────────── */}
       {tab === "quote" && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 max-w-2xl">
@@ -987,6 +1096,212 @@ export default function HostingPage() {
           </div>
         </div>
       )}
+
+      {/* ─── DNS Manager ──────── */}
+      {tab === "dns" && (
+        <div className="space-y-6">
+          {/* Message */}
+          {dnsMessage && (
+            <div className={`p-4 rounded-xl text-sm font-medium ${dnsMessage.type === "success" ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"}`}>
+              {dnsMessage.text}
+            </div>
+          )}
+
+          {/* Domain Selector */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Select Domain</h2>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={dnsSelectedDomain}
+                onChange={(e) => { setDnsSelectedDomain(e.target.value); setDnsCustomDomain(""); }}
+              >
+                <option value="">Select a domain...</option>
+                {dnsDomains.map((d) => (
+                  <option key={d.id} value={d.domain}>{d.domain}</option>
+                ))}
+              </select>
+              <span className="text-slate-400 self-center text-sm">or</span>
+              <input
+                type="text"
+                placeholder="Enter custom domain..."
+                className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={dnsCustomDomain}
+                onChange={(e) => setDnsCustomDomain(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {dnsActiveDomain ? (
+            <>
+              {/* Section Tabs */}
+              <div className="flex gap-2">
+                <button onClick={() => setDnsActiveSection("dns")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dnsActiveSection === "dns" ? "bg-blue-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"}`}>DNS Records</button>
+                <button onClick={() => setDnsActiveSection("nameservers")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dnsActiveSection === "nameservers" ? "bg-blue-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"}`}>Nameservers</button>
+              </div>
+
+              {/* DNS Records Section */}
+              {dnsActiveSection === "dns" && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {/* Toolbar */}
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white">DNS Records for {dnsActiveDomain}</h3>
+                      <p className="text-sm text-slate-500 mt-0.5">{dnsRecords.length} records • Source: <span className="font-medium">{dnsSource || "unknown"}</span></p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => fetchDnsRecords()} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <RefreshCw size={14} className={`inline mr-1 ${dnsLoading ? "animate-spin" : ""}`} />Refresh
+                      </button>
+                      <button onClick={() => { setDnsShowAddForm(true); setDnsEditingRecord(null); setDnsForm({ type: "A", host: "", value: "", opt: "" }); }} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Plus size={14} className="inline mr-1" />Add Record
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter */}
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 flex flex-wrap gap-2">
+                    <button onClick={() => setDnsFilterType("")} className={`px-3 py-1 text-xs rounded-full transition-colors ${!dnsFilterType ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"}`}>All ({dnsRecords.length})</button>
+                    {Object.entries(dnsRecordTypeCounts).sort().map(([type, count]) => (
+                      <button key={type} onClick={() => setDnsFilterType(type)} className={`px-3 py-1 text-xs rounded-full transition-colors ${dnsFilterType === type ? DNS_RECORD_TYPE_COLORS[type] || "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"}`}>{type} ({count})</button>
+                    ))}
+                  </div>
+
+                  {/* Add/Edit Form */}
+                  {(dnsShowAddForm || dnsEditingRecord) && (
+                    <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{dnsEditingRecord ? "Edit Record" : "Add New Record"}</h4>
+                        <button onClick={() => { setDnsShowAddForm(false); setDnsEditingRecord(null); setDnsForm({ type: "A", host: "", value: "", opt: "" }); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                        <select value={dnsForm.type} onChange={(e) => setDnsForm({ ...dnsForm, type: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white">
+                          {DNS_RECORD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <input type="text" placeholder="Host (e.g. @ or sub)" value={dnsForm.host} onChange={(e) => setDnsForm({ ...dnsForm, host: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white" />
+                        <input type="text" placeholder="Value" value={dnsForm.value} onChange={(e) => setDnsForm({ ...dnsForm, value: e.target.value })} className="sm:col-span-2 px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white" />
+                        <input type="text" placeholder="Priority / Opt" value={dnsForm.opt} onChange={(e) => setDnsForm({ ...dnsForm, opt: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white" />
+                      </div>
+                      {dnsForm.type && DNS_RECORD_DESCRIPTIONS[dnsForm.type] && (
+                        <p className="text-xs text-slate-500 mt-2">{DNS_RECORD_DESCRIPTIONS[dnsForm.type]}</p>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={dnsEditingRecord ? dnsHandleUpdateRecord : dnsHandleAddRecord} disabled={dnsSubmitting} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                          {dnsSubmitting ? "Saving..." : dnsEditingRecord ? "Update" : "Add"}
+                        </button>
+                        <button onClick={() => { setDnsShowAddForm(false); setDnsEditingRecord(null); setDnsForm({ type: "A", host: "", value: "", opt: "" }); }} className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-sm rounded-lg text-slate-600 dark:text-slate-400">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Records Table */}
+                  {dnsLoading ? (
+                    <div className="p-8 text-center text-slate-500">Loading DNS records...</div>
+                  ) : dnsFilteredRecords.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500">No records found{dnsFilterType ? ` for type ${dnsFilterType}` : ""}.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-100 dark:border-slate-700">
+                            <th className="text-left p-3 text-slate-500 font-medium">Type</th>
+                            <th className="text-left p-3 text-slate-500 font-medium">Host</th>
+                            <th className="text-left p-3 text-slate-500 font-medium">Value</th>
+                            <th className="text-left p-3 text-slate-500 font-medium">Opt</th>
+                            <th className="text-right p-3 text-slate-500 font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dnsFilteredRecords.map((r, i) => (
+                            <tr key={`${r.type}-${r.host}-${i}`} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/20">
+                              <td className="p-3"><span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${DNS_RECORD_TYPE_COLORS[r.type] || "bg-slate-100 text-slate-600"}`}>{r.type}</span></td>
+                              <td className="p-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.host}</td>
+                              <td className="p-3 font-mono text-xs text-slate-700 dark:text-slate-300 max-w-[300px] truncate" title={r.value}>{r.value}</td>
+                              <td className="p-3 text-slate-500">{r.opt || "—"}</td>
+                              <td className="p-3 text-right">
+                                <div className="flex justify-end gap-1">
+                                  <button onClick={() => { setDnsEditingRecord(r); setDnsForm({ type: r.type, host: r.host, value: r.value, opt: r.opt || "" }); setDnsShowAddForm(false); }} className="p-1.5 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Edit"><Edit3 size={14} /></button>
+                                  {r.id && <button onClick={() => dnsHandleDeleteRecord(r.id!)} className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete"><Trash2 size={14} /></button>}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Nameservers Section */}
+              {dnsActiveSection === "nameservers" && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-slate-900 dark:text-white">Nameservers for {dnsActiveDomain}</h3>
+                    {!dnsNsEditing && (
+                      <button onClick={() => { setDnsNsEditing(true); const ns = [...dnsNameservers]; while (ns.length < 4) ns.push(""); setDnsNsForm(ns.slice(0, 4)); }} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <Edit3 size={14} className="inline mr-1" />Edit
+                      </button>
+                    )}
+                  </div>
+
+                  {dnsNsLoading ? (
+                    <p className="text-slate-500 text-sm">Loading nameservers...</p>
+                  ) : !dnsNsEditing ? (
+                    <div className="space-y-2">
+                      {dnsNameservers.length > 0 ? dnsNameservers.map((ns, i) => (
+                        <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
+                          <span className="text-xs font-medium text-slate-400 w-6">NS{i + 1}</span>
+                          <span className="font-mono text-sm text-slate-700 dark:text-slate-300">{ns}</span>
+                        </div>
+                      )) : <p className="text-slate-500 text-sm">No nameservers found.</p>}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {dnsNsForm.map((ns, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-slate-400 w-8">NS{i + 1}</span>
+                            <input type="text" value={ns} onChange={(e) => { const arr = [...dnsNsForm]; arr[i] = e.target.value; setDnsNsForm(arr); }} placeholder={`ns${i + 1}.example.com`} className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm font-mono text-slate-900 dark:text-white" />
+                          </div>
+                        ))}
+                      </div>
+                      {/* Common Presets */}
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 mb-2">Common Presets:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { label: "Cloudflare", ns: ["ada.ns.cloudflare.com", "ivan.ns.cloudflare.com", "", ""] },
+                            { label: "Google DNS", ns: ["ns-cloud-a1.googledomains.com", "ns-cloud-a2.googledomains.com", "ns-cloud-a3.googledomains.com", "ns-cloud-a4.googledomains.com"] },
+                            { label: "GSS Hosting", ns: ["ns1.gsoftwareservices.com", "ns2.gsoftwareservices.com", "", ""] },
+                          ].map((preset) => (
+                            <button key={preset.label} onClick={() => setDnsNsForm(preset.ns)} className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700">{preset.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={dnsHandleSubmitNameservers} disabled={dnsNsSubmitting} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                          <Save size={14} className="inline mr-1" />{dnsNsSubmitting ? "Submitting..." : "Save Nameservers"}
+                        </button>
+                        <button onClick={() => setDnsNsEditing(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-600 text-sm rounded-lg text-slate-600 dark:text-slate-400">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
+              <Globe size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Select a Domain</h3>
+              <p className="text-slate-500">Choose a domain above or enter a custom domain to manage its DNS records and nameservers.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Domains Manager ──────── */}
+      {tab === "domains" && <DomainsManager />}
 
       {/* ─── Performance (PageSpeed Insights) ──────── */}
       {tab === "performance" && (
@@ -1429,6 +1744,7 @@ export default function HostingPage() {
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white dark:bg-slate-700"
                   >
                     <option value="HOSTING">Hosting</option>
+                    <option value="MAIL">Mail Hosting</option>
                     <option value="SSL">SSL Certificate</option>
                     <option value="DOMAIN">Domain</option>
                   </select>
@@ -1512,29 +1828,111 @@ export default function HostingPage() {
                   <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Monthly</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Setup</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Plesk Plan</th>
+                  <th className="text-right px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{p.name}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        p.type === "HOSTING" ? "bg-blue-100 text-blue-700" :
-                        p.type === "SSL" ? "bg-green-100 text-green-700" :
-                        "bg-purple-100 text-purple-700"
-                      }`}>
-                        {p.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.monthlyPrice).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.setupFee).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-slate-500">{p.pleskPlanName || "—"}</td>
+                    {editingProductId === p.id ? (
+                      <>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={editProductForm.name}
+                            onChange={(e) => setEditProductForm({ ...editProductForm, name: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white dark:bg-slate-700"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <select
+                            title="Product type"
+                            value={editProductForm.type}
+                            onChange={(e) => setEditProductForm({ ...editProductForm, type: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white dark:bg-slate-700"
+                          >
+                            <option value="HOSTING">Hosting</option>
+                            <option value="MAIL">Mail Hosting</option>
+                            <option value="SSL">SSL Certificate</option>
+                            <option value="DOMAIN">Domain</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            value={editProductForm.monthlyPrice}
+                            onChange={(e) => setEditProductForm({ ...editProductForm, monthlyPrice: e.target.value })}
+                            className="w-24 ml-auto px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right text-slate-900 dark:text-white dark:bg-slate-700"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            value={editProductForm.setupFee}
+                            onChange={(e) => setEditProductForm({ ...editProductForm, setupFee: e.target.value })}
+                            className="w-24 ml-auto px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right text-slate-900 dark:text-white dark:bg-slate-700"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={editProductForm.pleskPlanName}
+                            onChange={(e) => setEditProductForm({ ...editProductForm, pleskPlanName: e.target.value })}
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white dark:bg-slate-700"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              title="Save"
+                              onClick={updateProduct}
+                              disabled={editProductSaving || !editProductForm.name || !editProductForm.monthlyPrice}
+                              className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
+                            >
+                              {editProductSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            </button>
+                            <button
+                              title="Cancel"
+                              onClick={() => setEditingProductId(null)}
+                              className="p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{p.name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            p.type === "HOSTING" ? "bg-blue-100 text-blue-700" :
+                            p.type === "MAIL" ? "bg-orange-100 text-orange-700" :
+                            p.type === "SSL" ? "bg-green-100 text-green-700" :
+                            "bg-purple-100 text-purple-700"
+                          }`}>
+                            {p.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.monthlyPrice).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">R{Number(p.setupFee).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-500">{p.pleskPlanName || "—"}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            title="Edit product"
+                            onClick={() => startEditingProduct(p)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
                 {products.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400">No products yet</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400">No products yet</td>
                   </tr>
                 )}
               </tbody>

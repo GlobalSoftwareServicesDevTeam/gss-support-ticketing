@@ -1,28 +1,27 @@
-// Passenger-compatible wrapper for Next.js standalone server
-const isPassenger = typeof(PhusionPassenger) !== "undefined";
+const path = require('path');
+const http = require('http');
 
-// Ensure auth env vars are set before Next.js loads (edge runtime may not read .env)
-process.env.AUTH_TRUST_HOST = "true";
+const appDir = __dirname;
+process.chdir(appDir);
+process.env.NODE_ENV = 'production';
 
-if (isPassenger) {
-    PhusionPassenger.configure({ autoInstall: false });
+require('dotenv').config({ path: path.join(appDir, '.env') });
 
-    // Intercept http.createServer to redirect listen() to Passenger
-    const http = require("http");
-    const originalCreateServer = http.createServer;
+const next = require('next');
+const app = next({ dev: false, dir: appDir });
+const handle = app.getRequestHandler();
 
-    http.createServer = function(...args) {
-        const server = originalCreateServer.apply(this, args);
-        const originalListen = server.listen.bind(server);
+app.prepare().then(() => {
+  const server = http.createServer((req, res) => {
+    handle(req, res);
+  });
 
-        server.listen = function() {
-            console.log("Next.js: Listening via Phusion Passenger");
-            return originalListen("passenger");
-        };
-
-        return server;
-    };
-}
-
-// Load the standalone Next.js server
-require("./server.js");
+  if (typeof(PhusionPassenger) !== 'undefined') {
+    server.listen('passenger');
+  } else {
+    const port = process.env.PORT || 3001;
+    server.listen(port, '0.0.0.0', () => {
+      console.log('Next.js running on port ' + port);
+    });
+  }
+});

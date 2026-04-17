@@ -13,6 +13,7 @@ interface Project {
   maintAmount: number | null;
   dateStarted: string | null;
   status: string;
+  customerId?: string;
   _count: { issues: number; tasks: number; documents: number };
 }
 
@@ -20,34 +21,82 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ projectName: "", proposalDate: "", estimatedCompleteDate: "", dateStarted: "" });
+  const [form, setForm] = useState({ projectName: "", proposalDate: "", estimatedCompleteDate: "", dateStarted: "", customerId: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [customers, setCustomers] = useState<{ id: string; company: string }[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function fetchCustomers() {
+    setCustomersLoading(true);
+    fetch("/api/customers?limit=1000")
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to fetch customers");
+        return r.json();
+      })
+      .then((data) => {
+        setCustomers(Array.isArray(data.customers) ? data.customers : []);
+        setCustomersLoading(false);
+      })
+      .catch(() => {
+        setCustomers([]);
+        setCustomersLoading(false);
+      });
+  }
 
   function fetchProjects() {
     fetch("/api/projects")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          const text = await r.text();
+          throw new Error(text || `Error: ${r.status}`);
+        }
+        return r.json();
+      })
       .then((data) => {
         setProjects(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setProjects([]);
         setLoading(false);
       });
   }
 
   useEffect(() => {
     fetchProjects();
+    fetchCustomers();
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+    try {
+      let res;
+      if (editingId) {
+        res = await fetch(`/api/projects/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      } else {
+        res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Error: ${res.status}`);
+      }
       setShowForm(false);
-      setForm({ projectName: "", proposalDate: "", estimatedCompleteDate: "", dateStarted: "" });
+      setForm({ projectName: "", proposalDate: "", estimatedCompleteDate: "", dateStarted: "", customerId: "" });
+      setEditingId(null);
       fetchProjects();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed to ${editingId ? "update" : "create"} project: ${msg}`);
     }
     setSubmitting(false);
   }
@@ -78,6 +127,21 @@ export default function ProjectsPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Client *</label>
+            <select
+              value={form.customerId}
+              onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
+              required
+              disabled={customersLoading}
+            >
+              <option value="">{customersLoading ? "Loading clients..." : "Select client"}</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.company}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Proposal Date</label>
             <input type="date" value={form.proposalDate} onChange={(e) => setForm({ ...form, proposalDate: e.target.value })} title="Proposal Date" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700" />
           </div>
@@ -91,8 +155,11 @@ export default function ProjectsPage() {
           </div>
           <div className="flex items-end">
             <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
-              {submitting ? "Creating..." : "Create Project"}
+              {submitting ? (editingId ? "Saving..." : "Creating...") : (editingId ? "Save Changes" : "Create Project")}
             </button>
+            {editingId && (
+              <button type="button" onClick={() => { setEditingId(null); setForm({ projectName: "", proposalDate: "", estimatedCompleteDate: "", dateStarted: "", customerId: "" }); setShowForm(false); }} className="ml-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancel</button>
+            )}
           </div>
         </form>
       )}
@@ -107,13 +174,14 @@ export default function ProjectsPage() {
               <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Tasks</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Docs</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Tickets</th>
+              <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400">Loading...</td></tr>
             ) : projects.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400">No projects.</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400">No projects.</td></tr>
             ) : (
               projects.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
@@ -132,6 +200,19 @@ export default function ProjectsPage() {
                   <td className="px-6 py-4 text-sm text-slate-600">{p._count.tasks}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{p._count.documents}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{p._count.issues}</td>
+                  <td className="px-6 py-4">
+                    <button className="text-xs text-blue-600 hover:underline" onClick={() => {
+                      setEditingId(p.id);
+                      setForm({
+                        projectName: p.projectName || "",
+                        proposalDate: p.proposalDate ? p.proposalDate.slice(0, 10) : "",
+                        estimatedCompleteDate: p.estimatedCompleteDate ? p.estimatedCompleteDate.slice(0, 10) : "",
+                        dateStarted: p.dateStarted ? p.dateStarted.slice(0, 10) : "",
+                        customerId: (p.customerId || ""),
+                      });
+                      setShowForm(true);
+                    }}>Edit</button>
+                  </td>
                 </tr>
               ))
             )}

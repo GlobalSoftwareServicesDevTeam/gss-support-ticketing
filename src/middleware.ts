@@ -1,8 +1,41 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
+const CORS_ALLOWED_ORIGINS = [
+  "https://globalsoftwareservices.co.za",
+  "https://www.globalsoftwareservices.co.za",
+];
+
+const PUBLIC_HOSTING_PATHS = [
+  "/api/hosting/products/public",
+  "/api/hosting/checkout/public",
+];
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+  const origin = req.headers.get("origin");
+  const corsOrigin =
+    origin && CORS_ALLOWED_ORIGINS.includes(origin) ? origin : CORS_ALLOWED_ORIGINS[0];
+
+  // Handle CORS preflight for public hosting routes before auth runs
+  const isPublicHosting = PUBLIC_HOSTING_PATHS.some((p) => pathname.startsWith(p));
+  if (isPublicHosting) {
+    if (req.method === "OPTIONS") {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": corsOrigin,
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+    const response = NextResponse.next();
+    response.headers.set("Access-Control-Allow-Origin", corsOrigin);
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+    return response;
+  }
 
   // Public routes
   const publicRoutes = ["/login", "/register", "/invite", "/sign", "/schedule", "/api/auth", "/api/users/invite/accept", "/api/signing/sign", "/api/schedule"];

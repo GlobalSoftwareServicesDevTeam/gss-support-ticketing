@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { randomBytes } from "crypto";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, contactInviteTemplate } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
 
 // POST: invite a new user by email
@@ -62,32 +62,8 @@ export async function POST(req: NextRequest) {
   try {
     await sendEmail({
       to: email,
-      subject: "You're invited to GSS Support Portal",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5;">
-          <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px;">
-            <div style="background-color: #1a365d; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px; text-align: center;">
-              <h1 style="margin: 0; font-size: 22px;">GSS Support Portal</h1>
-            </div>
-            <h2 style="color: #1a365d;">Welcome, ${firstName}!</h2>
-            <p>You've been invited to join the GSS Support Portal. Click the button below to set up your account:</p>
-            <a href="${acceptUrl}" style="display: inline-block; background-color: #2b6cb0; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; margin: 20px 0; font-weight: bold;">Accept Invitation & Set Up Account</a>
-            <p style="color: #718096; font-size: 13px;">This invitation expires in 7 days.</p>
-            <p style="color: #718096; font-size: 13px;">During setup you'll:</p>
-            <ul style="color: #718096; font-size: 13px;">
-              <li>Create your username and password</li>
-              <li>Enter your company information</li>
-              <li>Review and sign our terms of service</li>
-            </ul>
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #a0aec0; font-size: 11px;">
-              <p>If you didn't expect this invitation, please ignore this email.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
+      subject: "You're invited to the GSS Support Portal",
+      html: contactInviteTemplate(firstName, "", acceptUrl),
     });
   } catch {
     // Email send failed but user was created — admin can resend

@@ -54,6 +54,8 @@ interface Repo {
   customers: CustomerAssignment[];
   projectId: string | null;
   project: { id: string; projectName: string } | null;
+  subProjectId: string | null;
+  subProject: { id: string; name: string } | null;
   accountId: string | null;
   account: { id: string; label: string; owner: string } | null;
 }
@@ -72,6 +74,7 @@ export default function GitHubReposPage() {
   const [repos, setRepos] = useState<Repo[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<{ id: string; projectName: string }[]>([]);
+  const [subProjects, setSubProjects] = useState<Record<string, { id: string; name: string }[]>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
@@ -94,7 +97,6 @@ export default function GitHubReposPage() {
   // Rename state
   const [renameRepoId, setRenameRepoId] = useState<string | null>(null);
   const [newRepoName, setNewRepoName] = useState("");
-  const [renameToken, setRenameToken] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [renameResult, setRenameResult] = useState<string | null>(null);
 
@@ -103,7 +105,6 @@ export default function GitHubReposPage() {
   const [mergeSource, setMergeSource] = useState("");
   const [mergeSourceBranch, setMergeSourceBranch] = useState("main");
   const [mergeTargetBranch, setMergeTargetBranch] = useState("main");
-  const [mergeToken, setMergeToken] = useState("");
   const [mergeConflictStrategy, setMergeConflictStrategy] = useState("ours");
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState<{ message?: string; error?: string; localInstructions?: Record<string, string> } | null>(null);
@@ -112,8 +113,6 @@ export default function GitHubReposPage() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferSource, setTransferSource] = useState("");
   const [transferTarget, setTransferTarget] = useState("");
-  const [transferSourceToken, setTransferSourceToken] = useState("");
-  const [transferToken, setTransferToken] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [transferResult, setTransferResult] = useState<{ message?: string; error?: string; note?: string } | null>(null);
 
@@ -287,7 +286,29 @@ export default function GitHubReposPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId: projectId || null }),
     });
+    // Fetch sub-projects for the newly selected project
+    if (projectId) fetchSubProjects(projectId);
     fetchRepos();
+  };
+
+  const handleLinkSubProject = async (repoId: string, subProjectId: string) => {
+    await fetch(`/api/github/repos/${repoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subProjectId: subProjectId || null }),
+    });
+    fetchRepos();
+  };
+
+  const fetchSubProjects = async (projectId: string) => {
+    if (subProjects[projectId]) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sub-projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubProjects((prev) => ({ ...prev, [projectId]: data.map((sp: { id: string; name: string }) => ({ id: sp.id, name: sp.name })) }));
+      }
+    } catch { /* ignore */ }
   };
 
   const handleRename = async () => {
@@ -298,7 +319,7 @@ export default function GitHubReposPage() {
       const res = await fetch(`/api/github/repos/${renameRepoId}/rename`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newName: newRepoName.trim(), token: renameToken || undefined }),
+        body: JSON.stringify({ newName: newRepoName.trim() }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -319,6 +340,7 @@ export default function GitHubReposPage() {
     setMerging(true);
     setMergeResult(null);
     try {
+      // Start the merge (returns immediately)
       const res = await fetch(`/api/github/repos/${mergeRepoId}/merge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -326,19 +348,44 @@ export default function GitHubReposPage() {
           sourceRepo: mergeSource.trim(),
           sourceBranch: mergeSourceBranch || "main",
           targetBranch: mergeTargetBranch || "main",
-          token: mergeToken || undefined,
           conflictStrategy: mergeConflictStrategy,
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setMergeResult({ message: data.message });
-        fetchRepos();
-      } else {
-        setMergeResult({ error: data.error, localInstructions: data.localInstructions });
+      if (!res.ok) {
+        setMergeResult({ error: data.error });
+        setMerging(false);
+        return;
+      }
+
+      // Poll for completion
+      setMergeResult({ message: "Merge in progress... cloning and merging repos." });
+      const jobId = data.jobId;
+      const maxPoll = 300_000; // 5 min
+      const start = Date.now();
+      while (Date.now() - start < maxPoll) {
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+          const pollRes = await fetch(`/api/github/repos/${jobId}/merge`);
+          const job = await pollRes.json();
+          if (job.status === "success") {
+            setMergeResult({ message: job.message });
+            fetchRepos();
+            break;
+          } else if (job.status === "error") {
+            setMergeResult({ error: job.message });
+            break;
+          }
+          // still running — keep polling
+        } catch {
+          // network hiccup, keep trying
+        }
+      }
+      if (Date.now() - start >= maxPoll) {
+        setMergeResult({ message: "Merge is still running in the background. Refresh the page to check status." });
       }
     } catch {
-      setMergeResult({ error: "Network error" });
+      setMergeResult({ error: "Failed to start merge. Check your connection." });
     }
     setMerging(false);
   };
@@ -354,8 +401,6 @@ export default function GitHubReposPage() {
         body: JSON.stringify({
           sourceRepo: transferSource.trim(),
           targetOwner: transferTarget.trim() || undefined,
-          token: transferToken || undefined,
-          sourceToken: transferSourceToken || undefined,
         }),
       });
       const data = await res.json();
@@ -630,26 +675,6 @@ export default function GitHubReposPage() {
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Account Token (admin on source repo)</label>
-                <input
-                  type="password"
-                  value={transferSourceToken}
-                  onChange={(e) => setTransferSourceToken(e.target.value)}
-                  placeholder="ghp_xxxx (source account PAT)"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Account Token (or use server GITHUB_PAT)</label>
-                <input
-                  type="password"
-                  value={transferToken}
-                  onChange={(e) => setTransferToken(e.target.value)}
-                  placeholder="ghp_xxxx (optional)"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                />
-              </div>
             </div>
             {transferResult && (
               <div className={`text-sm mt-4 p-3 rounded-lg ${transferResult.message ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
@@ -702,16 +727,6 @@ export default function GitHubReposPage() {
                     value={newRepoName}
                     onChange={(e) => setNewRepoName(e.target.value)}
                     placeholder="new-repo-name"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">GitHub Token (or uses server GITHUB_PAT)</label>
-                  <input
-                    type="password"
-                    value={renameToken}
-                    onChange={(e) => setRenameToken(e.target.value)}
-                    placeholder="ghp_xxxx (optional)"
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
                   />
                 </div>
@@ -791,16 +806,6 @@ export default function GitHubReposPage() {
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
                     />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">GitHub Token (or uses server GITHUB_PAT)</label>
-                  <input
-                    type="password"
-                    value={mergeToken}
-                    onChange={(e) => setMergeToken(e.target.value)}
-                    placeholder="ghp_xxxx (optional)"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">On Conflict</label>
@@ -1003,6 +1008,31 @@ export default function GitHubReposPage() {
                       </Link>
                     )}
                   </div>
+                  {repo.projectId && (
+                    <div className="flex items-center gap-3 mt-2 ml-5">
+                      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <FolderKanban size={12} />
+                        Sub-Project
+                      </h3>
+                      <select
+                        title="Link to sub-project"
+                        value={repo.subProjectId || ""}
+                        onChange={(e) => handleLinkSubProject(repo.id, e.target.value)}
+                        onFocus={() => repo.projectId && fetchSubProjects(repo.projectId)}
+                        className="flex-1 max-w-xs px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                      >
+                        <option value="">No sub-project linked</option>
+                        {(subProjects[repo.projectId] || []).map((sp) => (
+                          <option key={sp.id} value={sp.id}>
+                            {sp.name}
+                          </option>
+                        ))}
+                      </select>
+                      {repo.subProject && (
+                        <span className="text-xs text-slate-500">{repo.subProject.name}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Assigned Customers */}

@@ -434,26 +434,36 @@ export async function testConnection(): Promise<{ success: boolean; message: str
 
 // ─── One-Time Login URL for a customer ───────────────
 
-export async function createSessionUrl(pleskCustomerLogin: string): Promise<string> {
+export async function createSessionUrl(pleskCustomerLogin: string, clientIp?: string): Promise<string> {
   const creds = await getPleskCredentials();
   // Use XML-RPC to create a one-time login session for a customer
+  // Pass client IP so the session is valid from the user's browser, not just the server
+  const ipTag = clientIp ? `<user_ip>${clientIp}</user_ip>` : "";
   const xml = await pleskXmlRpc(
     `<packet>
       <server>
         <create_session>
           <login>${pleskCustomerLogin}</login>
           <data>
-            <user_ip></user_ip>
+            ${ipTag}
+            <starting_url>/</starting_url>
+            <source_server></source_server>
           </data>
         </create_session>
       </server>
     </packet>`
   );
 
+  // Check for Plesk error response
+  const errorMatch = /<status>error<\/status>[\s\S]*?<errtext>([^<]+)<\/errtext>/.exec(xml);
+  if (errorMatch) {
+    throw new Error(`Plesk error: ${errorMatch[1]}`);
+  }
+
   // Parse session ID from response
   const sessionIdMatch = /<id>([^<]+)<\/id>/.exec(xml);
   if (!sessionIdMatch) {
-    throw new Error("Failed to create Plesk session");
+    throw new Error("Failed to create Plesk session — unexpected response");
   }
 
   return `${creds.url}/enterprise/rsession_init.php?PHPSESSID=${sessionIdMatch[1]}`;

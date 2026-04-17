@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 const GITHUB_API = "https://api.github.com";
+
+async function getTokenForOwner(owner: string): Promise<string | null> {
+  // Find a GitHub account whose label or username matches the owner
+  const accounts = await prisma.gitHubAccount.findMany();
+  for (const acc of accounts) {
+    if (acc.label.toLowerCase() === owner.toLowerCase() ||
+        acc.owner.toLowerCase() === owner.toLowerCase()) {
+      return decrypt(acc.patEncrypted);
+    }
+  }
+  return process.env.GITHUB_PAT || null;
+}
 
 // POST: transfer a repo from another GitHub account to the main account
 export async function POST(req: NextRequest) {
@@ -11,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { sourceRepo, targetOwner, token, sourceToken } = await req.json();
+  const { sourceRepo, targetOwner } = await req.json();
 
   if (!sourceRepo || typeof sourceRepo !== "string") {
     return NextResponse.json(
@@ -27,19 +40,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // sourceToken is the PAT of the source owner (who owns the repo being transferred)
-  // token (or GITHUB_PAT) is for the target account
-  const srcToken = sourceToken || token || process.env.GITHUB_PAT;
-  const tgtToken = token || process.env.GITHUB_PAT;
+  const [sourceOwner, repoName] = sourceRepo.split("/");
 
+  // Look up tokens from saved GitHub accounts by owner name
+  const srcToken = await getTokenForOwner(sourceOwner);
   if (!srcToken) {
     return NextResponse.json(
-      { error: "A GitHub token with admin access to the source repo is required" },
+      { error: `No GitHub account found for source owner '${sourceOwner}'. Add the account in GitHub Accounts first.` },
       { status: 400 }
     );
   }
 
-  const [sourceOwner, repoName] = sourceRepo.split("/");
+  const tgtOwner = targetOwner || null;
+  const tgtToken = tgtOwner ? await getTokenForOwner(tgtOwner) : srcToken;
 
   // Determine target owner/org - default to the authenticated user
   let newOwner = targetOwner;

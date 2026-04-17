@@ -1,0 +1,8 @@
+DirectoryIndex disabled
+
+RewriteEngine On
+
+# Proxy to Node.js app
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ http://127.0.0.1:3001/ [P,L]

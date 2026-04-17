@@ -85,12 +85,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isAdmin) {
       fetch("/api/dashboard")
-        .then((r) => r.json())
-        .then(setStats);
+        .then(async (r) => {
+          if (!r.ok) return null;
+          return r.json();
+        })
+        .then((data) => { if (data) setStats(data); })
+        .catch(() => {});
     } else {
       fetch("/api/issues?limit=5")
-        .then((r) => r.json())
+        .then(async (r) => {
+          if (!r.ok) return null;
+          return r.json();
+        })
         .then((data) => {
+          if (!data) return;
           setStats({
             totalIssues: data.total,
             openIssues: 0,
@@ -100,7 +108,8 @@ export default function DashboardPage() {
             totalProjects: 0,
             recentIssues: data.issues,
           });
-        });
+        })
+        .catch(() => {});
     }
     // Fetch expiring domains
     fetch("/api/hosting/domain-reminders")

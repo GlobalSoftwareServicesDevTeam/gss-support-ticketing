@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const isAdmin = session.user.role === "ADMIN";
   const { searchParams } = new URL(req.url);
   const statusParam = searchParams.get("status"); // ACTIVE | PENDING | ALL | EXPIRING
+  const customerIdParam = searchParams.get("customerId");
   const now = new Date();
 
   const where: Record<string, unknown> = {
@@ -20,6 +21,10 @@ export async function GET(req: NextRequest) {
 
   if (!isAdmin) {
     where.userId = session.user.id;
+  }
+
+  if (customerIdParam && isAdmin) {
+    where.customerId = customerIdParam;
   }
 
   if (statusParam === "ACTIVE") {
@@ -45,6 +50,7 @@ export async function GET(req: NextRequest) {
       user: { select: { id: true, firstName: true, lastName: true, email: true, company: true } },
       customer: { select: { id: true, company: true } },
       project: { select: { id: true, projectName: true } },
+      // subProject: { select: { id: true, name: true } }, // TODO: uncomment after prisma generate
     },
     orderBy: { createdAt: "desc" },
   });

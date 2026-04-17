@@ -246,7 +246,7 @@ export default function HostingPackagesPage() {
 
                 {/* Order Button */}
                 <a
-                  href={`/hosting?order=${product.id}`}
+                  href={`/hosting-packages/order?product=${product.id}`}
                   className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-sm transition ${
                     product.isPopular
                       ? "bg-blue-600 text-white hover:bg-blue-700"

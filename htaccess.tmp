@@ -1,0 +1,6 @@
+PassengerEnabled off
+DirectoryIndex disabled
+
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^(.*)$ http://127.0.0.1:3001%{REQUEST_URI} [P,L]

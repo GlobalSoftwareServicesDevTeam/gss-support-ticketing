@@ -34,9 +34,16 @@ export async function POST(
   }
 
   try {
-    const loginUrl = await createSessionUrl(pleskCustomer.login);
+    // Forward client IP so Plesk session is valid from the user's browser
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "";
+    console.log("[Plesk Login] Customer:", customer.emailAddress, "Plesk login:", pleskCustomer.login);
+    const loginUrl = await createSessionUrl(pleskCustomer.login, clientIp);
     return NextResponse.json({ url: loginUrl });
   } catch (err) {
+    console.error("[Plesk Login] Error:", err instanceof Error ? err.message : err);
     return NextResponse.json(
       { error: `Failed to create session: ${err instanceof Error ? err.message : String(err)}` },
       { status: 500 }

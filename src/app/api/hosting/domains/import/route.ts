@@ -10,6 +10,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Verify admin user exists in DB (session.user.id may be stale)
+  let adminUserId = session.user.id;
+  const adminUser = await prisma.user.findUnique({ where: { id: adminUserId } });
+  if (!adminUser) {
+    // Fallback: look up by email
+    const byEmail = session.user.email
+      ? await prisma.user.findFirst({ where: { email: session.user.email, isDeleted: false } })
+      : null;
+    if (!byEmail) {
+      return NextResponse.json({ error: "Admin user not found in database" }, { status: 400 });
+    }
+    adminUserId = byEmail.id;
+  }
+
   const body = await req.json();
   const { domains } = body as {
     domains: {
@@ -81,7 +95,7 @@ export async function POST(req: NextRequest) {
           orderType: "DOMAIN_REGISTER",
           domain: domainName,
           status,
-          userId: session.user.id,
+          userId: adminUserId,
           expiryDate: entry.expiryDate ? new Date(entry.expiryDate) : null,
           customerId: entry.customerId || null,
           projectId: entry.projectId || null,
@@ -105,7 +119,7 @@ export async function POST(req: NextRequest) {
     entity: "HOSTING_ORDER",
     entityId: "bulk",
     description: `Imported ${created} domains (${skipped} skipped, ${errors} errors)`,
-    userId: session.user.id,
+    userId: adminUserId,
     userName: session.user.name || undefined,
     metadata: { created, skipped, errors },
   });

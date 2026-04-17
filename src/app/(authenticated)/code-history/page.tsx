@@ -167,16 +167,18 @@ export default function CodeHistoryPage() {
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 rounded-lg group-hover:bg-brand-100 dark:group-hover:bg-brand-900/30 transition">
                     <GitCommit size={14} /> View Commits
                   </span>
-                  <a
-                    href={repo.htmlUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
                     className="text-slate-400 hover:text-brand-500 transition p-1"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(repo.htmlUrl, "_blank", "noopener,noreferrer");
+                    }}
                     title="Open on GitHub"
                   >
                     <ExternalLink size={16} />
-                  </a>
+                  </button>
                 </div>
               </div>
             </Link>

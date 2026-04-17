@@ -20,8 +20,7 @@ export async function GET(req: NextRequest) {
   const where: any = {};
 
   if (!isAdmin) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cid = (session as any).customerId;
+    const cid = (session.user as { customerId?: string }).customerId;
     if (cid) {
       where.customerId = cid;
     } else {

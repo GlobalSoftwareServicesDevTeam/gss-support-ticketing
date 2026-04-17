@@ -31,8 +31,8 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (type !== undefined) {
-      if (!["HOSTING", "SSL", "DOMAIN"].includes(type)) {
-        return NextResponse.json({ error: "type must be HOSTING, SSL, or DOMAIN" }, { status: 400 });
+      if (!["HOSTING", "SSL", "DOMAIN", "MAIL"].includes(type)) {
+        return NextResponse.json({ error: "type must be HOSTING, SSL, DOMAIN, or MAIL" }, { status: 400 });
       }
       data.type = type;
     }

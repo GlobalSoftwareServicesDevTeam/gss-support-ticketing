@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "name, type, and monthlyPrice are required" }, { status: 400 });
   }
 
-  if (!["HOSTING", "SSL", "DOMAIN"].includes(type)) {
-    return NextResponse.json({ error: "type must be HOSTING, SSL, or DOMAIN" }, { status: 400 });
+  if (!["HOSTING", "SSL", "DOMAIN", "MAIL"].includes(type)) {
+    return NextResponse.json({ error: "type must be HOSTING, SSL, DOMAIN, or MAIL" }, { status: 400 });
   }
 
   const product = await prisma.hostingProduct.create({

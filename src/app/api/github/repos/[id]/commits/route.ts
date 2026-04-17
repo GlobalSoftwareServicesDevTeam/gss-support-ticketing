@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 const GITHUB_API = "https://api.github.com";
+
+async function getRepoToken(repo: { accountId: string | null; owner: string }): Promise<string | null> {
+  if (repo.accountId) {
+    const account = await prisma.gitHubAccount.findUnique({ where: { id: repo.accountId } });
+    if (account) return decrypt(account.patEncrypted);
+  }
+  const accounts = await prisma.gitHubAccount.findMany();
+  for (const acc of accounts) {
+    if (acc.label.toLowerCase() === repo.owner.toLowerCase() ||
+        acc.owner.toLowerCase() === repo.owner.toLowerCase()) {
+      return decrypt(acc.patEncrypted);
+    }
+  }
+  return process.env.GITHUB_PAT || null;
+}
 
 // GET: fetch commits for a repo from GitHub
 export async function GET(
@@ -42,10 +58,10 @@ export async function GET(
     }
   }
 
-  const ghToken = process.env.GITHUB_PAT;
+  const ghToken = await getRepoToken(repo);
   if (!ghToken) {
     return NextResponse.json(
-      { error: "GITHUB_PAT not configured on server" },
+      { error: "No GitHub token configured for this repository. Link it to a GitHub account first." },
       { status: 500 }
     );
   }

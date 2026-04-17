@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { validatePayfastSignature, validatePayfastServer } from "@/lib/payfast";
 import { handlePostPaymentSsl } from "@/lib/post-payment-ssl";
 import { handlePostPaymentHosting } from "@/lib/post-payment-hosting";
+import { handlePostPaymentDomain } from "@/lib/post-payment-domain";
 
 // PayFast ITN (Instant Transaction Notification) handler
 // This is called by PayFast servers, NOT by the user's browser
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
       );
       handlePostPaymentHosting(paymentId).catch((err) =>
         console.error("Post-payment hosting error:", err)
+      );
+      handlePostPaymentDomain(paymentId).catch((err) =>
+        console.error("Post-payment domain error:", err)
       );
     }
 

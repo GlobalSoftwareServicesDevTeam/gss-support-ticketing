@@ -15,7 +15,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { status, amount, notes, expiryDate, customerId, projectId } = body;
+  const { status, amount, notes, expiryDate, customerId, projectId, subProjectId } = body;
 
   const order = await prisma.hostingOrder.findUnique({ where: { id } });
   if (!order) {
@@ -34,7 +34,12 @@ export async function PATCH(
   if (notes !== undefined) data.notes = notes;
   if (expiryDate !== undefined) data.expiryDate = expiryDate ? new Date(expiryDate) : null;
   if (customerId !== undefined) data.customerId = customerId || null;
-  if (projectId !== undefined) data.projectId = projectId || null;
+  if (projectId !== undefined) {
+    data.projectId = projectId || null;
+    // Clear sub-project when project changes (unless subProjectId is also being set)
+    if (subProjectId === undefined) data.subProjectId = null;
+  }
+  if (subProjectId !== undefined) data.subProjectId = subProjectId || null;
 
   const updated = await prisma.hostingOrder.update({
     where: { id },

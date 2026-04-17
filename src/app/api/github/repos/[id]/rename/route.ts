@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 const GITHUB_API = "https://api.github.com";
+
+async function getRepoToken(repo: { accountId: string | null; owner: string }): Promise<string | null> {
+  // First try the directly linked account
+  if (repo.accountId) {
+    const account = await prisma.gitHubAccount.findUnique({ where: { id: repo.accountId } });
+    if (account) return decrypt(account.patEncrypted);
+  }
+  // Fallback: find an account matching the repo owner
+  const accounts = await prisma.gitHubAccount.findMany();
+  for (const acc of accounts) {
+    if (acc.label.toLowerCase() === repo.owner.toLowerCase() ||
+        acc.owner.toLowerCase() === repo.owner.toLowerCase()) {
+      return decrypt(acc.patEncrypted);
+    }
+  }
+  return process.env.GITHUB_PAT || null;
+}
 
 // POST: rename a GitHub repo
 export async function POST(
@@ -15,7 +33,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { newName, token } = await req.json();
+  const { newName } = await req.json();
 
   if (!newName || typeof newName !== "string") {
     return NextResponse.json({ error: "newName is required" }, { status: 400 });
@@ -34,10 +52,10 @@ export async function POST(
     return NextResponse.json({ error: "Repo not found" }, { status: 404 });
   }
 
-  const ghToken = token || process.env.GITHUB_PAT;
+  const ghToken = await getRepoToken(repo);
   if (!ghToken) {
     return NextResponse.json(
-      { error: "No GitHub token provided and GITHUB_PAT not set" },
+      { error: "No GitHub token found. Link this repo to a GitHub account first." },
       { status: 400 }
     );
   }

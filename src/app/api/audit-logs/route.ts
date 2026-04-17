@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
     const action = searchParams.get("action");
     const entity = searchParams.get("entity");
+    const entityId = searchParams.get("entityId");
     const userId = searchParams.get("userId");
     const search = searchParams.get("search");
     const from = searchParams.get("from");
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {};
     if (action) where.action = action;
     if (entity) where.entity = entity;
+    if (entityId) where.entityId = entityId;
     if (userId) where.userId = userId;
     if (search) {
       where.description = { contains: search };

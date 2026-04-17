@@ -31,6 +31,12 @@ import {
   Globe,
   LogIn,
   Smartphone,
+  FileText,
+  FolderOpen,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  Download,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -186,6 +192,23 @@ export default function CustomerDetailPage() {
   const [pleskDomains, setPleskDomains] = useState<{ id: number; name: string; hosting_type: string; status: string }[]>([]);
   const [pleskLoginLoading, setPleskLoginLoading] = useState(false);
 
+  // Registered domains
+  const [customerDomains, setCustomerDomains] = useState<{ id: string; domain: string | null; status: string; expiryDate: string | null; daysLeft: number | null; expiryStatus: string; orderType: string }[]>([]);
+  const [domainsLoading, setDomainsLoading] = useState(true);
+
+  // Projects & sub-projects
+  const [customerProjects, setCustomerProjects] = useState<{ id: string; projectName: string; status: string; dateCreated: string; onMaintenance: boolean; _count: { issues: number; tasks: number; documents: number }; subProjects?: { id: string; name: string; status: string }[] }[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  // Documents
+  const [customerDocuments, setCustomerDocuments] = useState<{ id: string; name: string; fileName: string; fileExt: string; fileSize: number | null; category: string; uploadedAt: string; projectId: string | null; project: { id: string; projectName: string } | null }[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+
+  // Notification history (audit logs for this customer)
+  const [notificationHistory, setNotificationHistory] = useState<{ id: string; action: string; entity: string; description: string; createdAt: string; userName: string | null }[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+
   const fetchCustomer = useCallback(() => {
     fetch(`/api/customers/${id}`)
       .then((r) => r.json())
@@ -285,6 +308,66 @@ export default function CustomerDetailPage() {
           setPleskLoading(false);
         })
         .catch(() => setPleskLoading(false));
+
+      // Fetch registered domains assigned to this customer
+      fetch(`/api/hosting/domains/manage?customerId=${id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.domains) setCustomerDomains(data.domains);
+          setDomainsLoading(false);
+        })
+        .catch(() => setDomainsLoading(false));
+
+      // Fetch projects for this customer
+      fetch(`/api/projects`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then(async (projects: any[]) => {
+          const filtered = projects.filter((p: any) => p.customerId === id);
+          // Fetch sub-projects for each project
+          const withSubs = await Promise.all(
+            filtered.map(async (p: any) => {
+              try {
+                const subRes = await fetch(`/api/projects/${p.id}/sub-projects`);
+                const subs = subRes.ok ? await subRes.json() : [];
+                return { ...p, subProjects: subs };
+              } catch {
+                return { ...p, subProjects: [] };
+              }
+            })
+          );
+          setCustomerProjects(withSubs);
+          setProjectsLoading(false);
+
+          // Fetch documents for customer's projects
+          if (filtered.length > 0) {
+            const allDocs: any[] = [];
+            await Promise.all(
+              filtered.map(async (p: any) => {
+                try {
+                  const docRes = await fetch(`/api/documents?projectId=${p.id}`);
+                  const docs = docRes.ok ? await docRes.json() : [];
+                  allDocs.push(...docs);
+                } catch {}
+              })
+            );
+            allDocs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+            setCustomerDocuments(allDocs);
+          }
+          setDocumentsLoading(false);
+        })
+        .catch(() => {
+          setProjectsLoading(false);
+          setDocumentsLoading(false);
+        });
+
+      // Fetch notification history (audit logs related to this customer)
+      fetch(`/api/audit-logs?entityId=${encodeURIComponent(id)}&limit=50`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.data) setNotificationHistory(data.data);
+          setNotificationsLoading(false);
+        })
+        .catch(() => setNotificationsLoading(false));
     }
   }, [fetchCustomer, fetchRepos, session, isAdmin, router, id]);
 
@@ -899,6 +982,84 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
+      {/* Registered Domains Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+          <Globe size={20} /> Registered Domains ({customerDomains.length})
+        </h2>
+        {domainsLoading ? (
+          <p className="text-sm text-gray-500">Loading domains...</p>
+        ) : customerDomains.length === 0 ? (
+          <p className="text-sm text-gray-500">No registered domains found for this customer.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                  <th className="px-4 py-2 font-medium">Domain</th>
+                  <th className="px-4 py-2 font-medium">Type</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-medium">Expiry Date</th>
+                  <th className="px-4 py-2 font-medium">Days Left</th>
+                  <th className="px-4 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {customerDomains.map((d: any) => (
+                  <tr key={d.id} className="border-b border-gray-100 dark:border-gray-700">
+                    <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{d.domain}</td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        d.orderType === 'HOSTING' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                        d.orderType === 'SSL' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                        d.orderType === 'MAIL' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' :
+                        'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                      }`}>
+                        {d.orderType || 'DOMAIN'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        d.status === 'ACTIVE' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                        d.status === 'EXPIRED' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
+                        'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                      }`}>
+                        {d.status || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                      {d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      {d.daysLeft != null ? (
+                        <span className={`text-xs font-medium ${
+                          d.daysLeft <= 0 ? 'text-red-600' :
+                          d.daysLeft <= 30 ? 'text-orange-500' :
+                          d.daysLeft <= 90 ? 'text-yellow-600' :
+                          'text-green-600'
+                        }`}>
+                          {d.daysLeft <= 0 ? 'Expired' : `${d.daysLeft} days`}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <a
+                        href={`https://${d.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-brand-500 hover:text-brand-600 flex items-center gap-1"
+                      >
+                        Visit <ExternalLink size={10} />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* GitHub Repositories Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
@@ -1067,6 +1228,228 @@ export default function CustomerDetailPage() {
                     <ExternalLink size={14} />
                   </a>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Projects & Sub-Projects Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <FolderOpen size={20} className="text-brand-500" /> Projects ({customerProjects.length})
+          </h2>
+          <Link
+            href="/projects"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Eye size={14} /> All Projects
+          </Link>
+        </div>
+        {projectsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="animate-spin text-brand-500" size={24} />
+            <span className="ml-2 text-sm text-gray-500">Loading projects...</span>
+          </div>
+        ) : customerProjects.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No projects assigned to this customer.</p>
+        ) : (
+          <div className="space-y-2">
+            {customerProjects.map((project) => (
+              <div key={project.id} className="border border-gray-100 dark:border-gray-700 rounded-lg">
+                <button
+                  onClick={() => {
+                    const next = new Set(expandedProjects);
+                    next.has(project.id) ? next.delete(project.id) : next.add(project.id);
+                    setExpandedProjects(next);
+                  }}
+                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition rounded-lg text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    {expandedProjects.has(project.id) ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
+                    <div>
+                      <Link href={`/projects?id=${project.id}`} className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline">
+                        {project.projectName}
+                      </Link>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
+                          project.status === "ACTIVE" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+                          project.status === "ON_HOLD" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300" :
+                          project.status === "COMPLETED" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
+                          "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                        }`}>
+                          {project.status}
+                        </span>
+                        {project.onMaintenance && (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                            Maintenance
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-400">
+                    <span>{project._count.issues} issues</span>
+                    <span>{project._count.tasks} tasks</span>
+                    <span>{project._count.documents} docs</span>
+                  </div>
+                </button>
+                {expandedProjects.has(project.id) && project.subProjects && project.subProjects.length > 0 && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 pb-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase mt-2 mb-1 px-6">Sub-Projects</p>
+                    {project.subProjects.map((sub: any) => (
+                      <div key={sub.id} className="flex items-center justify-between px-6 py-1.5 text-sm">
+                        <span className="text-gray-700 dark:text-gray-300">{sub.name}</span>
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${
+                          sub.status === "ACTIVE" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+                          sub.status === "ON_HOLD" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300" :
+                          "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                        }`}>
+                          {sub.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {expandedProjects.has(project.id) && (!project.subProjects || project.subProjects.length === 0) && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-6 py-2">
+                    <p className="text-xs text-gray-400">No sub-projects</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Documents Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText size={20} className="text-brand-500" /> Documents ({customerDocuments.length})
+          </h2>
+          <Link
+            href="/documents"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Eye size={14} /> All Documents
+          </Link>
+        </div>
+        {documentsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="animate-spin text-brand-500" size={24} />
+            <span className="ml-2 text-sm text-gray-500">Loading documents...</span>
+          </div>
+        ) : customerDocuments.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No documents found for this customer&apos;s projects.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                  <th className="px-4 py-2 font-medium">Name</th>
+                  <th className="px-4 py-2 font-medium">Category</th>
+                  <th className="px-4 py-2 font-medium">Project</th>
+                  <th className="px-4 py-2 font-medium">Size</th>
+                  <th className="px-4 py-2 font-medium">Uploaded</th>
+                  <th className="px-4 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {customerDocuments.map((doc) => (
+                  <tr key={doc.id} className="border-b border-gray-100 dark:border-gray-700">
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                        <span className="font-medium text-gray-900 dark:text-white truncate max-w-[200px]">{doc.name}</span>
+                        <span className="text-xs text-gray-400">.{doc.fileExt}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        doc.category === "INVOICE" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
+                        doc.category === "QUOTE" ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" :
+                        doc.category === "LEGAL" ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" :
+                        doc.category === "PROJECT" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+                        "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                      }`}>
+                        {doc.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">
+                      {doc.project?.projectName || "—"}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">
+                      {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">
+                      {new Date(doc.uploadedAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2">
+                      <a
+                        href={`/api/documents/${doc.id}/download`}
+                        className="text-xs text-brand-500 hover:text-brand-600 flex items-center gap-1"
+                      >
+                        <Download size={10} /> Download
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Notification History Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Clock size={20} className="text-brand-500" /> Activity & Notification History
+          </h2>
+          <Link
+            href="/audit-logs"
+            className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition text-sm"
+          >
+            <Eye size={14} /> All Logs
+          </Link>
+        </div>
+        {notificationsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="animate-spin text-brand-500" size={24} />
+            <span className="ml-2 text-sm text-gray-500">Loading history...</span>
+          </div>
+        ) : notificationHistory.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">No activity history found for this customer.</p>
+        ) : (
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {notificationHistory.map((log) => (
+              <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                <div className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
+                  log.action === "CREATE" ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" :
+                  log.action === "UPDATE" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
+                  log.action === "DELETE" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+                  log.action === "LOGIN" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" :
+                  "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                }`}>
+                  {log.action === "CREATE" ? <Plus size={14} /> :
+                   log.action === "UPDATE" ? <Pencil size={14} /> :
+                   log.action === "DELETE" ? <Trash2 size={14} /> :
+                   log.action === "LOGIN" ? <LogIn size={14} /> :
+                   <Clock size={14} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 dark:text-white">{log.description}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                      {log.entity}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {log.userName || "System"} · {new Date(log.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

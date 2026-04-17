@@ -1,13 +1,15 @@
 {
   "apps": [{
     "name": "gss-support",
-    "script": "node_modules/.bin/next",
-    "args": "start -p 3000",
-    "cwd": "/home/u523126354/domains/support.globalsoftwareservices.co.za/nodejs",
+    "script": ".next/standalone/server.js",
+    "args": "",
+    "cwd": "/var/www/vhosts/globalsoftwareservices.co.za/support.globalsoftwareservices.co.za",
     "env": {
       "NODE_ENV": "production",
-      "PORT": "3000"
+      "PORT": "3001",
+      "HOSTNAME": "0.0.0.0"
     },
+    "exec_mode": "fork",
     "instances": 1,
     "autorestart": true,
     "watch": false,

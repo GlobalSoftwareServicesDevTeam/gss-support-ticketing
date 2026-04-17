@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { getCustomerContext } from "@/lib/customer-context";
 
 export async function GET(
   _req: NextRequest,
@@ -46,6 +47,18 @@ export async function GET(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
+  // Non-admins: must be assigned to the project OR it must belong to their customer
+  if (session.user.role !== "ADMIN") {
+    const ctx = getCustomerContext(session);
+    const isCustomerProject = ctx && project.customerId === ctx.customerId;
+    const assignment = await prisma.projectAssignment.findFirst({
+      where: { projectId: id, userId: session.user.id },
+    });
+    if (!isCustomerProject && !assignment) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   return NextResponse.json(project);
 }
 
@@ -60,7 +73,7 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { projectName, proposalDate, estimatedCompleteDate, onMaintenance, maintAmount, dateStarted, companyId, description, status, githubRepo } = body;
+  const { projectName, proposalDate, estimatedCompleteDate, onMaintenance, maintAmount, dateStarted, companyId, description, status, githubRepo, customerId } = body;
 
   const project = await prisma.project.update({
     where: { id },
@@ -75,6 +88,7 @@ export async function PUT(
       ...(description !== undefined && { description }),
       ...(status !== undefined && { status }),
       ...(githubRepo !== undefined && { githubRepo }),
+      ...(customerId !== undefined && { customerId }),
     },
   });
 

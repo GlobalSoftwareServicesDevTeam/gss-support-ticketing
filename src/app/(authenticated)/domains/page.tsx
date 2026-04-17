@@ -55,6 +55,8 @@ interface DomainEntry {
   user: { id: string; firstName: string; lastName: string; email: string; company: string | null } | null;
   customer: { id: string; company: string } | null;
   project: { id: string; projectName: string } | null;
+  subProjectId: string | null;
+  subProject: { id: string; name: string } | null;
 }
 
 interface CustomerOption {
@@ -163,6 +165,8 @@ export default function DomainsManagerPage() {
   const [editingAssign, setEditingAssign] = useState<string | null>(null);
   const [assignCustomerId, setAssignCustomerId] = useState("");
   const [assignProjectId, setAssignProjectId] = useState("");
+  const [assignSubProjectId, setAssignSubProjectId] = useState("");
+  const [subProjectsCache, setSubProjectsCache] = useState<Record<string, { id: string; name: string }[]>>({});
 
   // Lookup data for customers & projects
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -284,7 +288,7 @@ export default function DomainsManagerPage() {
       const res = await fetch(`/api/hosting/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId: assignCustomerId || null, projectId: assignProjectId || null }),
+        body: JSON.stringify({ customerId: assignCustomerId || null, projectId: assignProjectId || null, subProjectId: assignSubProjectId || null }),
       });
       if (res.ok) {
         showMessage("success", "Assignment updated");
@@ -297,6 +301,17 @@ export default function DomainsManagerPage() {
       showMessage("error", "Network error");
     }
     setActionLoading("");
+  }
+
+  async function fetchSubProjects(projectId: string) {
+    if (subProjectsCache[projectId]) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sub-projects`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubProjectsCache((prev) => ({ ...prev, [projectId]: data.map((sp: { id: string; name: string }) => ({ id: sp.id, name: sp.name })) }));
+      }
+    } catch { /* ignore */ }
   }
 
   // ─── Sorting ──────────────────────────────────────────
@@ -787,6 +802,8 @@ export default function DomainsManagerPage() {
                                     e.stopPropagation();
                                     setAssignCustomerId(d.customer?.id || "");
                                     setAssignProjectId(d.project?.id || "");
+                                    setAssignSubProjectId(d.subProjectId || "");
+                                    if (d.project?.id) fetchSubProjects(d.project.id);
                                     setEditingAssign(d.id);
                                   }}
                                   className="text-slate-400 hover:text-brand-500"
@@ -809,7 +826,11 @@ export default function DomainsManagerPage() {
                               <select
                                 title="Assign project"
                                 value={assignProjectId}
-                                onChange={(e) => setAssignProjectId(e.target.value)}
+                                onChange={(e) => {
+                                  setAssignProjectId(e.target.value);
+                                  setAssignSubProjectId("");
+                                  if (e.target.value) fetchSubProjects(e.target.value);
+                                }}
                                 className="mt-0.5 px-1.5 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300 dark:bg-slate-700 w-full"
                               >
                                 <option value="">— None —</option>
@@ -817,6 +838,20 @@ export default function DomainsManagerPage() {
                                   <option key={p.id} value={p.id}>{p.projectName}</option>
                                 ))}
                               </select>
+                              {assignProjectId && (
+                                <select
+                                  title="Assign sub-project"
+                                  value={assignSubProjectId}
+                                  onChange={(e) => setAssignSubProjectId(e.target.value)}
+                                  onFocus={() => assignProjectId && fetchSubProjects(assignProjectId)}
+                                  className="mt-1 px-1.5 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300 dark:bg-slate-700 w-full"
+                                >
+                                  <option value="">— No Sub-Project —</option>
+                                  {(subProjectsCache[assignProjectId] || []).map((sp) => (
+                                    <option key={sp.id} value={sp.id}>{sp.name}</option>
+                                  ))}
+                                </select>
+                              )}
                               <div className="flex gap-1 mt-1">
                                 <button onClick={() => saveAssignment(d.id)} className="text-green-600 hover:text-green-700" title="Save">
                                   <Save size={12} />
@@ -827,7 +862,12 @@ export default function DomainsManagerPage() {
                               </div>
                             </div>
                           ) : (
-                            <p className="text-slate-700 dark:text-slate-300 text-xs mt-0.5">{d.project?.projectName || "—"}</p>
+                            <div className="mt-0.5">
+                              <p className="text-slate-700 dark:text-slate-300 text-xs">{d.project?.projectName || "—"}</p>
+                              {d.subProject && (
+                                <p className="text-slate-500 dark:text-slate-400 text-xs ml-2">↳ {d.subProject.name}</p>
+                              )}
+                            </div>
                           )}
                         </div>
 

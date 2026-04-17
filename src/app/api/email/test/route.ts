@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import nodemailer from "nodemailer";
+import { getSmtpConfig } from "@/lib/settings";
 
 export async function POST() {
   const session = await auth();
@@ -9,13 +10,15 @@ export async function POST() {
   }
 
   try {
+    const config = await getSmtpConfig();
+
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || "587"),
-      secure: process.env.SMTP_SECURE === "true",
+      host: config.SMTP_HOST,
+      port: parseInt(config.SMTP_PORT || "587"),
+      secure: config.SMTP_SECURE === "true",
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASSWORD,
       },
     });
 
