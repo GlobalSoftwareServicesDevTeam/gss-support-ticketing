@@ -110,6 +110,7 @@ export default function ProjectIdeasPage() {
     newProjectName: "",
     createNewProject: false,
     taskPriority: "",
+    taskStartDate: "",
     taskDueDate: "",
   });
   const [converting, setConverting] = useState(false);
@@ -146,6 +147,7 @@ export default function ProjectIdeasPage() {
       newProjectName: "",
       createNewProject: false,
       taskPriority: idea.priority === "URGENT" ? "CRITICAL" : idea.priority,
+      taskStartDate: "",
       taskDueDate: "",
     });
     fetchProjects();
@@ -165,6 +167,7 @@ export default function ProjectIdeasPage() {
         projectId: convertForm.createNewProject ? undefined : convertForm.projectId,
         newProjectName: convertForm.createNewProject ? convertForm.newProjectName : undefined,
         taskPriority: convertForm.taskPriority || undefined,
+        taskStartDate: convertForm.taskStartDate || undefined,
         taskDueDate: convertForm.taskDueDate || undefined,
       }),
     });
@@ -765,9 +768,19 @@ export default function ProjectIdeasPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Due Date</label>
+                  <label className="block text-xs text-gray-500 mb-1">Start Date & Time</label>
                   <input
-                    type="date"
+                    type="datetime-local"
+                    value={convertForm.taskStartDate}
+                    onChange={(e) => setConvertForm({ ...convertForm, taskStartDate: e.target.value })}
+                    placeholder="Start date"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Due Date & Time</label>
+                  <input
+                    type="datetime-local"
                     value={convertForm.taskDueDate}
                     onChange={(e) => setConvertForm({ ...convertForm, taskDueDate: e.target.value })}
                     placeholder="Due date"

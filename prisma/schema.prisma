@@ -9,163 +9,153 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  email           String    @unique
-  username        String    @unique
-  passwordHash    String
-  firstName       String
-  lastName        String
-  phoneNumber     String?
-  company         String?
-  companyRegNo    String?
-  companyVatNo    String?
-  companyAddress  String?   @db.NVarChar(Max)
-  position        String?
-  role            String    @default("USER") // ADMIN, USER, EDITOR
-  emailConfirmed  Boolean   @default(false)
-  activationCode  String?
-  passwordReset   Boolean   @default(false)
-  inviteToken     String?
-  inviteExpiresAt DateTime?
-  legalAcceptedAt DateTime?
-  legalDocVersion String?
-  isDeleted       Boolean   @default(false)
-  deletedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
+  id                   String               @id @default(uuid())
+  email                String               @unique
+  username             String               @unique
+  passwordHash         String
+  firstName            String
+  lastName             String
+  phoneNumber          String?
+  company              String?
+  companyRegNo         String?
+  companyVatNo         String?
+  companyAddress       String?              @db.NVarChar(Max)
+  position             String?
+  role                 String               @default("USER")
+  emailConfirmed       Boolean              @default(false)
+  activationCode       String?
+  passwordReset        Boolean              @default(false)
+  inviteToken          String?
+  inviteExpiresAt      DateTime?
+  legalAcceptedAt      DateTime?
+  legalDocVersion      String?
+  isDeleted            Boolean              @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   invoiceNinjaClientId String?
-  oauthProvider        String?   // google, facebook - null means credentials
-  oauthProviderId      String?   // provider's user ID
-
-  // Two-factor authentication
-  totpSecret           String?   @db.NVarChar(Max) // encrypted TOTP secret
-  totpEnabled          Boolean   @default(false)
-  totpBackupCodes      String?   @db.NVarChar(Max) // encrypted JSON array of hashed backup codes
-
-  issues              Issue[]
-  messages            Message[]
-  assignments         TaskAssignment[]
-  projectAssignments  ProjectAssignment[]
-  hostingOrders       HostingOrder[]
-  codeDownloads       CodeDownloadLog[]
-  paymentArrangements PaymentArrangement[]
-  trustedDevices      TrustedDevice[]
+  oauthProvider        String?
+  oauthProviderId      String?
+  totpSecret           String?              @db.NVarChar(Max)
+  totpEnabled          Boolean              @default(false)
+  totpBackupCodes      String?              @db.NVarChar(Max)
+  codeDownloads        CodeDownloadLog[]
+  hostingOrders        HostingOrder[]
+  issues               Issue[]
+  messages             Message[]
+  paymentArrangements  PaymentArrangement[]
+  projectAssignments   ProjectAssignment[]
+  assignments          TaskAssignment[]
+  trustedDevices       TrustedDevice[]
 
   @@map("users")
 }
 
 model Customer {
-  id                   String   @id @default(uuid())
+  id                   String         @id @default(uuid())
   company              String
   phoneNumber          String?
   contactPerson        String
-  emailAddress         String   @unique
-  address              String?  @db.NVarChar(Max)
+  emailAddress         String         @unique
+  address              String?        @db.NVarChar(Max)
   vatNumber            String?
   regNumber            String?
   invoiceNinjaClientId String?
-  isActive             Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @default(now()) @updatedAt
-
-  issues    Issue[]
-  contacts  Contact[]
-  repos     CustomerRepo[]
-  vault     SecureNote[]
-  quotes    Quote[]
-  apps      MobileApp[]
-  referrals     Referral[]
-  projectIdeas  ProjectIdea[]
-  hostingOrders HostingOrder[]
-  projects      Project[]
+  isActive             Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @default(now()) @updatedAt
+  contacts             Contact[]
+  repos                CustomerRepo[]
+  hostingOrders        HostingOrder[]
+  issues               Issue[]
+  apps                 MobileApp[]
+  projectIdeas         ProjectIdea[]
+  projects             Project[]
+  quotes               Quote[]
+  referrals            Referral[]
+  vault                SecureNote[]
 
   @@map("customers")
 }
 
 model Contact {
-  id          String    @id @default(uuid())
-  firstName   String
-  lastName    String
-  email       String
-  phone       String?
-  position    String?
-  isPrimary   Boolean   @default(false)
-  inviteToken String?   @unique
-  inviteExpiresAt DateTime?
-  invitedAt   DateTime?
-  inviteAccepted Boolean @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Portal access permissions — primary contacts get all by default
-  canViewTickets     Boolean @default(true)
-  canViewProjects    Boolean @default(true)
-  canViewBilling     Boolean @default(true)  // invoices, payments, arrangements
-  canViewHosting     Boolean @default(true)  // hosting orders, domains, DNS
-  canViewDocuments   Boolean @default(true)
-  canViewCode        Boolean @default(true)  // code history & downloads
-  canViewNotifications Boolean @default(true)
-  canManageContacts  Boolean @default(false) // only primary contacts
-
-  customerId  String
-  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  userId      String?   // linked User account if they accepted the invite
+  id                      String                    @id @default(uuid())
+  firstName               String
+  lastName                String
+  email                   String
+  phone                   String?
+  position                String?
+  isPrimary               Boolean                   @default(false)
+  inviteToken             String?
+  inviteExpiresAt         DateTime?
+  invitedAt               DateTime?
+  inviteAccepted          Boolean                   @default(false)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  canViewTickets          Boolean                   @default(true)
+  canViewProjects         Boolean                   @default(true)
+  canViewBilling          Boolean                   @default(true)
+  canViewHosting          Boolean                   @default(true)
+  canViewDocuments        Boolean                   @default(true)
+  canViewCode             Boolean                   @default(true)
+  canViewNotifications    Boolean                   @default(true)
+  canManageContacts       Boolean                   @default(false)
+  customerId              String
+  userId                  String?
   notificationPreferences ContactNotificationPref[]
+  customer                Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("contacts")
 }
 
 model ContactNotificationPref {
-  id         String  @id @default(uuid())
-  channel    String  // EMAIL, SMS, PORTAL
-  category   String  // TICKETS, INVOICES, PAYMENTS, PROJECTS, HOSTING, MAINTENANCE, MARKETING, GENERAL
-  enabled    Boolean @default(true)
-
-  contactId  String
-  contact    Contact @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id        String  @id @default(uuid())
+  channel   String
+  category  String
+  enabled   Boolean @default(true)
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([contactId, channel, category])
   @@map("contact_notification_prefs")
 }
 
 model UserNotificationPref {
-  id         String  @id @default(uuid())
-  channel    String  // EMAIL, SMS, PORTAL
-  category   String  // TICKETS, INVOICES, PAYMENTS, PROJECTS, HOSTING, MAINTENANCE, MARKETING, GENERAL
-  enabled    Boolean @default(true)
+  id       String  @id @default(uuid())
+  channel  String
+  category String
+  enabled  Boolean @default(true)
+  userId   String
 
-  userId     String
   @@unique([userId, channel, category])
   @@map("user_notification_prefs")
 }
 
 model Project {
-  id                    String    @id @default(uuid())
+  id                    String              @id @default(uuid())
   projectName           String
-  dateCreated           DateTime  @default(now())
+  dateCreated           DateTime            @default(now())
   proposalDate          DateTime?
   estimatedCompleteDate DateTime?
-  onMaintenance         Boolean   @default(false)
+  onMaintenance         Boolean             @default(false)
   maintAmount           Decimal?
   contract              Bytes?
   dateStarted           DateTime?
   companyId             String?
   githubRepo            String?
-  description           String?   @db.NVarChar(Max)
-  status                String    @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED, ARCHIVED
+  description           String?             @db.NVarChar(Max)
+  status                String              @default("ACTIVE")
   customerId            String?
-  customer              Customer? @relation(fields: [customerId], references: [id])
-
-  issues      Issue[]
-  tasks       Task[]
-  documents   Document[]
-  assignments ProjectAssignment[]
-  codeReleases CodeRelease[]
-  repos       GitHubRepo[]
-  quotes      Quote[]
-  hostingOrders HostingOrder[]
-  subProjects SubProject[]
+  codeReleases          CodeRelease[]
+  documents             Document[]
+  repos                 GitHubRepo[]
+  hostingOrders         HostingOrder[]
+  issues                Issue[]
+  assignments           ProjectAssignment[]
+  customer              Customer?           @relation(fields: [customerId], references: [id])
+  quotes                Quote[]
+  subProjects           SubProject[]
+  tasks                 Task[]
 
   @@map("projects")
 }
@@ -173,74 +163,66 @@ model Project {
 model ProjectAssignment {
   id         String   @id @default(uuid())
   assignedAt DateTime @default(now())
-
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projectId  String
+  userId     String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User     @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@unique([projectId, userId])
   @@map("project_assignments")
 }
 
 model Task {
-  id                String    @id @default(uuid())
+  id                String           @id @default(uuid())
   title             String
-  description       String?   @db.NVarChar(Max)
-  status            String    @default("TODO") // TODO, IN_PROGRESS, IN_REVIEW, DONE
-  priority          String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  description       String?          @db.NVarChar(Max)
+  status            String           @default("TODO")
+  priority          String           @default("MEDIUM")
   dueDate           DateTime?
-  startTime         String?   // HH:mm format e.g. "09:00"
-  estimatedDuration Int?      // duration in minutes
-  order             Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  issueId     String?
-  issue       Issue?    @relation(fields: [issueId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  stageId     String?
-  stage       SubProjectStage? @relation(fields: [stageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  assignments TaskAssignment[]
+  order             Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  projectId         String
+  issueId           String?
+  stageId           String?
+  estimatedDuration Int?
+  startTime         String?
+  startDate         DateTime?
+  assignments       TaskAssignment[]
+  issue             Issue?           @relation(fields: [issueId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stage             SubProjectStage? @relation(fields: [stageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("tasks")
 }
 
 model SubProject {
-  id          String   @id @default(uuid())
-  name        String
-  description String?  @db.NVarChar(Max)
-  status      String   @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  stages      SubProjectStage[]
-  repos       GitHubRepo[]
+  id            String            @id @default(uuid())
+  name          String
+  description   String?           @db.NVarChar(Max)
+  status        String            @default("ACTIVE")
+  order         Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  projectId     String
+  repos         GitHubRepo[]
   hostingOrders HostingOrder[]
+  stages        SubProjectStage[]
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("sub_projects")
 }
 
 model SubProjectStage {
-  id          String   @id @default(uuid())
-  name        String
-  description String?  @db.NVarChar(Max)
-  status      String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id           String     @id @default(uuid())
+  name         String
+  description  String?    @db.NVarChar(Max)
+  status       String     @default("NOT_STARTED")
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   subProjectId String
   subProject   SubProject @relation(fields: [subProjectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
   tasks        Task[]
 
   @@map("sub_project_stages")
@@ -249,11 +231,10 @@ model SubProjectStage {
 model TaskAssignment {
   id         String   @id @default(uuid())
   assignedAt DateTime @default(now())
-
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taskId     String
+  userId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User     @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@unique([taskId, userId])
   @@map("task_assignments")
@@ -266,40 +247,37 @@ model Document {
   fileExt    String
   fileBase64 String   @db.NVarChar(Max)
   fileSize   Int      @default(0)
-  category   String   // LEGAL, PROJECT, RESOURCE, CODE, INVOICE, QUOTE, STATEMENT, CREDIT_NOTE, PAYMENT_NOTE, OTHER
+  category   String
   notes      String?  @db.NVarChar(Max)
   uploadedAt DateTime @default(now())
-
   projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   uploadedBy String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("documents")
 }
 
 model Issue {
-  id           String   @id @default(uuid())
-  subject      String
-  initialNotes String?  @db.NVarChar(Max)
-  status       String   @default("OPEN") // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
-  priority     String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  kind         String?
-  projectName  String?
-  company      String?
+  id            String       @id @default(uuid())
+  subject       String
+  initialNotes  String?      @db.NVarChar(Max)
+  status        String       @default("OPEN")
+  priority      String       @default("MEDIUM")
+  kind          String?
+  projectName   String?
+  company       String?
   emailThreadId String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  userId       String?
-  user         User?       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customerId   String?
-  customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  projectId    String?
-  project      Project?    @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  messages     Message[]
-  fileUploads  FileUpload[]
-  tasks        Task[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  userId        String?
+  customerId    String?
+  projectId     String?
+  fileUploads   FileUpload[]
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user          User?        @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messages      Message[]
+  tasks         Task[]
 
   @@map("issues")
 }
@@ -309,11 +287,10 @@ model Message {
   content     String   @db.NVarChar(Max)
   dateCreated DateTime @default(now())
   isFromEmail Boolean  @default(false)
-
-  userId  String?
-  user    User?   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  issueId String
-  issue   Issue   @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId      String?
+  issueId     String
+  issue       Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("messages")
 }
@@ -325,9 +302,8 @@ model FileUpload {
   fileBase64 String   @db.NVarChar(Max)
   dateAdded  DateTime @default(now())
   publicDoc  Boolean  @default(false)
-
-  issueId String
-  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  issueId    String
+  issue      Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("file_uploads")
 }
@@ -346,175 +322,165 @@ model MailSetting {
 }
 
 model Quote {
-  id              String    @id @default(uuid())
-  quoteNo         String?
-  title           String?
-  description     String?   @db.NVarChar(Max)
-  lineItems       String?   @db.NVarChar(Max) // JSON: [{description, qty, unitPrice, amount}]
-  amount          Decimal?
-  taxRate         Decimal?  @default(15)
-  taxAmount       Decimal?
-  totalAmount     Decimal?
-  paid            Boolean   @default(false)
-  amountPaid      Decimal?
-  dueDate         DateTime?
-  validUntil      DateTime?
-  invoiceNo       String?
-  quoteStatus     String?   @default("DRAFT") // DRAFT, SENT, VIEWED, ACCEPTED, DECLINED, EXPIRED, CONVERTED
-  notes           String?   @db.NVarChar(Max)
-  declineReason   String?   @db.NVarChar(Max)
-
-  // Client info
-  clientName      String?
-  clientEmail     String?
-  clientCompany   String?
-
-  // Signature
-  clientSignature String?   @db.NVarChar(Max) // base64 PNG
-  clientSignedAt  DateTime?
+  id               String    @id @default(uuid())
+  quoteNo          String?
+  title            String?
+  description      String?   @db.NVarChar(Max)
+  lineItems        String?   @db.NVarChar(Max)
+  amount           Decimal?
+  taxRate          Decimal?  @default(15)
+  taxAmount        Decimal?
+  totalAmount      Decimal?
+  paid             Boolean   @default(false)
+  amountPaid       Decimal?
+  dueDate          DateTime?
+  validUntil       DateTime?
+  invoiceNo        String?
+  quoteStatus      String?   @default("DRAFT")
+  notes            String?   @db.NVarChar(Max)
+  declineReason    String?   @db.NVarChar(Max)
+  clientName       String?
+  clientEmail      String?
+  clientCompany    String?
+  clientSignature  String?   @db.NVarChar(Max)
+  clientSignedAt   DateTime?
   clientSignedName String?
-  clientIp        String?
-
-  // Token for public access
-  token           String?   @unique @default(uuid())
-
-  // Relations
-  customerId      String?
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  projectId       String?
-  project         Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  sentAt          DateTime?
-  sentBy          String?   // userId who sent
-  createdBy       String?   // userId who created
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  clientIp         String?
+  token            String?   @unique @default(uuid())
+  customerId       String?
+  projectId        String?
+  sentAt           DateTime?
+  sentBy           String?
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  customer         Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("quotes")
 }
 
 model IncomingEmail {
-  id          String   @id @default(uuid())
-  messageId   String   @unique
-  fromEmail   String
-  fromName    String?
-  subject     String
-  bodyText    String?  @db.NVarChar(Max)
-  bodyHtml    String?  @db.NVarChar(Max)
-  receivedAt  DateTime @default(now())
-  processed   Boolean  @default(false)
-  issueId     String?
+  id         String   @id @default(uuid())
+  messageId  String   @unique
+  fromEmail  String
+  fromName   String?
+  subject    String
+  bodyText   String?  @db.NVarChar(Max)
+  bodyHtml   String?  @db.NVarChar(Max)
+  receivedAt DateTime @default(now())
+  processed  Boolean  @default(false)
+  issueId    String?
 
   @@map("incoming_emails")
 }
 
 model Payment {
-  id              String   @id @default(uuid())
-  gateway         String   // PAYFAST, OZOW, EFT
-  gatewayRef      String?  // external payment ID from gateway
-  amount          Decimal
-  currency        String   @default("ZAR")
-  status          String   @default("PENDING") // PENDING, PROCESSING, COMPLETE, FAILED, CANCELLED, REFUNDED
-  description     String?
-  invoiceNumber   String?
-  customerEmail   String?
-  customerName    String?
-  metadata        String?  @db.NVarChar(Max) // JSON blob for gateway-specific data
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  userId          String?
-  savedCardId     String?
-  savedCard       SavedCard? @relation(fields: [savedCardId], references: [id])
+  id            String     @id @default(uuid())
+  gateway       String
+  gatewayRef    String?
+  amount        Decimal
+  currency      String     @default("ZAR")
+  status        String     @default("PENDING")
+  description   String?
+  invoiceNumber String?
+  customerEmail String?
+  customerName  String?
+  metadata      String?    @db.NVarChar(Max)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  userId        String?
+  savedCardId   String?
+  savedCard     SavedCard? @relation(fields: [savedCardId], references: [id])
 
   @@map("payments")
 }
 
 model SavedCard {
-  id            String   @id @default(uuid())
-  userId        String
-  gateway       String   @default("PAYFAST") // PAYFAST
-  token         String   // PayFast ad-hoc token
-  cardBrand     String?  // VISA, MASTERCARD, AMEX, etc.
-  last4         String?  // Last 4 digits of card
-  expiryMonth   Int?
-  expiryYear    Int?
-  nickname      String?  // User-defined label
-  isDefault     Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  payments      Payment[]
+  id          String    @id @default(uuid())
+  userId      String
+  gateway     String    @default("PAYFAST")
+  token       String
+  cardBrand   String?
+  last4       String?
+  expiryMonth Int?
+  expiryYear  Int?
+  nickname    String?
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  payments    Payment[]
 
   @@unique([userId, token])
   @@map("saved_cards")
 }
 
 model EftBankDetail {
-  id          String   @id @default(uuid())
-  bankName    String
-  accountName String
+  id            String   @id @default(uuid())
+  bankName      String
+  accountName   String
   accountNumber String
-  branchCode  String
-  accountType String?  // SAVINGS, CHEQUE, CURRENT
-  swiftCode   String?
-  reference   String?  // e.g. "Use your invoice number"
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  branchCode    String
+  accountType   String?
+  swiftCode     String?
+  reference     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
 
   @@map("eft_bank_details")
 }
 
 model FlaggedEmail {
-  id          String   @id @default(uuid())
-  messageId   String   @unique
-  fromEmail   String
-  fromName    String?
-  subject     String
-  bodyText    String?  @db.NVarChar(Max)
-  bodyHtml    String?  @db.NVarChar(Max)
-  reason      String   // BOUNCE, NOREPLY, BLOCKED_SENDER, SUSPICIOUS
-  status      String   @default("PENDING") // PENDING, ASSIGNED, IGNORED
-  resolvedBy  String?
-  resolvedAt  DateTime?
+  id                String    @id @default(uuid())
+  messageId         String    @unique
+  fromEmail         String
+  fromName          String?
+  subject           String
+  bodyText          String?   @db.NVarChar(Max)
+  bodyHtml          String?   @db.NVarChar(Max)
+  reason            String
+  status            String    @default("PENDING")
+  resolvedBy        String?
+  resolvedAt        DateTime?
   assignedToIssueId String?
-  receivedAt  DateTime @default(now())
+  receivedAt        DateTime  @default(now())
 
   @@map("flagged_emails")
 }
 
 model BlockedSender {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  pattern    String?  // optional regex/glob pattern like *@mailer-daemon.*
-  reason     String?
-  blockedBy  String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  email     String   @unique
+  pattern   String?
+  reason    String?
+  blockedBy String?
+  createdAt DateTime @default(now())
 
   @@map("blocked_senders")
 }
 
 model SigningRequest {
-  id              String    @id @default(uuid())
-  documentId      String
-  documentName    String
-  status          String    @default("PENDING_SIGNER") // PENDING_SIGNER, PENDING_WITNESS, PENDING_ADMIN, COMPLETED, CANCELLED
-  signerName      String
-  signerEmail     String
-  signerSignature String?   @db.NVarChar(Max) // base64 PNG
-  signerSignedAt  DateTime?
-  signerToken     String    @unique @default(uuid())
-  witnessName     String?
-  witnessEmail    String?
-  witnessSignature String?  @db.NVarChar(Max) // base64 PNG
-  witnessSignedAt DateTime?
-  witnessToken    String?   @unique
-  adminSignature  String?   @db.NVarChar(Max) // base64 PNG
-  adminSignedAt   DateTime?
-  adminToken      String?   @unique
-  createdBy       String    // userId who initiated
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  documentId       String
+  documentName     String
+  status           String    @default("PENDING_SIGNER")
+  signerName       String
+  signerEmail      String
+  signerSignature  String?   @db.NVarChar(Max)
+  signerSignedAt   DateTime?
+  signerToken      String    @unique @default(uuid())
+  witnessName      String?
+  witnessEmail     String?
+  witnessSignature String?   @db.NVarChar(Max)
+  witnessSignedAt  DateTime?
+  witnessToken     String?   @unique
+  adminSignature   String?   @db.NVarChar(Max)
+  adminSignedAt    DateTime?
+  adminToken       String?   @unique
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@map("signing_requests")
 }
@@ -530,94 +496,90 @@ model SystemSetting {
 }
 
 model HostingProduct {
-  id          String   @id @default(uuid())
-  name        String
-  type        String   // HOSTING, SSL, DOMAIN
-  description String?  @db.NVarChar(Max)
-  monthlyPrice Decimal
-  annualPrice  Decimal?
-  setupFee    Decimal  @default(0)
-  features    String?  @db.NVarChar(Max) // JSON array of feature strings
-  pleskPlanName String? // Plesk service plan name for auto-provisioning
-  pleskPlanId  Int?     // Plesk service plan ID
-  // Plesk plan limits (synced from Plesk)
-  diskSpace    String?  // e.g. "10 GB", "unlimited"
-  bandwidth    String?  // e.g. "100 GB", "unlimited"
-  databases    String?  // e.g. "5", "unlimited"
-  emailAccounts String? // e.g. "10", "unlimited"
-  emailStorage String?  // e.g. "1 GB per mailbox"
-  ftpAccounts  String?  // e.g. "5", "unlimited"
-  subdomains   String?  // e.g. "10", "unlimited"
-  sslSupport   Boolean  @default(true)
-  phpSupport   Boolean  @default(true)
-  backups      String?  // e.g. "Daily", "Weekly"
-  isActive    Boolean  @default(true)
-  isPopular   Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-
-  orders HostingOrder[]
+  id            String         @id @default(uuid())
+  name          String
+  type          String
+  description   String?        @db.NVarChar(Max)
+  monthlyPrice  Decimal
+  annualPrice   Decimal?
+  setupFee      Decimal        @default(0)
+  features      String?        @db.NVarChar(Max)
+  pleskPlanName String?
+  pleskPlanId   Int?
+  diskSpace     String?
+  bandwidth     String?
+  databases     String?
+  emailAccounts String?
+  emailStorage  String?
+  ftpAccounts   String?
+  subdomains    String?
+  sslSupport    Boolean        @default(true)
+  phpSupport    Boolean        @default(true)
+  backups       String?
+  isActive      Boolean        @default(true)
+  isPopular     Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  orders        HostingOrder[]
 
   @@map("hosting_products")
 }
 
 model HostingOrder {
-  id              String    @id @default(uuid())
-  orderType       String    // HOSTING, DOMAIN_REGISTER, DOMAIN_TRANSFER, DOMAIN_CHECK, SSL, ADDITIONAL_HOSTING, QUOTE_REQUEST
-  status          String    @default("PENDING") // PENDING, QUOTED, PROFORMA_SENT, PAID, PROVISIONING, ACTIVE, FAILED, CANCELLED
-  domain          String?
-  notes           String?   @db.NVarChar(Max)
-  amount          Decimal?
-  period          Int       @default(1) // months
-  pleskSubscriptionId String?
+  id                    String          @id @default(uuid())
+  orderType             String
+  status                String          @default("PENDING")
+  domain                String?
+  notes                 String?         @db.NVarChar(Max)
+  amount                Decimal?
+  period                Int             @default(1)
+  pleskSubscriptionId   String?
   invoiceNinjaInvoiceId String?
-  recurringInvoiceId String?
-  provisionedAt   DateTime?
-  expiryDate      DateTime? // domain expiry date
-  reminderSentAt  DateTime? // last reminder email sent
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  productId String?
-  product   HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  projectId  String?
-  project    Project?  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subProjectId String?
-  subProject   SubProject? @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  sslCertificate SslCertificate?
+  recurringInvoiceId    String?
+  provisionedAt         DateTime?
+  expiryDate            DateTime?
+  reminderSentAt        DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  userId                String
+  productId             String?
+  customerId            String?
+  projectId             String?
+  subProjectId          String?
+  customer              Customer?       @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product               HostingProduct? @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project               Project?        @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subProject            SubProject?     @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user                  User            @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  sslCertificate        SslCertificate?
 
   @@map("hosting_orders")
 }
 
 model SslCertificate {
-  id                 String    @id @default(uuid())
-  orderId            String    @unique
-  order              HostingOrder @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  digicertOrderId    Int?      // DigiCert order ID
-  productType        String    // DV, OV, EV, WILDCARD
-  commonName         String    // e.g. example.com or *.example.com
-  sans               String?   @db.NVarChar(Max) // JSON array of SANs
-  status             String    @default("PENDING") // PENDING, PENDING_VALIDATION, ISSUED, EXPIRED, REVOKED, REJECTED, CANCELLED
-  csr                String?   @db.NVarChar(Max)
-  privateKey         String?   @db.NVarChar(Max) // encrypted
-  certificate        String?   @db.NVarChar(Max)
-  intermediateCert   String?   @db.NVarChar(Max)
-  rootCert           String?   @db.NVarChar(Max)
-  validationType     String?   // DNS, EMAIL, FILE
-  validationStatus   String?   // PENDING, COMPLETED
-  validationDetails  String?   @db.NVarChar(Max) // JSON with validation records
-  validFrom          DateTime?
-  validTo            DateTime?
-  issuedAt           DateTime?
-  renewalInvoiceId   String?   // Invoice Ninja invoice ID for renewal
-  reminderSentAt     DateTime? // last SSL expiry reminder sent
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                String       @id @default(uuid())
+  orderId           String       @unique
+  digicertOrderId   Int?
+  productType       String
+  commonName        String
+  sans              String?      @db.NVarChar(Max)
+  status            String       @default("PENDING")
+  csr               String?      @db.NVarChar(Max)
+  privateKey        String?      @db.NVarChar(Max)
+  certificate       String?      @db.NVarChar(Max)
+  intermediateCert  String?      @db.NVarChar(Max)
+  rootCert          String?      @db.NVarChar(Max)
+  validationType    String?
+  validationStatus  String?
+  validationDetails String?      @db.NVarChar(Max)
+  validFrom         DateTime?
+  validTo           DateTime?
+  issuedAt          DateTime?
+  renewalInvoiceId  String?
+  reminderSentAt    DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  order             HostingOrder @relation(fields: [orderId], references: [id], onUpdate: NoAction)
 
   @@index([digicertOrderId])
   @@index([validTo])
@@ -625,48 +587,45 @@ model SslCertificate {
 }
 
 model CodeRelease {
-  id          String   @id @default(uuid())
-  version     String   // e.g. "1.0.0", "2.3.1"
-  notes       String?  @db.NVarChar(Max) // changelog / release notes
-  fileName    String
-  fileExt     String
-  fileBase64  String   @db.NVarChar(Max) // base64 encoded zip/tar
-  fileSize    Int      @default(0)
-  uploadedBy  String?
-  createdAt   DateTime @default(now())
-
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  downloads   CodeDownloadLog[]
+  id         String            @id @default(uuid())
+  version    String
+  notes      String?           @db.NVarChar(Max)
+  fileName   String
+  fileExt    String
+  fileBase64 String            @db.NVarChar(Max)
+  fileSize   Int               @default(0)
+  uploadedBy String?
+  createdAt  DateTime          @default(now())
+  projectId  String
+  downloads  CodeDownloadLog[]
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("code_releases")
 }
 
 model CodeDownloadLog {
-  id            String   @id @default(uuid())
-  downloadedAt  DateTime @default(now())
+  id            String      @id @default(uuid())
+  downloadedAt  DateTime    @default(now())
   ipAddress     String?
-
   userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   codeReleaseId String
-  codeRelease   CodeRelease  @relation(fields: [codeReleaseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  codeRelease   CodeRelease @relation(fields: [codeReleaseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@map("code_download_logs")
 }
 
 model AuditLog {
   id          String   @id @default(uuid())
-  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, DOWNLOAD, PROVISION, CANCEL, CREDIT, etc.
-  entity      String   // USER, ISSUE, PROJECT, DOCUMENT, HOSTING_ORDER, HOSTING_PRODUCT, PAYMENT, etc.
-  entityId    String?  // ID of the affected entity
+  action      String
+  entity      String
+  entityId    String?
   description String   @db.NVarChar(Max)
-  metadata    String?  @db.NVarChar(Max) // JSON blob with additional context
+  metadata    String?  @db.NVarChar(Max)
   ipAddress   String?
   userAgent   String?  @db.NVarChar(Max)
-  userId      String?  // who performed the action
-  userName    String?  // denormalized for display when user is deleted
+  userId      String?
+  userName    String?
   createdAt   DateTime @default(now())
 
   @@index([entity, entityId])
@@ -677,25 +636,23 @@ model AuditLog {
 }
 
 model PaymentArrangement {
-  id              String   @id @default(uuid())
-  invoiceNumber   String   // Invoice Ninja invoice number
-  invoiceId       String?  // Invoice Ninja invoice ID
-  totalAmount     Decimal  // full outstanding amount
-  numberOfMonths  Int      // 1–3 months
-  monthlyAmount   Decimal  // totalAmount / numberOfMonths
-  reason          String?  @db.NVarChar(Max) // user's reason for arrangement
-  status          String   @default("PENDING") // PENDING, APPROVED, ACTIVE, COMPLETED, DEFAULTED, REJECTED, CANCELLED
-  adminNotes      String?  @db.NVarChar(Max)
-  approvedAt      DateTime?
-  approvedBy      String?  // admin user ID
-  completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  installments    PaymentArrangementInstallment[]
+  id             String                          @id @default(uuid())
+  invoiceNumber  String
+  invoiceId      String?
+  totalAmount    Decimal
+  numberOfMonths Int
+  monthlyAmount  Decimal
+  reason         String?                         @db.NVarChar(Max)
+  status         String                          @default("PENDING")
+  adminNotes     String?                         @db.NVarChar(Max)
+  approvedAt     DateTime?
+  approvedBy     String?
+  completedAt    DateTime?
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @updatedAt
+  userId         String
+  installments   PaymentArrangementInstallment[]
+  user           User                            @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@index([userId])
   @@index([status])
@@ -703,19 +660,18 @@ model PaymentArrangement {
 }
 
 model PaymentArrangementInstallment {
-  id              String    @id @default(uuid())
-  installmentNo   Int       // 1, 2, 3
-  amount          Decimal
-  dueDate         DateTime
-  status          String    @default("PENDING") // PENDING, PAID, OVERDUE, WAIVED
-  paidAt          DateTime?
-  paymentId       String?   // links to Payment record if paid via platform
-  gatewayRef      String?   // external payment reference
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  arrangementId   String
-  arrangement     PaymentArrangement @relation(fields: [arrangementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id            String             @id @default(uuid())
+  installmentNo Int
+  amount        Decimal
+  dueDate       DateTime
+  status        String             @default("PENDING")
+  paidAt        DateTime?
+  paymentId     String?
+  gatewayRef    String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  arrangementId String
+  arrangement   PaymentArrangement @relation(fields: [arrangementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([arrangementId])
   @@index([dueDate])
@@ -723,53 +679,46 @@ model PaymentArrangementInstallment {
 }
 
 model GitHubAccount {
-  id           String   @id @default(uuid())
-  label        String   // Display name, e.g. "GlobalWebServe" or "Personal"
-  owner        String   // GitHub username or org name
-  patEncrypted String   @db.NVarChar(Max) // AES-256-GCM encrypted PAT
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
+  id           String       @id @default(uuid())
+  label        String
+  owner        String       @unique
+  patEncrypted String       @db.NVarChar(Max)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   repos        GitHubRepo[]
 
-  @@unique([owner])
   @@map("github_accounts")
 }
 
 model GitHubRepo {
-  id          String   @id @default(uuid())
-  owner       String   // GitHub org or user
-  name        String   // repo name
-  fullName    String   // owner/name
-  description String?  @db.NVarChar(Max)
-  htmlUrl     String   // https://github.com/owner/name
-  isPrivate   Boolean  @default(false)
-  language    String?
-  createdAt   DateTime @default(now())
-
-  customers CustomerRepo[]
-
-  projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
+  id           String         @id @default(uuid())
+  owner        String
+  name         String
+  fullName     String
+  description  String?        @db.NVarChar(Max)
+  htmlUrl      String
+  isPrivate    Boolean        @default(false)
+  language     String?
+  createdAt    DateTime       @default(now())
+  projectId    String?
   subProjectId String?
-  subProject   SubProject? @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  accountId  String?
-  account    GitHubAccount? @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  accountId    String?
+  customers    CustomerRepo[]
+  account      GitHubAccount? @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project      Project?       @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subProject   SubProject?    @relation(fields: [subProjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([owner, name])
   @@map("github_repos")
 }
 
 model CustomerRepo {
-  id         String   @id @default(uuid())
-  assignedAt DateTime @default(now())
-  assignedBy String?  // admin userId
-
+  id         String     @id @default(uuid())
+  assignedAt DateTime   @default(now())
+  assignedBy String?
   customerId String
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   repoId     String
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   repo       GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([customerId, repoId])
@@ -777,41 +726,39 @@ model CustomerRepo {
 }
 
 model SecureNote {
-  id          String   @id @default(uuid())
-  label       String   // e.g. "cPanel Login", "FTP Credentials"
-  category    String   @default("GENERAL") // GENERAL, HOSTING, DATABASE, API, EMAIL, FTP, OTHER
-  encValue    String   @db.NVarChar(Max)   // AES-256-GCM encrypted JSON blob
-  notes       String?  @db.NVarChar(Max)   // optional unencrypted notes/description
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-  createdBy   String?  // userId who created this
-
-  customerId  String
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id         String   @id @default(uuid())
+  label      String
+  category   String   @default("GENERAL")
+  encValue   String   @db.NVarChar(Max)
+  notes      String?  @db.NVarChar(Max)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  createdBy  String?
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("secure_notes")
 }
 
 model BulkEmailCampaign {
-  id            String    @id @default(uuid())
-  name          String                            // campaign name/label
-  subject       String                            // email subject line
-  contentHtml   String?   @db.NVarChar(Max)       // HTML body
-  contentText   String?   @db.NVarChar(Max)       // plain text body
-  format        String    @default("html")        // "html" | "text"
-  status        String    @default("DRAFT")       // DRAFT, SENDING, SENT, FAILED
-  recipientFilter String? @db.NVarChar(Max)       // JSON: {type: "all"|"customers"|"contacts"|"custom", customerIds?: [], contactIds?: []}
-  totalRecipients Int     @default(0)
-  sentCount     Int       @default(0)
-  failedCount   Int       @default(0)
-  sentAt        DateTime?
-  completedAt   DateTime?
-  createdBy     String
-  createdByName String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  recipients    BulkEmailRecipient[]
+  id              String               @id @default(uuid())
+  name            String
+  subject         String
+  contentHtml     String?              @db.NVarChar(Max)
+  contentText     String?              @db.NVarChar(Max)
+  format          String               @default("html")
+  status          String               @default("DRAFT")
+  recipientFilter String?              @db.NVarChar(Max)
+  totalRecipients Int                  @default(0)
+  sentCount       Int                  @default(0)
+  failedCount     Int                  @default(0)
+  sentAt          DateTime?
+  completedAt     DateTime?
+  createdBy       String
+  createdByName   String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  recipients      BulkEmailRecipient[]
 
   @@index([status])
   @@index([createdAt])
@@ -819,17 +766,17 @@ model BulkEmailCampaign {
 }
 
 model BulkEmailRecipient {
-  id          String    @id @default(uuid())
-  campaignId  String
-  campaign    BulkEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  email       String
-  name        String?
-  company     String?
-  status      String    @default("PENDING")       // PENDING, SENT, FAILED
-  error       String?   @db.NVarChar(Max)
-  sentAt      DateTime?
-  customerId  String?
-  contactId   String?
+  id         String            @id @default(uuid())
+  campaignId String
+  email      String
+  name       String?
+  company    String?
+  status     String            @default("PENDING")
+  error      String?           @db.NVarChar(Max)
+  sentAt     DateTime?
+  customerId String?
+  contactId  String?
+  campaign   BulkEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([campaignId])
   @@index([status])
@@ -837,39 +784,35 @@ model BulkEmailRecipient {
 }
 
 model TrustedDevice {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  tokenHash   String   // SHA-256 hash of the trust token
-  deviceName  String?  // User-Agent or device description
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String
+  deviceName String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([userId])
   @@index([tokenHash])
   @@map("trusted_devices")
 }
 
-// ─── App Store Statistics ────────────────────────────
-
 model MobileApp {
-  id            String   @id @default(uuid())
-  name          String
-  bundleId      String   // e.g. com.company.app
-  platform      String   // GOOGLE_PLAY, APPLE
-  storeUrl      String?  @db.NVarChar(Max)
-  packageName   String?  // Google Play package name (same as bundleId for Android)
-  appleId       String?  // Apple numeric app ID
-  iconUrl       String?  @db.NVarChar(Max)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  stats         AppStoreStatistic[]
-  builds        AppBuild[]
+  id          String              @id @default(uuid())
+  name        String
+  bundleId    String
+  platform    String
+  storeUrl    String?             @db.NVarChar(Max)
+  packageName String?
+  appleId     String?
+  iconUrl     String?             @db.NVarChar(Max)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  customerId  String
+  builds      AppBuild[]
+  stats       AppStoreStatistic[]
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([bundleId, platform])
   @@index([customerId])
@@ -877,19 +820,18 @@ model MobileApp {
 }
 
 model AppStoreStatistic {
-  id            String   @id @default(uuid())
-  date          DateTime // the date this stat covers
-  downloads     Int      @default(0)
-  updates       Int      @default(0)
-  activeDevices Int      @default(0)
-  revenue       Decimal  @default(0) @db.Decimal(18, 2)
-  ratings       Int      @default(0)
-  averageRating Decimal? @db.Decimal(3, 2)
-  crashes       Int      @default(0)
-  uninstalls    Int      @default(0)
-  country       String?  // ISO 3166-1 alpha-2 or null for aggregate
-  createdAt     DateTime @default(now())
-
+  id            String    @id @default(uuid())
+  date          DateTime
+  downloads     Int       @default(0)
+  updates       Int       @default(0)
+  activeDevices Int       @default(0)
+  revenue       Decimal   @default(0) @db.Decimal(18, 2)
+  ratings       Int       @default(0)
+  averageRating Decimal?  @db.Decimal(3, 2)
+  crashes       Int       @default(0)
+  uninstalls    Int       @default(0)
+  country       String?
+  createdAt     DateTime  @default(now())
   appId         String
   app           MobileApp @relation(fields: [appId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -900,19 +842,18 @@ model AppStoreStatistic {
 
 model AppBuild {
   id              String    @id @default(uuid())
-  version         String    // e.g. 1.2.3
-  buildNumber     String    // e.g. 42
-  status          String    @default("SUBMITTED") // SUBMITTED, IN_REVIEW, APPROVED, REJECTED, RELEASED
-  trackOrChannel  String?   // production, beta, alpha / App Store, TestFlight
+  version         String
+  buildNumber     String
+  status          String    @default("SUBMITTED")
+  trackOrChannel  String?
   submittedAt     DateTime?
   reviewedAt      DateTime?
   releasedAt      DateTime?
   releaseNotes    String?   @db.NVarChar(Max)
   rejectionReason String?   @db.NVarChar(Max)
-  notifiedAt      DateTime? // when we notified the client
+  notifiedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   appId           String
   app             MobileApp @relation(fields: [appId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -922,27 +863,26 @@ model AppBuild {
 }
 
 model Referral {
-  id              String    @id @default(uuid())
-  referrerName    String                          // person who referred
-  referrerEmail   String                          // referrer email
-  referrerPhone   String?                         // referrer phone
-  refereeName     String                          // person being referred
-  refereeEmail    String                          // referee email
-  refereePhone    String?                         // referee phone
-  refereeCompany  String?                         // referee company name
-  service         String?                         // service they're interested in
-  notes           String?   @db.NVarChar(Max)     // additional notes
-  status          String    @default("PENDING")   // PENDING, CONTACTED, CONVERTED, PAID, CANCELLED
-  commissionRate  Float     @default(10)          // commission percentage
-  commissionAmount Float?                         // calculated commission amount
-  dealValue       Float?                          // value of the deal if converted
-  paidAt          DateTime?                       // when commission was paid out
-  convertedAt     DateTime?                       // when the referral converted
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
-
-  customerId      String?                         // linked referring customer
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id               String    @id @default(uuid())
+  referrerName     String
+  referrerEmail    String
+  referrerPhone    String?
+  refereeName      String
+  refereeEmail     String
+  refereePhone     String?
+  refereeCompany   String?
+  service          String?
+  notes            String?   @db.NVarChar(Max)
+  status           String    @default("PENDING")
+  commissionRate   Float     @default(10)
+  commissionAmount Float?
+  dealValue        Float?
+  paidAt           DateTime?
+  convertedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id], onUpdate: NoAction)
 
   @@index([status])
   @@index([referrerEmail])
@@ -953,20 +893,19 @@ model ProjectIdea {
   id           String    @id @default(uuid())
   title        String
   description  String    @db.NVarChar(Max)
-  category     String    @default("GENERAL")    // GENERAL, WEB, MOBILE, AUTOMATION, INTEGRATION, OTHER
-  priority     String    @default("MEDIUM")      // LOW, MEDIUM, HIGH, URGENT
-  status       String    @default("NEW")         // NEW, REVIEWING, APPROVED, IN_PROGRESS, COMPLETED, REJECTED
-  budget       Float?                             // estimated budget
-  timeline     String?                            // e.g. "2 weeks", "3 months"
-  attachments  String?   @db.NVarChar(Max)       // JSON array of file URLs
-  adminNotes   String?   @db.NVarChar(Max)       // internal notes from admin
-  submittedBy  String?                            // name of person who submitted
-  contactEmail String?                            // contact email for follow-up
+  category     String    @default("GENERAL")
+  priority     String    @default("MEDIUM")
+  status       String    @default("NEW")
+  budget       Float?
+  timeline     String?
+  attachments  String?   @db.NVarChar(Max)
+  adminNotes   String?   @db.NVarChar(Max)
+  submittedBy  String?
+  contactEmail String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @default(now()) @updatedAt
-
   customerId   String?
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customer     Customer? @relation(fields: [customerId], references: [id], onUpdate: NoAction)
 
   @@index([status])
   @@index([category])

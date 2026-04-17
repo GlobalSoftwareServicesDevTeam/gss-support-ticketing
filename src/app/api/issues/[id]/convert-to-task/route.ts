@@ -15,7 +15,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { projectId, assigneeIds } = body;
+  const { projectId, assigneeIds, startDate, dueDate } = body;
 
   if (!projectId) {
     return NextResponse.json({ error: "Project is required" }, { status: 400 });
@@ -68,6 +68,8 @@ export async function POST(
       description: descParts.join("\n\n") || null,
       priority: issue.priority,
       status: "TODO",
+      startDate: startDate ? new Date(startDate) : null,
+      dueDate: dueDate ? new Date(dueDate) : null,
       order: (maxOrder._max.order || 0) + 1,
       projectId,
       issueId: id,

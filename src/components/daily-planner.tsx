@@ -29,6 +29,7 @@ interface Task {
   description: string | null;
   status: string;
   priority: string;
+  startDate: string | null;
   dueDate: string | null;
   startTime: string | null;
   estimatedDuration: number | null;
@@ -130,11 +131,12 @@ export default function DailyPlanner({ tasks, onRefresh }: DailyPlannerProps) {
   const dateStr = getDateStr(selectedDate);
   const dayEnd = overtimeEnabled ? overtimeEnd : DAY_END;
 
-  // Get tasks for the selected date (tasks with dueDate matching the selected day)
+  // Get tasks for the selected date (tasks with startDate or dueDate matching the selected day)
   const dayTasks = tasks.filter((t) => {
-    if (!t.dueDate) return false;
-    const taskDate = t.dueDate.split("T")[0];
-    return taskDate === dateStr && t.status !== "DONE";
+    if (t.status === "DONE") return false;
+    const startMatch = t.startDate ? t.startDate.split("T")[0] === dateStr : false;
+    const dueMatch = t.dueDate ? t.dueDate.split("T")[0] === dateStr : false;
+    return startMatch || dueMatch;
   });
 
   // Build schedule from tasks
@@ -651,6 +653,20 @@ export default function DailyPlanner({ tasks, onRefresh }: DailyPlannerProps) {
                                 </span>
                               )}
                             </p>
+                            {(task.startDate || task.dueDate) && (
+                              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5">
+                                {task.startDate && (
+                                  <span className="text-green-600 dark:text-green-400 mr-2">
+                                    Start: {new Date(task.startDate).toLocaleDateString()} {new Date(task.startDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                                {task.dueDate && (
+                                  <span className="text-orange-600 dark:text-orange-400">
+                                    Due: {new Date(task.dueDate).toLocaleDateString()} {new Date(task.dueDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                              </p>
+                            )}
                           </div>
                           <span
                             className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${

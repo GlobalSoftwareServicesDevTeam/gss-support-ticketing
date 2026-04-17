@@ -20,7 +20,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { projectId, newProjectName, taskPriority, taskDueDate } = body;
+  const { projectId, newProjectName, taskPriority, taskStartDate, taskDueDate } = body;
 
   if (!projectId && !newProjectName) {
     return NextResponse.json(
@@ -71,6 +71,7 @@ export async function POST(
       title: idea.title,
       description: idea.description,
       priority: taskPriority || priorityMap[idea.priority] || "MEDIUM",
+      startDate: taskStartDate ? new Date(taskStartDate) : null,
       dueDate: taskDueDate ? new Date(taskDueDate) : null,
       order: (maxOrder._max.order || 0) + 1,
       projectId: targetProjectId,

@@ -31,6 +31,7 @@ interface Task {
   description: string | null;
   status: string;
   priority: string;
+  startDate: string | null;
   dueDate: string | null;
   startTime: string | null;
   estimatedDuration: number | null;
@@ -75,7 +76,19 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+  const date = new Date(d);
+  const hasTime = d.includes("T") && !d.endsWith("T00:00:00.000Z");
+  if (hasTime) {
+    return date.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) + " " + date.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function toDateTimeLocal(isoStr: string | null): string {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function isSameDay(d1: Date, d2: Date) {
@@ -110,6 +123,7 @@ export default function TaskSchedulePage() {
     title: "",
     description: "",
     priority: "MEDIUM",
+    startDate: "",
     dueDate: "",
     startTime: "",
     estimatedDuration: "",
@@ -170,7 +184,7 @@ export default function TaskSchedulePage() {
 
   function openAdd(dateStr?: string) {
     setEditingTask(null);
-    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", dueDate: dateStr || "", startTime: "", estimatedDuration: "", assigneeIds: [] });
+    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", startDate: "", dueDate: dateStr ? dateStr + "T17:00" : "", startTime: "", estimatedDuration: "", assigneeIds: [] });
     setShowAddModal(true);
     setMsg("");
   }
@@ -182,7 +196,8 @@ export default function TaskSchedulePage() {
       title: task.title,
       description: task.description || "",
       priority: task.priority,
-      dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
+      startDate: toDateTimeLocal(task.startDate),
+      dueDate: toDateTimeLocal(task.dueDate),
       startTime: task.startTime || "",
       estimatedDuration: task.estimatedDuration ? String(task.estimatedDuration) : "",
       assigneeIds: task.assignments.map((a) => a.user.id),
@@ -206,6 +221,7 @@ export default function TaskSchedulePage() {
             title: form.title,
             description: form.description || null,
             priority: form.priority,
+            startDate: form.startDate || null,
             dueDate: form.dueDate || null,
             startTime: form.startTime || null,
             estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
@@ -224,6 +240,7 @@ export default function TaskSchedulePage() {
             title: form.title,
             description: form.description || null,
             priority: form.priority,
+            startDate: form.startDate || null,
             dueDate: form.dueDate || null,
             startTime: form.startTime || null,
             estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
@@ -414,6 +431,12 @@ export default function TaskSchedulePage() {
                         {t.title}
                       </p>
                       <p className="text-slate-500 dark:text-gray-400 truncate">{t.project.projectName}</p>
+                      {t.startDate && (
+                        <p className="text-[10px] text-green-600 dark:text-green-400">Start: {new Date(t.startDate).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}</p>
+                      )}
+                      {t.dueDate && (
+                        <p className="text-[10px] text-orange-600 dark:text-orange-400">Due: {new Date(t.dueDate).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}</p>
+                      )}
                       <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[t.status]}`}>
                         {STATUS_LABELS[t.status]}
                       </span>
@@ -449,7 +472,7 @@ export default function TaskSchedulePage() {
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <input
-                    type="date"
+                    type="datetime-local"
                     title="Set due date"
                     className="text-xs border border-slate-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300"
                     onChange={(e) => handleSetDueDate(t.id, e.target.value)}
@@ -488,6 +511,7 @@ export default function TaskSchedulePage() {
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Project</th>
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Status</th>
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Priority</th>
+                <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Start Date</th>
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Due Date</th>
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Assigned</th>
                 <th className="px-4 py-3 font-medium text-slate-600 dark:text-gray-300">Actions</th>
@@ -530,13 +554,22 @@ export default function TaskSchedulePage() {
                   </td>
                   <td className="px-4 py-3 text-xs font-medium text-slate-600 dark:text-gray-400">{t.priority}</td>
                   <td className="px-4 py-3">
+                    {t.startDate ? (
+                      <span className="text-xs text-slate-600 dark:text-gray-400">
+                        {formatDate(t.startDate)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     {t.dueDate ? (
                       <span className={`text-xs ${new Date(t.dueDate) < today && t.status !== "DONE" ? "text-red-600 font-medium" : "text-slate-600 dark:text-gray-400"}`}>
                         {formatDate(t.dueDate)}
                       </span>
                     ) : (
                       <input
-                        type="date"
+                        type="datetime-local"
                         title="Set due date"
                         className="text-xs border border-slate-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300"
                         onChange={(e) => handleSetDueDate(t.id, e.target.value)}
@@ -560,7 +593,7 @@ export default function TaskSchedulePage() {
               ))}
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 dark:text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400 dark:text-gray-500">
                     <AlertCircle className="mx-auto h-8 w-8 mb-2" />
                     No tasks found
                   </td>
@@ -643,29 +676,7 @@ export default function TaskSchedulePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Due Date</label>
-                    <input
-                      type="date"
-                      title="Due date"
-                      value={form.dueDate}
-                      onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Start Time</label>
-                    <input
-                      type="time"
-                      title="Start time"
-                      value={form.startTime}
-                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Duration (minutes)</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Estimated Duration (min)</label>
                     <input
                       type="number"
                       min="15"
@@ -676,6 +687,43 @@ export default function TaskSchedulePage() {
                       placeholder="60"
                       className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
                     />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Start Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      title="Start date and time"
+                      value={form.startDate}
+                      onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Due Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      title="Due date and time"
+                      value={form.dueDate}
+                      onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Planner Start Time</label>
+                    <input
+                      type="time"
+                      title="Daily planner start time"
+                      value={form.startTime}
+                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <p className="text-xs text-slate-400 dark:text-gray-500 pb-2">Planner time is used by the Daily Planner tab for scheduling within a day.</p>
                   </div>
                 </div>
                 <div>

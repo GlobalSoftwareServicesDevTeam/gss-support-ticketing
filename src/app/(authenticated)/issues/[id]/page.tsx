@@ -60,6 +60,8 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
   const [convertProjectId, setConvertProjectId] = useState("");
   const [convertAssignees, setConvertAssignees] = useState<string[]>([]);
+  const [convertStartDate, setConvertStartDate] = useState("");
+  const [convertDueDate, setConvertDueDate] = useState("");
   const [converting, setConverting] = useState(false);
   const [convertMsg, setConvertMsg] = useState("");
 
@@ -147,6 +149,8 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
     setConvertMsg("");
     setConvertProjectId(issue?.project?.projectName ? "" : "");
     setConvertAssignees([]);
+    setConvertStartDate("");
+    setConvertDueDate("");
     setShowConvertModal(true);
 
     // Load projects and users in parallel
@@ -180,6 +184,8 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
       body: JSON.stringify({
         projectId: convertProjectId,
         assigneeIds: convertAssignees,
+        startDate: convertStartDate || undefined,
+        dueDate: convertDueDate || undefined,
       }),
     });
 
@@ -476,6 +482,32 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
                       <span className="text-gray-700 dark:text-gray-300">{u.firstName} {u.lastName}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Start Date & Time <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={convertStartDate}
+                    onChange={(e) => setConvertStartDate(e.target.value)}
+                    title="Start date and time"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Due Date & Time <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={convertDueDate}
+                    onChange={(e) => setConvertDueDate(e.target.value)}
+                    title="Due date and time"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">

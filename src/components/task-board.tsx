@@ -14,6 +14,7 @@ interface Task {
   description: string | null;
   status: string;
   priority: string;
+  startDate: string | null;
   dueDate: string | null;
   order: number;
   assignments: Assignment[];
@@ -48,6 +49,7 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
     title: "",
     description: "",
     priority: "MEDIUM",
+    startDate: "",
     dueDate: "",
     assigneeIds: [] as string[],
   });
@@ -60,7 +62,7 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
   }, []);
 
   function resetForm() {
-    setForm({ title: "", description: "", priority: "MEDIUM", dueDate: "", assigneeIds: [] });
+    setForm({ title: "", description: "", priority: "MEDIUM", startDate: "", dueDate: "", assigneeIds: [] });
     setShowForm(false);
     setEditingTask(null);
   }
@@ -109,7 +111,8 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
       title: task.title,
       description: task.description || "",
       priority: task.priority,
-      dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
+      startDate: task.startDate ? task.startDate.slice(0, 16) : "",
+      dueDate: task.dueDate ? task.dueDate.slice(0, 16) : "",
       assigneeIds: task.assignments.map((a) => a.user.id),
     });
     setShowForm(true);
@@ -175,12 +178,22 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Start Date & Time</label>
               <input
-                type="date"
+                type="datetime-local"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                title="Start date and time"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Due Date & Time</label>
+              <input
+                type="datetime-local"
                 value={form.dueDate}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                title="Due date"
+                title="Due date and time"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
               />
             </div>
@@ -244,8 +257,11 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
                         ))}
                       </div>
                     )}
-                    {task.dueDate && (
-                      <p className="text-xs text-slate-400 mb-2">Due: {new Date(task.dueDate).toLocaleDateString()}</p>
+                    {(task.startDate || task.dueDate) && (
+                      <div className="text-xs text-slate-400 mb-2">
+                        {task.startDate && <span className="mr-2">Start: {new Date(task.startDate).toLocaleString()}</span>}
+                        {task.dueDate && <span>Due: {new Date(task.dueDate).toLocaleString()}</span>}
+                      </div>
                     )}
                     <div className="flex items-center gap-1 flex-wrap">
                       <select
