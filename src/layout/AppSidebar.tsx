@@ -244,6 +244,7 @@ const AppSidebar: React.FC = () => {
             )
           )}
           {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
+            // eslint-disable-next-line react/forbid-dom-props
             <div
               ref={(el) => {
                 subMenuRefs.current[`${menuType}-${index}`] = el;

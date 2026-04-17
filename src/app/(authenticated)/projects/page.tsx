@@ -129,6 +129,7 @@ export default function ProjectsPage() {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Client *</label>
             <select
+              title="Select client"
               value={form.customerId}
               onChange={(e) => setForm({ ...form, customerId: e.target.value })}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"

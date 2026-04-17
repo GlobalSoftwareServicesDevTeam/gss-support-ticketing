@@ -7,8 +7,7 @@ export function PayFastLogo({ size = 24, className = "" }: { size?: number; clas
       src="/payment_gateways/payfast.png"
       alt="PayFast"
       height={size}
-      style={{ height: size, width: "auto", display: "inline-block", objectFit: "contain" }}
-      className={className}
+      className={`inline-block object-contain w-auto ${className}`}
     />
   );
 }
@@ -20,8 +19,7 @@ export function OzowLogo({ size = 24, className = "" }: { size?: number; classNa
       src="/payment_gateways/ozow.png"
       alt="Ozow"
       height={size}
-      style={{ height: size, width: "auto", display: "inline-block", objectFit: "contain" }}
-      className={className}
+      className={`inline-block object-contain w-auto ${className}`}
     />
   );
 }
@@ -33,8 +31,7 @@ export function EftIcon({ size = 24, className = "" }: { size?: number; classNam
       src="/payment_gateways/fnb.png"
       alt="FNB Bank Transfer"
       height={size}
-      style={{ height: size, width: "auto", display: "inline-block", objectFit: "contain" }}
-      className={className}
+      className={`inline-block object-contain w-auto ${className}`}
     />
   );
 }

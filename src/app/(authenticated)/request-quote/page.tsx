@@ -120,6 +120,7 @@ export default function RequestQuotePage() {
               Project Type <span className="text-red-500">*</span>
             </label>
             <select
+              title="Project type"
               name="projectType"
               value={form.projectType}
               onChange={handleChange}

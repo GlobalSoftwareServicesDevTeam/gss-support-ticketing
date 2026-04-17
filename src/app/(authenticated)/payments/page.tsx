@@ -428,6 +428,7 @@ export default function PaymentsPage() {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Select Invoice <span className="text-slate-400 font-normal">(optional)</span></label>
                     <select
+                      title="Select invoice"
                       value={selectedInvoiceId}
                       onChange={(e) => handleInvoiceSelect(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 bg-white"

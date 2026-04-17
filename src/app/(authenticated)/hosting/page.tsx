@@ -1112,6 +1112,7 @@ export default function HostingPage() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Select Domain</h2>
             <div className="flex flex-col sm:flex-row gap-3">
               <select
+                title="Select domain"
                 className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                 value={dnsSelectedDomain}
                 onChange={(e) => { setDnsSelectedDomain(e.target.value); setDnsCustomDomain(""); }}
@@ -1172,10 +1173,10 @@ export default function HostingPage() {
                     <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border-b border-slate-200 dark:border-slate-700">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-medium text-slate-900 dark:text-white">{dnsEditingRecord ? "Edit Record" : "Add New Record"}</h4>
-                        <button onClick={() => { setDnsShowAddForm(false); setDnsEditingRecord(null); setDnsForm({ type: "A", host: "", value: "", opt: "" }); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+                        <button title="Close form" onClick={() => { setDnsShowAddForm(false); setDnsEditingRecord(null); setDnsForm({ type: "A", host: "", value: "", opt: "" }); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                        <select value={dnsForm.type} onChange={(e) => setDnsForm({ ...dnsForm, type: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white">
+                        <select title="Record type" value={dnsForm.type} onChange={(e) => setDnsForm({ ...dnsForm, type: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white">
                           {DNS_RECORD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <input type="text" placeholder="Host (e.g. @ or sub)" value={dnsForm.host} onChange={(e) => setDnsForm({ ...dnsForm, host: e.target.value })} className="px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white" />
@@ -1839,6 +1840,7 @@ export default function HostingPage() {
                         <td className="px-4 py-2">
                           <input
                             type="text"
+                            title="Product name"
                             value={editProductForm.name}
                             onChange={(e) => setEditProductForm({ ...editProductForm, name: e.target.value })}
                             className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white dark:bg-slate-700"
@@ -1860,6 +1862,7 @@ export default function HostingPage() {
                         <td className="px-4 py-2">
                           <input
                             type="number"
+                            title="Monthly price"
                             value={editProductForm.monthlyPrice}
                             onChange={(e) => setEditProductForm({ ...editProductForm, monthlyPrice: e.target.value })}
                             className="w-24 ml-auto px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right text-slate-900 dark:text-white dark:bg-slate-700"
@@ -1868,6 +1871,7 @@ export default function HostingPage() {
                         <td className="px-4 py-2">
                           <input
                             type="number"
+                            title="Setup fee"
                             value={editProductForm.setupFee}
                             onChange={(e) => setEditProductForm({ ...editProductForm, setupFee: e.target.value })}
                             className="w-24 ml-auto px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-right text-slate-900 dark:text-white dark:bg-slate-700"
@@ -1876,6 +1880,7 @@ export default function HostingPage() {
                         <td className="px-4 py-2">
                           <input
                             type="text"
+                            title="Plesk plan name"
                             value={editProductForm.pleskPlanName}
                             onChange={(e) => setEditProductForm({ ...editProductForm, pleskPlanName: e.target.value })}
                             className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white dark:bg-slate-700"
