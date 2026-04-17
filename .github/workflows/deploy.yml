@@ -58,8 +58,8 @@ jobs:
           # Write remote deploy script to a file
           cat > /tmp/remote_deploy.sh <<'REMOTESCRIPT'
           set -e
-          DOMAIN_DIR="$HOME/domains/support.globalsoftwareservices.co.za"
-          APP_DIR="$DOMAIN_DIR/nodejs"
+          APP_DIR="$HOME/support.globalsoftwareservices.co.za"
+          NODE_BIN="/opt/plesk/node/24/bin/node"
 
           rm -rf /tmp/nextjs-deploy
           mkdir -p /tmp/nextjs-deploy
@@ -68,13 +68,13 @@ jobs:
           rm ~/deploy.tar.gz
 
           cd "$APP_DIR"
-          find . -mindepth 1 -maxdepth 1 \
-            ! -name '.env' \
-            ! -name 'tmp' \
-            ! -name 'console.log' \
-            ! -name 'stderr.log' \
-            ! -name 'node_modules' \
-            -exec rm -rf {} +
+          # Remove old build files but preserve config, logs, node_modules, .env
+          rm -rf .next/standalone .next/static .next/server .next/build \
+            .next/BUILD_ID .next/build-manifest.json .next/routes-manifest.json \
+            .next/prerender-manifest.json .next/required-server-files.json \
+            .next/app-path-routes-manifest.json .next/fallback-build-manifest.json \
+            .next/images-manifest.json .next/export-marker.json \
+            server.js 2>/dev/null || true
 
           cp -a /tmp/nextjs-deploy/.next/standalone/. "$APP_DIR/"
           mkdir -p "$APP_DIR/.next/static"
@@ -83,9 +83,26 @@ jobs:
           cp -a /tmp/nextjs-deploy/public/. "$APP_DIR/public/" 2>/dev/null || true
           rm -rf /tmp/nextjs-deploy
 
-          mkdir -p "$APP_DIR/tmp"
-          touch "$APP_DIR/tmp/restart.txt"
-          echo "Deploy complete. Passenger restart triggered."
+          # Restart the Node.js process
+          echo "Killing old next-server processes..."
+          pkill -f "next-server" -u "$(whoami)" 2>/dev/null || true
+          sleep 2
+
+          cd "$APP_DIR"
+          export PORT=3001
+          export HOSTNAME=0.0.0.0
+          export NODE_ENV=production
+          nohup "$NODE_BIN" server.js >> console.log 2>> stderr.log &
+          sleep 3
+
+          # Verify
+          if pgrep -f "next-server" -u "$(whoami)" > /dev/null; then
+            echo "Deploy complete. Server restarted successfully."
+          else
+            echo "WARNING: Server may not have started. Check stderr.log"
+            tail -5 "$APP_DIR/stderr.log" 2>/dev/null
+            exit 1
+          fi
           REMOTESCRIPT
 
           # Retry SCP up to 3 times
