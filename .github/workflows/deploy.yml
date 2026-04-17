@@ -60,6 +60,7 @@ jobs:
           set -e
           APP_DIR="$HOME/support.globalsoftwareservices.co.za"
           NODE_BIN="/opt/plesk/node/24/bin/node"
+          NODE_BIN_DIR="/opt/plesk/node/24/bin"
 
           rm -rf /tmp/nextjs-deploy
           mkdir -p /tmp/nextjs-deploy
@@ -82,6 +83,18 @@ jobs:
           mkdir -p "$APP_DIR/public"
           cp -a /tmp/nextjs-deploy/public/. "$APP_DIR/public/" 2>/dev/null || true
           rm -rf /tmp/nextjs-deploy
+
+          # Ensure Prisma client symlink for Turbopack hashed module
+          PRISMA_HASH=$(grep -roh '@prisma/client-[a-f0-9]\+' "$APP_DIR/.next/server/chunks/" 2>/dev/null | head -1 | sed 's/@prisma\///')
+          if [ -n "$PRISMA_HASH" ]; then
+            echo "Creating symlink for $PRISMA_HASH..."
+            ln -sfn ../../.prisma/client "$APP_DIR/node_modules/@prisma/$PRISMA_HASH"
+          fi
+
+          # Generate Prisma client for Linux platform
+          cd "$APP_DIR"
+          export PATH="$NODE_BIN_DIR:/usr/bin:/bin:$PATH"
+          npx prisma generate 2>/dev/null || true
 
           # Restart the Node.js process
           echo "Killing old next-server processes..."
