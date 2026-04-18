@@ -9,6 +9,8 @@ const SENSITIVE_KEYS = new Set([
   "DIGICERT_API_KEY",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_KEY",
   "APPLE_CONNECT_PRIVATE_KEY",
+  "SENTRY_WEBHOOK_SECRET",
+  "IIS_API_KEY",
 ]);
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -59,7 +61,7 @@ export async function getSettings(keys: string[]): Promise<Record<string, string
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  const shouldEncrypt = SENSITIVE_KEYS.has(key);
+  const shouldEncrypt = SENSITIVE_KEYS.has(key) || key.endsWith("_SENTRY_SECRET");
   const storedValue = shouldEncrypt ? encrypt(value) : value;
 
   await prisma.systemSetting.upsert({
@@ -71,7 +73,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
 
 export async function setSettings(settings: Record<string, string>): Promise<void> {
   const ops = Object.entries(settings).map(([key, value]) => {
-    const shouldEncrypt = SENSITIVE_KEYS.has(key);
+    const shouldEncrypt = SENSITIVE_KEYS.has(key) || key.endsWith("_SENTRY_SECRET");
     const storedValue = shouldEncrypt ? encrypt(value) : value;
     return prisma.systemSetting.upsert({
       where: { key },
@@ -120,4 +122,8 @@ export async function getAppleConnectConfig() {
     "APPLE_CONNECT_ISSUER_ID",
     "APPLE_CONNECT_PRIVATE_KEY",
   ]);
+}
+
+export async function getIisServerConfig() {
+  return getSettings(["IIS_API_URL", "IIS_API_KEY", "IIS_SERVER_NAME"]);
 }

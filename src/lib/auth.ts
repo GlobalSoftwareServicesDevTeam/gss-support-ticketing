@@ -5,6 +5,7 @@ import Facebook from "next-auth/providers/facebook";
 import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
+import type { StaffPermissions } from "./permissions";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -122,6 +123,56 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user || trigger === "update") {
         const userId = user?.id || token.sub;
         if (userId) {
+          // Load staff permissions for EMPLOYEE users
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              role: true,
+              staffRole: {
+                select: {
+                  canManageTickets: true,
+                  canManageProjects: true,
+                  canManageBilling: true,
+                  canManageHosting: true,
+                  canManageUsers: true,
+                  canManageDocuments: true,
+                  canManageCode: true,
+                  canViewAuditLogs: true,
+                  canManageSettings: true,
+                  canManageCustomers: true,
+                  canManageTasks: true,
+                  canManageSentry: true,
+                  canBulkEmail: true,
+                },
+              },
+            },
+          });
+
+          // Update role from DB (may have changed)
+          if (dbUser) {
+            token.role = dbUser.role;
+          }
+
+          if (dbUser?.role === "EMPLOYEE" && dbUser.staffRole) {
+            token.staffPermissions = {
+              manageTickets: dbUser.staffRole.canManageTickets,
+              manageProjects: dbUser.staffRole.canManageProjects,
+              manageBilling: dbUser.staffRole.canManageBilling,
+              manageHosting: dbUser.staffRole.canManageHosting,
+              manageUsers: dbUser.staffRole.canManageUsers,
+              manageDocuments: dbUser.staffRole.canManageDocuments,
+              manageCode: dbUser.staffRole.canManageCode,
+              viewAuditLogs: dbUser.staffRole.canViewAuditLogs,
+              manageSettings: dbUser.staffRole.canManageSettings,
+              manageCustomers: dbUser.staffRole.canManageCustomers,
+              manageTasks: dbUser.staffRole.canManageTasks,
+              manageSentry: dbUser.staffRole.canManageSentry,
+              bulkEmail: dbUser.staffRole.canBulkEmail,
+            } as StaffPermissions;
+          } else {
+            token.staffPermissions = undefined;
+          }
+
           const contact = await prisma.contact.findFirst({
             where: { userId, inviteAccepted: true },
             select: {
@@ -157,6 +208,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             token.contactId = undefined;
             token.isPrimaryContact = undefined;
             token.customerPermissions = undefined;
+            token.hasUnsignedContracts = undefined;
+          }
+
+          // Check for unsigned contracts (primary contacts only)
+          if (contact?.isPrimary) {
+            const signedCount = await prisma.clientContract.count({
+              where: {
+                contactId: contact.id,
+                status: "SIGNED",
+                contractType: "NDA",
+              },
+            });
+            token.hasUnsignedContracts = signedCount === 0;
+          } else {
+            token.hasUnsignedContracts = false;
           }
         }
       }
@@ -171,6 +237,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as { contactId?: string }).contactId = token.contactId as string | undefined;
         (session.user as { isPrimaryContact?: boolean }).isPrimaryContact = token.isPrimaryContact as boolean | undefined;
         (session.user as { customerPermissions?: Record<string, boolean> }).customerPermissions = token.customerPermissions as Record<string, boolean> | undefined;
+        (session.user as { staffPermissions?: StaffPermissions }).staffPermissions = token.staffPermissions as StaffPermissions | undefined;
+        (session.user as { hasUnsignedContracts?: boolean }).hasUnsignedContracts = token.hasUnsignedContracts as boolean | undefined;
       }
       return session;
     },

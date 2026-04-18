@@ -1,0 +1,3 @@
+{
+  "/api/github/accounts/[id]/route": "app/api/github/accounts/[id]/route.js"
+}

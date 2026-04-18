@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { Agent, fetch as undiciFetch } from "undici";
 
 const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
 const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
-const ninjaAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 export async function GET(
   _req: NextRequest,
@@ -22,12 +20,11 @@ export async function GET(
 
     const { id } = await params;
 
-    const res = await undiciFetch(`${INVOICE_NINJA_URL}/api/v1/invoices/${id}`, {
+    const res = await fetch(`${INVOICE_NINJA_URL}/api/v1/invoices/${id}`, {
       headers: {
         "X-Api-Token": INVOICE_NINJA_TOKEN,
         "Content-Type": "application/json",
       },
-      dispatcher: ninjaAgent,
     });
 
     if (!res.ok) {

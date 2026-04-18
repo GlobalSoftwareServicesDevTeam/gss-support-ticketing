@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { email, firstName, lastName, role, projectIds, invoiceNinjaClientId } = body;
+  const { email, firstName, lastName, role, projectIds, invoiceNinjaClientId, staffRoleId } = body;
 
   if (!email || !firstName || !lastName) {
     return NextResponse.json({ error: "email, firstName, and lastName are required" }, { status: 400 });
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       inviteToken,
       inviteExpiresAt,
       invoiceNinjaClientId: invoiceNinjaClientId || null,
+      staffRoleId: role === "EMPLOYEE" ? staffRoleId || null : null,
     },
   });
 

@@ -254,6 +254,26 @@ export default function HostingAdminPage() {
     setActionLoading("");
   }
 
+  async function deleteOrder(orderId: string) {
+    if (!confirm("Permanently delete this order from the admin console? This cannot be undone.")) return;
+    setActionLoading(orderId);
+    try {
+      const res = await fetch(`/api/hosting/orders/${orderId}?mode=hard`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage("success", "Order deleted");
+        fetchData();
+      } else {
+        showMessage("error", data.error || "Failed to delete order");
+      }
+    } catch {
+      showMessage("error", "Network error");
+    }
+    setActionLoading("");
+  }
+
   async function provisionOrder(orderId: string) {
     setActionLoading(orderId);
     try {
@@ -318,6 +338,24 @@ export default function HostingAdminPage() {
       } else {
         const data = await res.json();
         showMessage("error", data.error || "Failed to update");
+      }
+    } catch {
+      showMessage("error", "Network error");
+    }
+    setActionLoading("");
+  }
+
+  async function deleteProduct(productId: string, productName: string) {
+    if (!confirm(`Permanently delete "${productName}"? This cannot be undone.`)) return;
+    setActionLoading(productId);
+    try {
+      const res = await fetch(`/api/hosting/products/${productId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage("success", "Product deleted");
+        fetchData();
+      } else {
+        showMessage("error", data.error || "Failed to delete");
       }
     } catch {
       showMessage("error", "Network error");
@@ -735,6 +773,15 @@ export default function HostingAdminPage() {
                                 <Pause size={12} /> Reopen as Pending
                               </button>
                             )}
+
+                            <button
+                              onClick={() => deleteOrder(order.id)}
+                              disabled={isLoading || order.status === "ACTIVE"}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
+                              title={order.status === "ACTIVE" ? "Cancel active order before deleting" : "Permanently delete order"}
+                            >
+                              <AlertTriangle size={12} /> Delete Order
+                            </button>
                           </div>
                         </div>
                       )}
@@ -1113,6 +1160,14 @@ export default function HostingAdminPage() {
                                   title={p.isActive !== false ? "Deactivate" : "Activate"}
                                 >
                                   {p.isActive !== false ? <Ban size={14} /> : <CheckCircle2 size={14} />}
+                                </button>
+                                <button
+                                  onClick={() => deleteProduct(p.id, p.name)}
+                                  disabled={actionLoading === p.id}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
+                                  title="Delete permanently"
+                                >
+                                  <Trash2 size={14} />
                                 </button>
                               </div>
                             </td>

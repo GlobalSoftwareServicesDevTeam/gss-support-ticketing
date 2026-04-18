@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
   const category = searchParams.get("category") || "";
+  const customerId = searchParams.get("customerId") || "";
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "25");
   const skip = (page - 1) * limit;
@@ -26,6 +27,10 @@ export async function GET(req: NextRequest) {
     where.customerId = userCustomerId;
   } else if (!isAdmin) {
     return NextResponse.json({ ideas: [], total: 0 });
+  }
+
+  if (isAdmin && customerId) {
+    where.customerId = customerId;
   }
 
   if (status) {

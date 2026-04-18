@@ -43,6 +43,8 @@ interface Task {
   issueId: string | null;
   project: { id: string; projectName: string };
   assignments: { user: TaskUser }[];
+  stageId: string | null;
+  stage?: { id: string; name: string; subProject?: { id: string; name: string } } | null;
 }
 
 interface ProjectOption {
@@ -55,6 +57,17 @@ interface UserOption {
   firstName: string;
   lastName: string;
   email: string;
+}
+
+interface SubProjectStageOption {
+  id: string;
+  name: string;
+}
+
+interface SubProjectOption {
+  id: string;
+  name: string;
+  stages: SubProjectStageOption[];
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -117,6 +130,8 @@ export default function TaskSchedulePage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [subProjects, setSubProjects] = useState<SubProjectOption[]>([]);
+  const [selectedSubProjectId, setSelectedSubProjectId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState("");
   const [activeTab, setActiveTab] = useState<"planner" | "week" | "list">("planner");
@@ -134,6 +149,7 @@ export default function TaskSchedulePage() {
     startTime: "",
     estimatedDuration: "",
     assigneeIds: [] as string[],
+    stageId: "",
   });
 
   const fetchTasks = useCallback(async () => {
@@ -160,6 +176,41 @@ export default function TaskSchedulePage() {
       if (uRes.ok) setUsers(await uRes.json());
     });
   }, []);
+
+  const fetchSubProjects = useCallback(async (projectId: string): Promise<SubProjectOption[]> => {
+    if (!projectId) return [];
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sub-projects`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((sp: { id: string; name: string; stages: { id: string; name: string }[] }) => ({
+          id: sp.id,
+          name: sp.name,
+          stages: sp.stages?.map((st: { id: string; name: string }) => ({ id: st.id, name: st.name })) || [],
+        }));
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }, []);
+
+  const loadSubProjectsForProject = useCallback(async (projectId: string, currentStageId?: string | null) => {
+    if (!projectId) {
+      setSubProjects([]);
+      setSelectedSubProjectId("");
+      return;
+    }
+    const options = await fetchSubProjects(projectId);
+    setSubProjects(options);
+
+    if (currentStageId) {
+      const parent = options.find((sp) => sp.stages.some((st) => st.id === currentStageId));
+      setSelectedSubProjectId(parent?.id || "");
+    } else {
+      setSelectedSubProjectId("");
+    }
+  }, [fetchSubProjects]);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
@@ -190,12 +241,14 @@ export default function TaskSchedulePage() {
 
   function openAdd(dateStr?: string) {
     setEditingTask(null);
-    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", startDate: "", dueDate: dateStr ? dateStr + "T17:00" : "", startTime: "", estimatedDuration: "", assigneeIds: [] });
+    setSubProjects([]);
+    setSelectedSubProjectId("");
+    setForm({ projectId: "", title: "", description: "", priority: "MEDIUM", startDate: "", dueDate: dateStr ? dateStr + "T17:00" : "", startTime: "", estimatedDuration: "", assigneeIds: [], stageId: "" });
     setShowAddModal(true);
     setMsg("");
   }
 
-  function openEdit(task: Task) {
+  async function openEdit(task: Task) {
     setEditingTask(task);
     setForm({
       projectId: task.projectId,
@@ -207,7 +260,9 @@ export default function TaskSchedulePage() {
       startTime: task.startTime || "",
       estimatedDuration: task.estimatedDuration ? String(task.estimatedDuration) : "",
       assigneeIds: task.assignments.map((a) => a.user.id),
+      stageId: task.stageId || "",
     });
+    await loadSubProjectsForProject(task.projectId, task.stageId);
     setShowAddModal(true);
     setMsg("");
   }
@@ -232,6 +287,7 @@ export default function TaskSchedulePage() {
             startTime: form.startTime || null,
             estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
             assigneeIds: form.assigneeIds,
+            stageId: form.stageId || null,
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to update task");
@@ -251,6 +307,7 @@ export default function TaskSchedulePage() {
             startTime: form.startTime || null,
             estimatedDuration: form.estimatedDuration ? Number(form.estimatedDuration) : null,
             assigneeIds: form.assigneeIds,
+            stageId: form.stageId || null,
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to create task");
@@ -720,7 +777,16 @@ export default function TaskSchedulePage() {
                     <select
                       title="Select project"
                       value={form.projectId}
-                      onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                      onChange={async (e) => {
+                        const projectId = e.target.value;
+                        setForm({ ...form, projectId, stageId: "" });
+                        setSelectedSubProjectId("");
+                        if (!projectId) {
+                          setSubProjects([]);
+                          return;
+                        }
+                        await loadSubProjectsForProject(projectId, null);
+                      }}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
                       required
                     >
@@ -729,6 +795,44 @@ export default function TaskSchedulePage() {
                         <option key={p.id} value={p.id}>{p.projectName}</option>
                       ))}
                     </select>
+                  </div>
+                )}
+
+                {form.projectId && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Sub Project</label>
+                      <select
+                        title="Select sub project"
+                        value={selectedSubProjectId}
+                        onChange={(e) => {
+                          const subProjectId = e.target.value;
+                          setSelectedSubProjectId(subProjectId);
+                          setForm({ ...form, stageId: "" });
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                      >
+                        <option value="">No sub-project</option>
+                        {subProjects.map((sp) => (
+                          <option key={sp.id} value={sp.id}>{sp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Milestone / Stage</label>
+                      <select
+                        title="Select stage"
+                        value={form.stageId}
+                        onChange={(e) => setForm({ ...form, stageId: e.target.value })}
+                        disabled={!selectedSubProjectId}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800 disabled:opacity-60"
+                      >
+                        <option value="">No stage</option>
+                        {(subProjects.find((sp) => sp.id === selectedSubProjectId)?.stages || []).map((st) => (
+                          <option key={st.id} value={st.id}>{st.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 )}
                 <div>

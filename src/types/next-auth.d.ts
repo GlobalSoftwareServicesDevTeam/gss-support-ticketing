@@ -1,4 +1,5 @@
 import { DefaultSession } from "next-auth";
+import type { StaffPermissions } from "@/lib/permissions";
 
 declare module "next-auth" {
   interface Session {
@@ -6,6 +7,12 @@ declare module "next-auth" {
       id: string;
       role: string;
       company?: string;
+      customerId?: string;
+      contactId?: string;
+      isPrimaryContact?: boolean;
+      customerPermissions?: Record<string, boolean>;
+      staffPermissions?: StaffPermissions;
+      hasUnsignedContracts?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -19,5 +26,11 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
     company?: string;
+    customerId?: string;
+    contactId?: string;
+    isPrimaryContact?: boolean;
+    customerPermissions?: Record<string, boolean>;
+    staffPermissions?: StaffPermissions;
+    hasUnsignedContracts?: boolean;
   }
 }

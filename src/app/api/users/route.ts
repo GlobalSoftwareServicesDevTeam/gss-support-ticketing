@@ -22,6 +22,8 @@ export async function GET() {
       phoneNumber: true,
       company: true,
       role: true,
+      staffRoleId: true,
+      staffRole: { select: { id: true, name: true } },
       emailConfirmed: true,
       totpEnabled: true,
       inviteToken: true,
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { username, email, firstName, lastName, password, phoneNumber, company, role } = body;
+  const { username, email, firstName, lastName, password, phoneNumber, company, role, staffRoleId } = body;
 
   if (!username || !email || !firstName || !lastName || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
       phoneNumber,
       company,
       role: role || "USER",
+      staffRoleId: role === "EMPLOYEE" ? staffRoleId || null : null,
       activationCode,
       emailConfirmed: true, // Admin-created users are pre-verified
     },

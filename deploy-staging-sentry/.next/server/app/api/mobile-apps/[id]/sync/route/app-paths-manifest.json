@@ -1,0 +1,3 @@
+{
+  "/api/mobile-apps/[id]/sync/route": "app/api/mobile-apps/[id]/sync/route.js"
+}

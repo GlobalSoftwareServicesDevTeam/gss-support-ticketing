@@ -1,0 +1,3 @@
+{
+  "/(authenticated)/flagged-emails/page": "app/(authenticated)/flagged-emails/page.js"
+}

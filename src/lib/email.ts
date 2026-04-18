@@ -4,14 +4,21 @@ import { getSmtpConfig } from "@/lib/settings";
 const BASE_URL = process.env.NEXTAUTH_URL || "https://support.globalsoftwareservices.co.za";
 const LOGO_URL = `${BASE_URL}/logo.png`;
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer | Uint8Array;
+  contentType?: string;
+}
+
 interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
-export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
+export async function sendEmail({ to, subject, html, text, attachments }: SendEmailOptions) {
   const config = await getSmtpConfig();
 
   const transporter = nodemailer.createTransport({
@@ -30,6 +37,11 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
     subject,
     html,
     text: text || html.replace(/<[^>]*>/g, ""),
+    attachments: attachments?.map((a) => ({
+      filename: a.filename,
+      content: Buffer.from(a.content),
+      contentType: a.contentType || "application/pdf",
+    })),
   });
 }
 
@@ -555,4 +567,72 @@ export function contactInviteTemplate(firstName: string, company: string, accept
     <p style="font-size:13px;color:#718096;margin:0;">We look forward to working with you.</p>
     `
   );
+}
+
+export function contractSignedAdminTemplate(contractName: string, signerName: string, signerEmail: string): string {
+  return emailLayout(
+    "#059669",
+    "Contract Signed",
+    `${signerName} has signed a contract`,
+    `
+    <p>A client has signed a contract on the GSS Support Portal.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <tr style="background:#f0fdf4;">
+        <td style="padding:12px 16px;font-weight:600;color:#166534;width:160px;">Contract</td>
+        <td style="padding:12px 16px;color:#15803d;">${contractName}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-weight:600;color:#374151;border-top:1px solid #e5e7eb;">Signed By</td>
+        <td style="padding:12px 16px;color:#4b5563;border-top:1px solid #e5e7eb;">${signerName}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-weight:600;color:#374151;border-top:1px solid #e5e7eb;">Email</td>
+        <td style="padding:12px 16px;color:#4b5563;border-top:1px solid #e5e7eb;">${signerEmail}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-weight:600;color:#374151;border-top:1px solid #e5e7eb;">Date</td>
+        <td style="padding:12px 16px;color:#4b5563;border-top:1px solid #e5e7eb;">${new Date().toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" })}</td>
+      </tr>
+    </table>
+    <p>You can view the signed contract details in the GSS Support Portal admin area.</p>
+  `);
+}
+
+export function contractReminderTemplate(firstName: string, portalUrl: string): string {
+  return emailLayout(
+    "#d97706",
+    "Contract Signing Reminder",
+    "You have outstanding agreements to sign",
+    `
+    <p>Dear <strong>${firstName}</strong>,</p>
+    <p>This is a friendly reminder that you have outstanding service agreements that need your signature on the GSS Support Portal.</p>
+    <p>Signing these agreements helps protect both parties and ensures we can deliver the best possible service to you.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+      <tr><td align="center">
+        <a href="${portalUrl}/contracts" style="display:inline-block;padding:14px 32px;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;border-radius:8px;font-size:15px;">Sign Your Agreements</a>
+      </td></tr>
+    </table>
+    <p style="font-size:13px;color:#6b7280;">If you have any questions about the agreements, please don&apos;t hesitate to contact us.</p>
+  `);
+}
+
+export function documentDeliveryTemplate(
+  clientName: string,
+  documentType: string,
+  documentNo: string,
+  customMessage?: string
+): string {
+  return emailLayout("#1a2b47", `${documentType} #${documentNo}`, "Global Software Services", `
+    <p>Dear <strong>${clientName}</strong>,</p>
+    ${
+      customMessage
+        ? `<div style="white-space:pre-wrap;margin:16px 0;">${customMessage}</div>`
+        : `<p>Please find attached your ${documentType.toLowerCase()} <strong>#${documentNo}</strong> from Global Software Services.</p>`
+    }
+    <div style="background:#edf2f7;padding:14px 18px;border-radius:6px;border-left:4px solid #1a2b47;margin:16px 0;">
+      <p style="margin:0;font-size:13px;color:#2d3748;">The document is attached to this email as a PDF. Please download and review it at your convenience.</p>
+    </div>
+    <p>If you have any questions regarding this document, please don't hesitate to contact our support team.</p>
+    <p style="margin-top:24px;">Kind regards,<br/><strong>GSS Support Team</strong></p>
+  `);
 }

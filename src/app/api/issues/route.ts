@@ -18,8 +18,12 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const priority = searchParams.get("priority");
   const search = searchParams.get("search");
+  const customerId = searchParams.get("customerId");
+  const projectId = searchParams.get("projectId");
+  const fromDate = searchParams.get("fromDate");
+  const toDate = searchParams.get("toDate");
 
-  const where: Record<string, unknown> = {};
+  const andClauses: Record<string, unknown>[] = [];
 
   // Non-admin users: filter by user or customer scope
   if (session.user.role !== "ADMIN") {
@@ -27,24 +31,40 @@ export async function GET(req: NextRequest) {
     if (ctx && ctx.permissions.tickets) {
       // Customer-scoped: see all issues for the customer (by customerId or userId)
       const customerUserIds = await getCustomerUserIds(ctx.customerId);
-      where.OR = [
+      andClauses.push({
+        OR: [
         { customerId: ctx.customerId },
         { userId: { in: customerUserIds } },
-      ];
+        ],
+      });
     } else {
-      where.userId = session.user.id;
+      andClauses.push({ userId: session.user.id });
     }
   }
 
-  if (status) where.status = status;
-  if (priority) where.priority = priority;
-  if (search) {
-    where.OR = [
-      { subject: { contains: search } },
-      { initialNotes: { contains: search } },
-      { company: { contains: search } },
-    ];
+  if (status) andClauses.push({ status });
+  if (priority) andClauses.push({ priority });
+  if (customerId) andClauses.push({ customerId });
+  if (projectId) andClauses.push({ projectId });
+
+  if (fromDate || toDate) {
+    const createdAt: Record<string, unknown> = {};
+    if (fromDate) createdAt.gte = new Date(`${fromDate}T00:00:00.000Z`);
+    if (toDate) createdAt.lte = new Date(`${toDate}T23:59:59.999Z`);
+    andClauses.push({ createdAt });
   }
+
+  if (search) {
+    andClauses.push({
+      OR: [
+        { subject: { contains: search } },
+        { initialNotes: { contains: search } },
+        { company: { contains: search } },
+      ],
+    });
+  }
+
+  const where: Record<string, unknown> = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [issues, total] = await Promise.all([
     prisma.issue.findMany({
@@ -52,6 +72,7 @@ export async function GET(req: NextRequest) {
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
         customer: { select: { contactPerson: true, emailAddress: true, company: true } },
+        project: { select: { id: true, projectName: true } },
         _count: { select: { messages: true, fileUploads: true } },
       },
       orderBy: { updatedAt: "desc" },

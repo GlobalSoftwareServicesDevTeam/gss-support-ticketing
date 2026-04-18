@@ -12,6 +12,8 @@ interface User {
   phoneNumber: string | null;
   company: string | null;
   role: string;
+  staffRoleId: string | null;
+  staffRole: { id: string; name: string } | null;
   emailConfirmed: boolean;
   inviteToken: string | null;
   totpEnabled: boolean;
@@ -25,9 +27,15 @@ interface Project {
   status: string;
 }
 
+interface StaffRoleOption {
+  id: string;
+  name: string;
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [staffRoles, setStaffRoles] = useState<StaffRoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -41,12 +49,14 @@ export default function UsersPage() {
     phoneNumber: "",
     company: "",
     role: "USER",
+    staffRoleId: "",
   });
   const [inviteForm, setInviteForm] = useState({
     email: "",
     firstName: "",
     lastName: "",
     role: "USER",
+    staffRoleId: "",
     projectIds: [] as string[],
     invoiceNinjaClientId: "",
   });
@@ -73,6 +83,9 @@ export default function UsersPage() {
     fetch("/api/billing?action=list-clients")
       .then((r) => r.ok ? r.json() : { clients: [] })
       .then((data) => setBillingClients(data.clients || []));
+    fetch("/api/staff-roles")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setStaffRoles(Array.isArray(data) ? data.map((r: StaffRoleOption & Record<string, unknown>) => ({ id: r.id, name: r.name })) : []));
   }, []);
 
   async function handleCreateUser(e: React.FormEvent) {
@@ -93,7 +106,7 @@ export default function UsersPage() {
       setFormError(data.error || "Failed to create user.");
     } else {
       setShowForm(false);
-      setForm({ username: "", email: "", firstName: "", lastName: "", password: "", phoneNumber: "", company: "", role: "USER" });
+      setForm({ username: "", email: "", firstName: "", lastName: "", password: "", phoneNumber: "", company: "", role: "USER", staffRoleId: "" });
       fetchUsers();
     }
   }
@@ -116,7 +129,7 @@ export default function UsersPage() {
       setInviteError(data.error || "Failed to send invitation.");
     } else {
       setShowInviteForm(false);
-      setInviteForm({ email: "", firstName: "", lastName: "", role: "USER", projectIds: [], invoiceNinjaClientId: "" });
+      setInviteForm({ email: "", firstName: "", lastName: "", role: "USER", staffRoleId: "", projectIds: [], invoiceNinjaClientId: "" });
       setActionMsg("Invitation sent successfully!");
       fetchUsers();
       setTimeout(() => setActionMsg(""), 4000);
@@ -258,14 +271,34 @@ export default function UsersPage() {
               <select
                 title="Role"
                 value={inviteForm.role}
-                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value, staffRoleId: "" })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
               >
                 <option value="USER">User</option>
-                <option value="EDITOR">Editor</option>
+                <option value="EMPLOYEE">Employee</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            {inviteForm.role === "EMPLOYEE" && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Staff Role *</label>
+                <select
+                  title="Staff role"
+                  value={inviteForm.staffRoleId}
+                  onChange={(e) => setInviteForm({ ...inviteForm, staffRoleId: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
+                  required
+                >
+                  <option value="">Select a staff role...</option>
+                  {staffRoles.map((sr) => (
+                    <option key={sr.id} value={sr.id}>{sr.name}</option>
+                  ))}
+                </select>
+                {staffRoles.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No staff roles defined. Create one in Staff Roles first.</p>
+                )}
+              </div>
+            )}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Assign to Projects</label>
               <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-white">
@@ -399,14 +432,34 @@ export default function UsersPage() {
               <select
                 title="Role"
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                onChange={(e) => setForm({ ...form, role: e.target.value, staffRoleId: "" })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
               >
                 <option value="USER">User</option>
-                <option value="EDITOR">Editor</option>
+                <option value="EMPLOYEE">Employee</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            {form.role === "EMPLOYEE" && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Staff Role *</label>
+                <select
+                  title="Staff role"
+                  value={form.staffRoleId}
+                  onChange={(e) => setForm({ ...form, staffRoleId: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-700"
+                  required
+                >
+                  <option value="">Select a staff role...</option>
+                  {staffRoles.map((sr) => (
+                    <option key={sr.id} value={sr.id}>{sr.name}</option>
+                  ))}
+                </select>
+                {staffRoles.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No staff roles defined. Create one in Staff Roles first.</p>
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
               <input
@@ -480,12 +533,17 @@ export default function UsersPage() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                       user.role === "ADMIN"
                         ? "bg-red-100 text-red-700"
-                        : user.role === "EDITOR"
+                        : user.role === "EMPLOYEE"
                         ? "bg-purple-100 text-purple-700"
+                        : user.role === "EDITOR"
+                        ? "bg-indigo-100 text-indigo-700"
                         : "bg-blue-100 text-blue-700"
                     }`}>
                       {user.role}
                     </span>
+                    {user.staffRole && (
+                      <span className="ml-1 text-xs text-slate-500">({user.staffRole.name})</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{user._count.issues}</td>
                   <td className="px-6 py-4 text-sm">

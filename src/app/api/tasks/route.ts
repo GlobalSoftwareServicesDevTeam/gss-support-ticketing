@@ -38,6 +38,13 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       project: { select: { id: true, projectName: true } },
+      stage: {
+        select: {
+          id: true,
+          name: true,
+          subProject: { select: { id: true, name: true } },
+        },
+      },
       assignments: {
         include: {
           user: { select: { id: true, firstName: true, lastName: true, email: true } },

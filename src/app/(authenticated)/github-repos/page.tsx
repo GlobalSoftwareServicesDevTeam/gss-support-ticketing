@@ -111,10 +111,19 @@ export default function GitHubReposPage() {
 
   // Transfer state
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferMode, setTransferMode] = useState<"single" | "all">("single");
   const [transferSource, setTransferSource] = useState("");
+  const [transferSourceOwner, setTransferSourceOwner] = useState("");
   const [transferTarget, setTransferTarget] = useState("");
   const [transferring, setTransferring] = useState(false);
-  const [transferResult, setTransferResult] = useState<{ message?: string; error?: string; note?: string } | null>(null);
+  const [transferResult, setTransferResult] = useState<{
+    message?: string;
+    error?: string;
+    note?: string;
+    summary?: { total: number; success: number; failed: number };
+    failuresByStatus?: Record<string, number>;
+    failedRepos?: Array<{ sourceRepo: string; error?: string; status?: number }>;
+  } | null>(null);
 
   const fetchRepos = useCallback(async () => {
     const res = await fetch(`/api/github/repos?search=${encodeURIComponent(search)}`);
@@ -391,7 +400,8 @@ export default function GitHubReposPage() {
   };
 
   const handleTransfer = async () => {
-    if (!transferSource.trim()) return;
+    if (transferMode === "single" && !transferSource.trim()) return;
+    if (transferMode === "all" && (!transferSourceOwner.trim() || !transferTarget.trim())) return;
     setTransferring(true);
     setTransferResult(null);
     try {
@@ -399,13 +409,30 @@ export default function GitHubReposPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceRepo: transferSource.trim(),
+          transferAll: transferMode === "all",
+          sourceRepo: transferMode === "single" ? transferSource.trim() : undefined,
+          sourceOwner: transferMode === "all" ? transferSourceOwner.trim() : undefined,
           targetOwner: transferTarget.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (res.ok) {
-        setTransferResult({ message: data.message, note: data.note });
+        setTransferResult({
+          message: data.message,
+          note: data.note,
+          summary: data.summary,
+          failuresByStatus: data.failuresByStatus,
+          failedRepos: Array.isArray(data.results)
+            ? data.results
+                .filter((r: { ok?: boolean }) => !r.ok)
+                .slice(0, 12)
+                .map((r: { sourceRepo: string; error?: string; status?: number }) => ({
+                  sourceRepo: r.sourceRepo,
+                  error: r.error,
+                  status: r.status,
+                }))
+            : [],
+        });
         fetchRepos();
       } else {
         setTransferResult({ error: data.error });
@@ -466,7 +493,7 @@ export default function GitHubReposPage() {
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition shadow-sm"
           >
             <ArrowRightLeft size={16} />
-            Transfer Repo
+            Transfer Repos
           </button>
           <button
             onClick={() => {
@@ -577,6 +604,9 @@ export default function GitHubReposPage() {
                     </div>
                   </div>
                 ))}
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  To delete a GitHub account, click the trash icon. This removes the saved account and unlinks repos in this system (it does not delete repos on GitHub).
+                </p>
               </div>
             )}
 
@@ -645,28 +675,56 @@ export default function GitHubReposPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <ArrowRightLeft size={18} /> Transfer Repository
+                <ArrowRightLeft size={18} /> Transfer Repositories
               </h2>
               <button onClick={() => { setShowTransferModal(false); setTransferResult(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Transfer a repository from another GitHub account to your main account. The source account token must have admin access to the repo.
+              Transfer one repo or all repos from one GitHub account owner to another. Source token must have admin access.
             </p>
+            <div className="flex gap-2 mb-4 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+              <button
+                onClick={() => setTransferMode("single")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-md transition ${transferMode === "single" ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}
+              >
+                Single Repo
+              </button>
+              <button
+                onClick={() => setTransferMode("all")}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-md transition ${transferMode === "all" ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}
+              >
+                All Repos
+              </button>
+            </div>
             <div className="space-y-3">
+              {transferMode === "single" ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Repo (owner/name) *</label>
+                  <input
+                    type="text"
+                    value={transferSource}
+                    onChange={(e) => setTransferSource(e.target.value)}
+                    placeholder="other-user/repo-name"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Owner (GitHub username/org) *</label>
+                  <input
+                    type="text"
+                    value={transferSourceOwner}
+                    onChange={(e) => setTransferSourceOwner(e.target.value)}
+                    placeholder="source-account-owner"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                  />
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">All repos currently synced for this owner will be transferred.</p>
+                </div>
+              )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Source Repo (owner/name) *</label>
-                <input
-                  type="text"
-                  value={transferSource}
-                  onChange={(e) => setTransferSource(e.target.value)}
-                  placeholder="other-user/repo-name"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Owner/Org (leave blank for PAT owner)</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Owner/Org {transferMode === "all" ? "*" : "(leave blank for PAT owner)"}</label>
                 <input
                   type="text"
                   value={transferTarget}
@@ -679,6 +737,26 @@ export default function GitHubReposPage() {
             {transferResult && (
               <div className={`text-sm mt-4 p-3 rounded-lg ${transferResult.message ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
                 {transferResult.message || transferResult.error}
+                {transferResult.summary && (
+                  <p className="mt-1 text-xs opacity-90">
+                    Total: {transferResult.summary.total} · Success: {transferResult.summary.success} · Failed: {transferResult.summary.failed}
+                  </p>
+                )}
+                {transferResult.failuresByStatus && Object.keys(transferResult.failuresByStatus).length > 0 && (
+                  <p className="mt-1 text-xs opacity-90">
+                    Failure status codes: {Object.entries(transferResult.failuresByStatus).map(([code, count]) => `${code}=${count}`).join(" · ")}
+                  </p>
+                )}
+                {transferResult.failedRepos && transferResult.failedRepos.length > 0 && (
+                  <div className="mt-2 max-h-44 overflow-y-auto rounded border border-red-200 dark:border-red-800 p-2 text-xs bg-white/50 dark:bg-black/10">
+                    {transferResult.failedRepos.map((f) => (
+                      <div key={f.sourceRepo} className="mb-1">
+                        <span className="font-medium">{f.sourceRepo}</span>
+                        <span className="opacity-90">: {f.error || `Failed${f.status ? ` (${f.status})` : ""}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {transferResult.note && <p className="mt-1 text-xs opacity-75">{transferResult.note}</p>}
               </div>
             )}
@@ -691,11 +769,14 @@ export default function GitHubReposPage() {
               </button>
               <button
                 onClick={handleTransfer}
-                disabled={transferring || !transferSource.trim()}
+                disabled={
+                  transferring ||
+                  (transferMode === "single" ? !transferSource.trim() : (!transferSourceOwner.trim() || !transferTarget.trim()))
+                }
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition disabled:opacity-50"
               >
                 {transferring ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
-                {transferring ? "Transferring..." : "Transfer"}
+                {transferring ? "Transferring..." : transferMode === "all" ? "Transfer All" : "Transfer"}
               </button>
             </div>
           </div>

@@ -1,10 +1,5 @@
-import { Agent, fetch as undiciFetch } from "undici";
-
 const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
 const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
-
-// Invoice Ninja may be hosted behind a mismatched SSL cert (e.g. shared hosting)
-const ninjaAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 export function isInvoiceNinjaConfigured(): boolean {
   return !!(INVOICE_NINJA_URL && INVOICE_NINJA_TOKEN);
@@ -14,14 +9,13 @@ async function ninjaFetch(endpoint: string, options: RequestInit = {}) {
   if (!isInvoiceNinjaConfigured()) throw new Error("Invoice Ninja not configured");
 
   const url = `${INVOICE_NINJA_URL}/api/v1/${endpoint}`;
-  const res = await undiciFetch(url, {
-    ...(options as Parameters<typeof undiciFetch>[1]),
+  const res = await fetch(url, {
+    ...options,
     headers: {
       "X-Api-Token": INVOICE_NINJA_TOKEN,
       "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
     },
-    dispatcher: ninjaAgent,
   });
 
   if (!res.ok) {
@@ -315,4 +309,144 @@ export async function sendQuote(quoteId: string) {
     body: JSON.stringify({}),
   });
   return data.data;
+}
+
+/**
+ * Create a new quote in Invoice Ninja.
+ */
+export async function createQuote(params: {
+  clientId: string;
+  lineItems: { productKey: string; notes: string; cost: number; quantity: number }[];
+  dueDate?: string;
+  validUntil?: string;
+  discount?: number;
+  publicNotes?: string;
+  privateNotes?: string;
+  terms?: string;
+  taxName1?: string;
+  taxRate1?: number;
+}): Promise<INQuote> {
+  const body: Record<string, unknown> = {
+    client_id: params.clientId,
+    date: new Date().toISOString().split("T")[0],
+    due_date: params.dueDate || "",
+    valid_until: params.validUntil || "",
+    line_items: params.lineItems.map((li) => ({
+      product_key: li.productKey,
+      notes: li.notes,
+      cost: li.cost,
+      quantity: li.quantity,
+    })),
+  };
+  if (params.discount) body.discount = params.discount;
+  if (params.publicNotes) body.public_notes = params.publicNotes;
+  if (params.privateNotes) body.private_notes = params.privateNotes;
+  if (params.terms) body.terms = params.terms;
+  if (params.taxName1) body.tax_name1 = params.taxName1;
+  if (params.taxRate1) body.tax_rate1 = params.taxRate1;
+
+  const data = await ninjaFetch("quotes", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data.data;
+}
+
+/**
+ * Create a full invoice in Invoice Ninja with line items.
+ */
+export async function createInvoice(params: {
+  clientId: string;
+  lineItems: { productKey: string; notes: string; cost: number; quantity: number }[];
+  dueDate?: string;
+  discount?: number;
+  publicNotes?: string;
+  privateNotes?: string;
+  terms?: string;
+  taxName1?: string;
+  taxRate1?: number;
+}): Promise<{ id: string; number: string }> {
+  const body: Record<string, unknown> = {
+    client_id: params.clientId,
+    date: new Date().toISOString().split("T")[0],
+    due_date: params.dueDate || "",
+    line_items: params.lineItems.map((li) => ({
+      product_key: li.productKey,
+      notes: li.notes,
+      cost: li.cost,
+      quantity: li.quantity,
+    })),
+  };
+  if (params.discount) body.discount = params.discount;
+  if (params.publicNotes) body.public_notes = params.publicNotes;
+  if (params.privateNotes) body.private_notes = params.privateNotes;
+  if (params.terms) body.terms = params.terms;
+  if (params.taxName1) body.tax_name1 = params.taxName1;
+  if (params.taxRate1) body.tax_rate1 = params.taxRate1;
+
+  const data = await ninjaFetch("invoices", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return { id: data.data.id, number: data.data.number };
+}
+
+/**
+ * Send an invoice via email through Invoice Ninja.
+ */
+export async function sendInvoice(invoiceId: string) {
+  const data = await ninjaFetch(`invoices/${invoiceId}?action=send_email`, {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+  return data.data;
+}
+
+// ─── Payments ────────────────────────────────────────
+
+export interface INPayment {
+  id: string;
+  amount: number;
+  date: string;
+  client_id: string;
+  status_id: string;
+  transaction_reference?: string;
+  number?: string;
+  invoices?: { invoice_id: string; amount: number }[];
+}
+
+/**
+ * Create a payment in Invoice Ninja and allocate it to one or more invoices.
+ */
+export async function createPayment(params: {
+  clientId: string;
+  amount: number;
+  date?: string;
+  transactionReference?: string;
+  invoices: { invoiceId: string; amount: number }[];
+}): Promise<INPayment> {
+  const body: Record<string, unknown> = {
+    client_id: params.clientId,
+    amount: params.amount,
+    date: params.date || new Date().toISOString().split("T")[0],
+    transaction_reference: params.transactionReference || "",
+    invoices: params.invoices.map((inv) => ({
+      invoice_id: inv.invoiceId,
+      amount: inv.amount,
+    })),
+  };
+
+  const data = await ninjaFetch("payments", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  return data.data;
+}
+
+/**
+ * List all invoices for a client (with balance > 0 for allocation purposes).
+ */
+export async function listClientInvoices(clientId: string) {
+  return ninjaFetchAll(`invoices?client_id=${encodeURIComponent(clientId)}&per_page=500&is_deleted=false`);
 }

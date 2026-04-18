@@ -34,6 +34,7 @@ export async function GET(
     jpeg: "image/jpeg",
     gif: "image/gif",
     txt: "text/plain",
+    html: "text/html",
     zip: "application/zip",
   };
 

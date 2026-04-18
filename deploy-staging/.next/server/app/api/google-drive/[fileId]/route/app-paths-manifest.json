@@ -1,0 +1,3 @@
+{
+  "/api/google-drive/[fileId]/route": "app/api/google-drive/[fileId]/route.js"
+}

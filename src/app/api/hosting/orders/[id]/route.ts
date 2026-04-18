@@ -65,7 +65,7 @@ export async function PATCH(
 
 // DELETE: cancel an order
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -74,9 +74,71 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const order = await prisma.hostingOrder.findUnique({ where: { id } });
+  const mode = req.nextUrl.searchParams.get("mode");
+  const order = await prisma.hostingOrder.findUnique({
+    where: { id },
+    include: { sslCertificate: { select: { id: true } } },
+  });
   if (!order) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  // Admin-only hard delete for support cleanup in admin console
+  if (mode === "hard") {
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (order.status === "ACTIVE") {
+      return NextResponse.json({ error: "Cannot delete an active order. Cancel it first." }, { status: 400 });
+    }
+
+    if (order.sslCertificate) {
+      return NextResponse.json({ error: "Cannot delete order linked to an SSL certificate." }, { status: 409 });
+    }
+
+    await prisma.hostingOrder.delete({ where: { id } });
+
+    logAudit({
+      action: "DELETE",
+      entity: "HOSTING_ORDER",
+      entityId: id,
+      description: `Deleted hosting order #${id.slice(0, 8)}${order.domain ? ` (${order.domain})` : ""}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { mode: "hard", status: order.status },
+    });
+
+    return NextResponse.json({ message: "Order deleted" });
+  }
+
+  // User-facing delete for removable orders shown in the Hosting > Orders tab.
+  if (mode === "delete") {
+    if (session.user.role !== "ADMIN" && order.userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (["ACTIVE", "PAID", "PROVISIONING"].includes(order.status)) {
+      return NextResponse.json({ error: "Cannot delete an order that is active or in fulfilment." }, { status: 400 });
+    }
+
+    if (order.sslCertificate) {
+      return NextResponse.json({ error: "Cannot delete order linked to an SSL certificate." }, { status: 409 });
+    }
+
+    await prisma.hostingOrder.delete({ where: { id } });
+
+    logAudit({
+      action: "DELETE",
+      entity: "HOSTING_ORDER",
+      entityId: id,
+      description: `Deleted hosting order #${id.slice(0, 8)}${order.domain ? ` (${order.domain})` : ""}`,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      metadata: { mode: "delete", status: order.status },
+    });
+
+    return NextResponse.json({ message: "Order deleted" });
   }
 
   // Users can only cancel their own pending orders; admins can cancel any

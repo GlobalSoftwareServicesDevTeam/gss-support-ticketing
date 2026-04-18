@@ -63,6 +63,7 @@ export default function InvoicePaymentModal({
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [payWithCard, setPayWithCard] = useState(false);
+  const [eftConfirmed, setEftConfirmed] = useState(false);
 
   const depositAmount = Math.round(invoiceAmount * 0.4 * 100) / 100;
   const payableAmount =
@@ -173,9 +174,8 @@ export default function InvoicePaymentModal({
       return;
     }
 
-    // EFT
-    alert("EFT payment recorded. Please transfer the funds using the bank details shown.");
-    onClose();
+    // EFT — show confirmation screen
+    setEftConfirmed(true);
   }
 
   if (!isOpen) return null;
@@ -185,6 +185,36 @@ export default function InvoicePaymentModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} role="presentation" />
       <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6">
+          {/* EFT Confirmation Screen */}
+          {eftConfirmed ? (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-2">EFT Payment Recorded</h2>
+              <p className="text-sm text-slate-600 mb-4">
+                Your payment of <strong>{formatCurrency(payableAmount)}</strong> for invoice <strong>{invoiceNumber}</strong> has been recorded.
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-left">
+                <h3 className="text-sm font-semibold text-amber-900 mb-1">What happens next?</h3>
+                <ol className="text-sm text-amber-800 space-y-1.5 list-decimal list-inside">
+                  <li>Transfer the funds to the bank account shown on the payment form</li>
+                  <li>Use <strong>{invoiceNumber}</strong> as your payment reference</li>
+                  <li>Our admin team has been notified and will verify receipt</li>
+                  <li>Once verified, the payment will be allocated to your invoice</li>
+                </ol>
+              </div>
+              <button
+                onClick={() => { setEftConfirmed(false); onClose(); }}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-slate-900">
@@ -296,9 +326,9 @@ export default function InvoicePaymentModal({
               <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={28} />, enabled: gateways.payfast },
-                  { key: "OZOW", label: "Ozow", icon: <OzowLogo size={28} />, enabled: gateways.ozow },
-                  { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={28} />, enabled: true },
+                  { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={36} />, enabled: gateways.payfast },
+                  { key: "OZOW", label: "Ozow", icon: <OzowLogo size={36} />, enabled: gateways.ozow },
+                  { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={36} />, enabled: true },
                 ].map((gw) => (
                   <button
                     key={gw.key}
@@ -313,7 +343,7 @@ export default function InvoicePaymentModal({
                         : "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
                     }`}
                   >
-                    <span className="flex justify-center mb-1">{gw.icon}</span>
+                    <span className="flex justify-center items-center mb-1 h-9">{gw.icon}</span>
                     <span className="text-xs font-medium text-slate-700">{gw.label}</span>
                     {!gw.enabled && gw.key !== "EFT" && (
                       <span className="block text-xs text-slate-400 mt-0.5">Not configured</span>
@@ -410,6 +440,8 @@ export default function InvoicePaymentModal({
               </button>
             </div>
           </form>
+          </>
+          )}
         </div>
       </div>
     </div>

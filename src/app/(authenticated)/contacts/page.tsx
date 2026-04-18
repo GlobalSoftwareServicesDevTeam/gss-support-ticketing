@@ -19,10 +19,18 @@ import {
   Building2,
   Shield,
   ExternalLink,
+  Download,
 } from "lucide-react";
+import {
+  exportRowsAsCSV,
+  exportRowsAsExcel,
+  exportRowsAsPDF,
+  exportRowsToGoogleSheets,
+} from "@/lib/reports-export";
 
 interface Contact {
   id: string;
+  createdAt: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -44,6 +52,11 @@ interface Contact {
   canManageContacts: boolean;
 }
 
+interface CustomerOption {
+  id: string;
+  company: string;
+}
+
 export default function ContactsPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
@@ -52,6 +65,10 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [customerId, setCustomerId] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 25;
@@ -64,6 +81,9 @@ export default function ContactsPage() {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
     if (statusFilter !== "all") params.set("status", statusFilter);
+    if (customerId) params.set("customerId", customerId);
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
     fetch(`/api/contacts?${params}`)
       .then((r) => r.json())
       .then((data) => {
@@ -77,7 +97,34 @@ export default function ContactsPage() {
   useEffect(() => {
     if (session && isAdmin) fetchContacts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, statusFilter, session]);
+  }, [page, search, statusFilter, customerId, fromDate, toDate, session]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/customers?limit=1000")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCustomers(d?.customers || d || []))
+      .catch(() => undefined);
+  }, [isAdmin]);
+
+  async function exportContacts(format: "csv" | "excel" | "pdf" | "gsheets") {
+    const rows = contacts.map((c) => ({
+      Name: `${c.firstName} ${c.lastName}`,
+      Email: c.email,
+      Phone: c.phone || "",
+      Position: c.position || "",
+      Customer: c.customer?.company || "",
+      Status: c.inviteAccepted ? "Active" : c.invitedAt ? "Invited" : "Not Invited",
+      Invited: c.invitedAt ? new Date(c.invitedAt).toLocaleDateString("en-ZA") : "",
+      Created: c.createdAt ? new Date(c.createdAt).toLocaleDateString("en-ZA") : "",
+    }));
+
+    const filename = `contacts-report-${new Date().toISOString().slice(0, 10)}`;
+    if (format === "csv") await exportRowsAsCSV(rows, filename);
+    if (format === "excel") await exportRowsAsExcel(rows, filename);
+    if (format === "pdf") await exportRowsAsPDF(rows, filename, "Contacts Report");
+    if (format === "gsheets") await exportRowsToGoogleSheets(rows, filename);
+  }
 
   async function handleInvite(contact: Contact) {
     if (!confirm(`Send portal invite to ${contact.firstName} ${contact.lastName} (${contact.email})?`)) return;
@@ -318,6 +365,35 @@ export default function ContactsPage() {
           <option value="invited">Invited (Pending)</option>
           <option value="not-invited">Not Invited</option>
         </select>
+        <select
+          value={customerId}
+          onChange={(e) => { setCustomerId(e.target.value); setPage(1); }}
+          title="Filter by customer"
+          className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+        >
+          <option value="">All Clients</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>{c.company}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          title="From date"
+          value={fromDate}
+          onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+        />
+        <input
+          type="date"
+          title="To date"
+          value={toDate}
+          onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+        />
+        <button onClick={() => exportContacts("csv")} className="px-3 py-2 text-xs border border-gray-300 rounded text-gray-700 inline-flex items-center gap-1"><Download size={12} /> CSV</button>
+        <button onClick={() => exportContacts("excel")} className="px-3 py-2 text-xs border border-gray-300 rounded text-gray-700 inline-flex items-center gap-1"><Download size={12} /> Excel</button>
+        <button onClick={() => exportContacts("pdf")} className="px-3 py-2 text-xs border border-gray-300 rounded text-gray-700 inline-flex items-center gap-1"><Download size={12} /> PDF</button>
+        <button onClick={() => exportContacts("gsheets")} className="px-3 py-2 text-xs border border-gray-300 rounded text-gray-700 inline-flex items-center gap-1"><Download size={12} /> GSheets</button>
       </div>
 
       {/* Table */}

@@ -1,0 +1,3 @@
+{
+  "/api/blocked-senders/[id]/route": "app/api/blocked-senders/[id]/route.js"
+}

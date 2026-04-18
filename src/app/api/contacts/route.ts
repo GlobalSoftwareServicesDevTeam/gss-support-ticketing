@@ -11,6 +11,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "all";
+  const customerId = searchParams.get("customerId") || "";
+  const fromDate = searchParams.get("fromDate") || "";
+  const toDate = searchParams.get("toDate") || "";
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "25");
   const skip = (page - 1) * limit;
@@ -25,6 +28,17 @@ export async function GET(req: NextRequest) {
       { position: { contains: search } },
       { customer: { company: { contains: search } } },
     ];
+  }
+
+  if (customerId) {
+    where.customerId = customerId;
+  }
+
+  if (fromDate || toDate) {
+    const createdAt: Record<string, unknown> = {};
+    if (fromDate) createdAt.gte = new Date(`${fromDate}T00:00:00.000Z`);
+    if (toDate) createdAt.lte = new Date(`${toDate}T23:59:59.999Z`);
+    where.createdAt = createdAt;
   }
 
   if (status === "active") {

@@ -1,0 +1,3 @@
+{
+  "/api/payments/payfast/notify/route": "app/api/payments/payfast/notify/route.js"
+}

@@ -5,6 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSidebar } from "@/context/SidebarContext";
+import { hasStaffPermission, type StaffPermission } from "@/lib/permissions";
+import type { StaffPermissions } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Ticket,
@@ -19,7 +21,6 @@ import {
   ChevronDown,
   MoreHorizontal,
   Server,
-  Download,
   ClipboardList,
   ScrollText,
   Globe,
@@ -27,15 +28,16 @@ import {
   Building2,
   Bell,
   GitCommit,
+  GitBranch,
   KeyRound,
   Wrench,
   Send,
   Shield,
-  Smartphone,
   BarChart3,
   Gift,
-  Lightbulb,
   Contact,
+  Mail,
+  Monitor,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -43,6 +45,7 @@ type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
+  permission?: StaffPermission;
   subItems?: { name: string; path: string }[];
 };
 
@@ -51,39 +54,40 @@ const adminNavItems: NavItem[] = [
   {
     icon: <Ticket size={24} />,
     name: "Tickets",
+    permission: "manageTickets",
     subItems: [
       { name: "All Tickets", path: "/issues" },
       { name: "New Ticket", path: "/issues/new" },
     ],
   },
-  { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects" },
-  { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
-  { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
-  { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
-  { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
-  { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
-  { icon: <Server size={24} />, name: "Client Hosting", path: "/hosting-clients" },
+  { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects", permission: "manageProjects" },
+  { icon: <FileText size={24} />, name: "Documents", path: "/documents", permission: "manageDocuments" },
+  { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices", permission: "manageBilling" },
+  { icon: <Server size={24} />, name: "Hosting", path: "/hosting", permission: "manageHosting" },
+  { icon: <Server size={24} />, name: "Client Hosting", path: "/hosting-clients", permission: "manageHosting" },
+  { icon: <Mail size={24} />, name: "Email Accounts", path: "/email-accounts", permission: "manageHosting" },
+  { icon: <Monitor size={24} />, name: "Windows Hosting", path: "/windows-hosting", permission: "manageHosting" },
 
-  { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing" },
-  { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history" },
+  { icon: <PenLine size={24} />, name: "Document Signing", path: "/signing", permission: "manageDocuments" },
+  { icon: <GitCommit size={24} />, name: "Code History", path: "/code-history", permission: "manageCode" },
+  { icon: <GitBranch size={24} />, name: "Linked Repos", path: "/linked-repos", permission: "manageCode" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
   { icon: <Gift size={24} />, name: "Referrals", path: "/referrals" },
-  { icon: <Lightbulb size={24} />, name: "Project Ideas", path: "/project-ideas" },
 ];
 
 const adminOtherItems: NavItem[] = [
-  { icon: <Building2 size={24} />, name: "Customers", path: "/customers" },
-  { icon: <Contact size={24} />, name: "Contacts", path: "/contacts" },
-  { icon: <Users size={24} />, name: "Users", path: "/users" },
-  { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule" },
-  { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads" },
-  { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos" },
-  { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs" },
-  { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails" },
-  { icon: <Send size={24} />, name: "Bulk Email", path: "/bulk-email" },
-  { icon: <Smartphone size={24} />, name: "Mobile Apps", path: "/mobile-apps" },
+  { icon: <Building2 size={24} />, name: "Customers", path: "/customers", permission: "manageCustomers" },
+  { icon: <Contact size={24} />, name: "Contacts", path: "/contacts", permission: "manageCustomers" },
+  { icon: <Users size={24} />, name: "Users", path: "/users", permission: "manageUsers" },
+  { icon: <Users size={24} />, name: "Staff Roles", path: "/staff-roles", permission: "manageUsers" },
+  { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule", permission: "manageTasks" },
+  { icon: <CalendarClock size={24} />, name: "Daily Tasks", path: "/daily-tasks", permission: "manageTasks" },
+  { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos", permission: "manageCode" },
+  { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs", permission: "viewAuditLogs" },
+  { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails", permission: "manageSettings" },
+  { icon: <Send size={24} />, name: "Bulk Email", path: "/bulk-email", permission: "bulkEmail" },
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
-  { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings" },
+  { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings", permission: "manageSettings" },
 ];
 
 const userNavItems: NavItem[] = [
@@ -98,18 +102,20 @@ const userNavItems: NavItem[] = [
     ],
   },
   { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects" },
+  { icon: <ClipboardList size={24} />, name: "My Tasks", path: "/my-tasks" },
+  { icon: <CalendarClock size={24} />, name: "Daily Tasks", path: "/daily-tasks" },
   { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
+  { icon: <PenLine size={24} />, name: "Contracts", path: "/contracts" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
   { icon: <FileEdit size={24} />, name: "Request a Quote", path: "/request-quote" },
-  { icon: <CreditCard size={24} />, name: "Payments", path: "/payments" },
-  { icon: <CalendarClock size={24} />, name: "Pay Arrangements", path: "/payment-arrangements" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting" },
+  { icon: <Mail size={24} />, name: "Email Accounts", path: "/email-accounts" },
 
+  { icon: <GitBranch size={24} />, name: "Linked Repos", path: "/linked-repos" },
   { icon: <KeyRound size={24} />, name: "Vault", path: "/vault" },
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
   { icon: <BarChart3 size={24} />, name: "App Stats", path: "/app-stats" },
   { icon: <Gift size={24} />, name: "Referrals", path: "/referrals" },
-  { icon: <Lightbulb size={24} />, name: "Project Ideas", path: "/project-ideas" },
   { icon: <Bell size={24} />, name: "Notifications", path: "/notification-preferences" },
 ];
 
@@ -119,8 +125,29 @@ const AppSidebar: React.FC = () => {
   const { data: session } = useSession();
 
   const isAdmin = session?.user?.role === "ADMIN";
-  const navItems = isAdmin ? adminNavItems : userNavItems;
-  const othersItems = useMemo(() => (isAdmin ? adminOtherItems : []), [isAdmin]);
+  const isEmployee = session?.user?.role === "EMPLOYEE";
+  const isInternalStaff = isAdmin || isEmployee;
+
+  const sessionUser = session?.user as { role?: string; staffPermissions?: StaffPermissions } | undefined;
+
+  // Filter nav items based on permissions for employees
+  const filterByPermission = useCallback((items: NavItem[]) => {
+    if (isAdmin) return items;
+    return items.filter((item) => {
+      if (!item.permission) return true;
+      return hasStaffPermission(sessionUser, item.permission);
+    });
+  }, [isAdmin, sessionUser]);
+
+  const navItems = useMemo(() => {
+    if (isInternalStaff) return filterByPermission(adminNavItems);
+    return userNavItems;
+  }, [isInternalStaff, filterByPermission]);
+
+  const othersItems = useMemo(() => {
+    if (isInternalStaff) return filterByPermission(adminOtherItems);
+    return [];
+  }, [isInternalStaff, filterByPermission]);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";

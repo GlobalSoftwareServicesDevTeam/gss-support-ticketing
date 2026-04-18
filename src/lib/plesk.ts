@@ -468,3 +468,363 @@ export async function createSessionUrl(pleskCustomerLogin: string, clientIp?: st
 
   return `${creds.url}/enterprise/rsession_init.php?PHPSESSID=${sessionIdMatch[1]}`;
 }
+
+// ─── Mail Account Management (via XML-RPC) ──────────
+
+export interface PleskMailAccount {
+  name: string; // local part (before @)
+  domain: string;
+  email: string; // full address
+  mailbox: boolean;
+  enabled: boolean;
+  aliases: string[];
+  autoresponder: boolean;
+  mailboxQuota: number; // bytes, 0 = unlimited
+  mailboxUsage: number; // bytes
+}
+
+/**
+ * List mail accounts on a domain.
+ */
+export async function listMailAccounts(domain: string): Promise<PleskMailAccount[]> {
+  const siteId = await getDomainPleskId(domain);
+
+  const fullXml = await pleskXmlRpc(
+    `<packet>
+      <mail>
+        <get_info>
+          <filter>
+            <site-id>${siteId}</site-id>
+          </filter>
+          <mailbox/>
+          <aliases/>
+          <autoresponder/>
+          <mailbox-usage/>
+        </get_info>
+      </mail>
+    </packet>`
+  );
+
+  const fullParsed = parseMailAccountsXml(fullXml, domain);
+  if (fullParsed.accounts.length > 0) {
+    return fullParsed.accounts;
+  }
+
+  if (fullParsed.errors.length === 0) {
+    const compactXml = fullXml.replace(/\s+/g, " ").trim();
+    console.warn(
+      `[plesk.mail] Empty account list for domain ${domain} (site-id=${siteId}) from full get_info response. Sample: ${compactXml.slice(0, 600)}`
+    );
+  }
+
+  // Some Plesk versions reject one of the extra datasets; retry with minimal get_info.
+  if (fullParsed.errors.length > 0) {
+    const fallbackXml = await pleskXmlRpc(
+      `<packet>
+        <mail>
+          <get_info>
+            <filter>
+              <site-id>${siteId}</site-id>
+            </filter>
+          </get_info>
+        </mail>
+      </packet>`
+    );
+
+    const fallbackParsed = parseMailAccountsXml(fallbackXml, domain);
+    if (fallbackParsed.accounts.length > 0) {
+      return fallbackParsed.accounts;
+    }
+    if (fallbackParsed.errors.length > 0) {
+      throw new Error(fallbackParsed.errors[0]);
+    }
+
+    const compactFallbackXml = fallbackXml.replace(/\s+/g, " ").trim();
+    console.warn(
+      `[plesk.mail] Empty account list for domain ${domain} (site-id=${siteId}) from fallback get_info response. Sample: ${compactFallbackXml.slice(0, 600)}`
+    );
+    return [];
+  }
+
+  return [];
+}
+
+function parseMailAccountsXml(
+  xml: string,
+  domain: string
+): { accounts: PleskMailAccount[]; errors: string[] } {
+  const accounts: PleskMailAccount[] = [];
+  const errors: string[] = [];
+  const resultBlocks = xml.match(/<result>[\s\S]*?<\/result>/g) || [];
+
+  for (const block of resultBlocks) {
+    const statusMatch = /<status>([^<]+)<\/status>/.exec(block);
+    const status = statusMatch?.[1]?.toLowerCase() || "";
+    if (status && status !== "ok") {
+      const errText = xmlVal(block, "errtext") || "Unknown mail API error";
+      errors.push(errText);
+      continue;
+    }
+
+    // Most responses wrap account rows in <mailname>...</mailname>.
+    // Some variants put account fields directly under <result>.
+    const nameBlocks = block.match(/<mailname[\s\S]*?>[\s\S]*?<\/mailname>/g) || [block];
+
+    for (const nameBlock of nameBlocks) {
+      const rawName = xmlVal(nameBlock, "name") || xmlVal(nameBlock, "mailname");
+      const name = rawName && !rawName.includes("@") ? rawName : rawName?.split("@")[0];
+      if (!name) continue;
+
+      const mailbox = /<mailbox>/.test(nameBlock) || /<mailbox>true<\/mailbox>/.test(nameBlock);
+      const enabled = !/<enabled>false<\/enabled>/.test(nameBlock) && !/<status>disabled<\/status>/.test(nameBlock);
+      const autoresponder = /<autoresponder>[\s\S]*?<status>on<\/status>[\s\S]*?<\/autoresponder>/.test(nameBlock);
+
+      const aliases: string[] = [];
+      const aliasMatches = nameBlock.match(/<alias>([^<]+)<\/alias>/g) || [];
+      for (const am of aliasMatches) {
+        const v = am.replace(/<\/?alias>/g, "");
+        if (v) aliases.push(v);
+      }
+
+      let mailboxQuota = 0;
+      let mailboxUsage = 0;
+
+      const quotaMatch = /<mbox_quota>(\d+)<\/mbox_quota>/.exec(nameBlock);
+      if (quotaMatch) mailboxQuota = parseInt(quotaMatch[1], 10);
+
+      const usageMatch = /<mailbox-usage>(\d+)<\/mailbox-usage>/.exec(nameBlock);
+      if (usageMatch) {
+        mailboxUsage = parseInt(usageMatch[1], 10);
+      } else {
+        const usageBlockMatch = /<mailbox-usage>[\s\S]*?<\/mailbox-usage>/.exec(nameBlock);
+        if (usageBlockMatch) {
+          const n = /(\d+)/.exec(usageBlockMatch[0]);
+          if (n) mailboxUsage = parseInt(n[1], 10);
+        }
+      }
+
+      const email = `${name}@${domain}`;
+      if (!accounts.some((a) => a.email === email)) {
+        accounts.push({
+          name,
+          domain,
+          email,
+          mailbox,
+          enabled,
+          aliases,
+          autoresponder,
+          mailboxQuota,
+          mailboxUsage,
+        });
+      }
+    }
+  }
+
+  return { accounts, errors };
+}
+
+/**
+ * Create a mail account on a domain.
+ */
+export async function createMailAccount(params: {
+  domain: string;
+  name: string; // local part before @
+  password: string;
+  mailbox?: boolean;
+  quota?: number; // bytes, 0 = unlimited
+}): Promise<void> {
+  const domainId = await getDomainPleskId(params.domain);
+  const mailboxEnabled = params.mailbox !== false;
+  const quotaXml = params.quota ? `<mbox_quota>${params.quota}</mbox_quota>` : "";
+
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <mail>
+        <create>
+          <filter>
+            <site-id>${domainId}</site-id>
+            <mailname>
+              <name>${escapeXml(params.name)}</name>
+              <mailbox>
+                <enabled>${mailboxEnabled}</enabled>
+                ${quotaXml}
+              </mailbox>
+              <password>
+                <value>${escapeXml(params.password)}</value>
+                <type>plain</type>
+              </password>
+            </mailname>
+          </filter>
+        </create>
+      </mail>
+    </packet>`
+  );
+
+  const errorMatch = /<status>error<\/status>[\s\S]*?<errtext>([^<]+)<\/errtext>/.exec(xml);
+  if (errorMatch) {
+    throw new Error(errorMatch[1]);
+  }
+}
+
+/**
+ * Update a mail account (change password, enable/disable mailbox, quota).
+ */
+export async function updateMailAccount(params: {
+  domain: string;
+  name: string;
+  password?: string;
+  enabled?: boolean;
+  quota?: number;
+}): Promise<void> {
+  const domainId = await getDomainPleskId(params.domain);
+
+  let innerXml = "";
+  if (params.password) {
+    innerXml += `<password><value>${escapeXml(params.password)}</value><type>plain</type></password>`;
+  }
+  if (params.enabled !== undefined || params.quota !== undefined) {
+    let mbXml = "";
+    if (params.enabled !== undefined) mbXml += `<enabled>${params.enabled}</enabled>`;
+    if (params.quota !== undefined) mbXml += `<mbox_quota>${params.quota}</mbox_quota>`;
+    innerXml += `<mailbox>${mbXml}</mailbox>`;
+  }
+
+  if (!innerXml) return;
+
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <mail>
+        <update>
+          <set>
+            <filter>
+              <site-id>${domainId}</site-id>
+              <mailname>
+                <name>${escapeXml(params.name)}</name>
+                ${innerXml}
+              </mailname>
+            </filter>
+          </set>
+        </update>
+      </mail>
+    </packet>`
+  );
+
+  const errorMatch = /<status>error<\/status>[\s\S]*?<errtext>([^<]+)<\/errtext>/.exec(xml);
+  if (errorMatch) {
+    throw new Error(errorMatch[1]);
+  }
+}
+
+/**
+ * Remove (delete) a mail account from a domain.
+ */
+export async function removeMailAccount(domain: string, name: string): Promise<void> {
+  const domainId = await getDomainPleskId(domain);
+
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <mail>
+        <remove>
+          <filter>
+            <site-id>${domainId}</site-id>
+            <mailname>
+              <name>${escapeXml(name)}</name>
+            </mailname>
+          </filter>
+        </remove>
+      </mail>
+    </packet>`
+  );
+
+  const errorMatch = /<status>error<\/status>[\s\S]*?<errtext>([^<]+)<\/errtext>/.exec(xml);
+  if (errorMatch) {
+    throw new Error(errorMatch[1]);
+  }
+}
+
+/**
+ * Helper: get Plesk internal site ID for a domain name.
+ */
+async function getDomainPleskId(domain: string): Promise<number> {
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <site>
+        <get>
+          <filter>
+            <name>${escapeXml(domain)}</name>
+          </filter>
+          <dataset><gen_info/></dataset>
+        </get>
+      </site>
+    </packet>`
+  );
+
+  const idMatch = /<id>(\d+)<\/id>/.exec(xml);
+  if (!idMatch) {
+    // Fallback: try webspace (older Plesk structures)
+    const xml2 = await pleskXmlRpc(
+      `<packet>
+        <webspace>
+          <get>
+            <filter>
+              <name>${escapeXml(domain)}</name>
+            </filter>
+            <dataset><gen_info/></dataset>
+          </get>
+        </webspace>
+      </packet>`
+    );
+    const id2 = /<id>(\d+)<\/id>/.exec(xml2);
+    if (!id2) throw new Error(`Domain "${domain}" not found in Plesk`);
+    return parseInt(id2[1], 10);
+  }
+  return parseInt(idMatch[1], 10);
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * Get webmail URL for a domain. Returns the standard Roundcube webmail URL on Plesk.
+ */
+export function getWebmailUrl(domain: string): string {
+  return `https://webmail.${domain}`;
+}
+
+/**
+ * Create a Plesk session URL that goes directly to webmail for a given email account.
+ */
+export async function createWebmailSessionUrl(pleskLogin: string): Promise<string> {
+  const creds = await getPleskCredentials();
+  const xml = await pleskXmlRpc(
+    `<packet>
+      <server>
+        <create_session>
+          <login>${escapeXml(pleskLogin)}</login>
+          <data>
+            <starting_url>/smb/email/addresses</starting_url>
+            <source_server></source_server>
+          </data>
+        </create_session>
+      </server>
+    </packet>`
+  );
+
+  const errorMatch = /<status>error<\/status>[\s\S]*?<errtext>([^<]+)<\/errtext>/.exec(xml);
+  if (errorMatch) {
+    throw new Error(`Plesk error: ${errorMatch[1]}`);
+  }
+
+  const sessionIdMatch = /<id>([^<]+)<\/id>/.exec(xml);
+  if (!sessionIdMatch) {
+    throw new Error("Failed to create Plesk webmail session");
+  }
+
+  return `${creds.url}/enterprise/rsession_init.php?PHPSESSID=${sessionIdMatch[1]}`;
+}

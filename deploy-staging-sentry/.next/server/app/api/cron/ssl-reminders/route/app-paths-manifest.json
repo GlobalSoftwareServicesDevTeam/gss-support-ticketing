@@ -1,0 +1,3 @@
+{
+  "/api/cron/ssl-reminders/route": "app/api/cron/ssl-reminders/route.js"
+}

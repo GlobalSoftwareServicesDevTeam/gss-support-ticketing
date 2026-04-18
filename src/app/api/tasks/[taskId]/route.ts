@@ -42,7 +42,19 @@ export async function PUT(
 
   const { taskId } = await params;
   const body = await req.json();
-  const { title, description, status, priority, startDate, dueDate, order, assigneeIds, startTime, estimatedDuration } = body;
+  const { title, description, status, priority, startDate, dueDate, order, assigneeIds, startTime, estimatedDuration, stageId, testCompleted } = body;
+
+  const isAdmin = session.user.role === "ADMIN";
+
+  // Non-admin users can only update tasks they're assigned to
+  if (!isAdmin) {
+    const assignment = await prisma.taskAssignment.findFirst({
+      where: { taskId, userId: session.user.id },
+    });
+    if (!assignment) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   await prisma.task.update({
     where: { id: taskId },
@@ -56,6 +68,8 @@ export async function PUT(
       ...(order !== undefined && { order }),
       ...(startTime !== undefined && { startTime: startTime || null }),
       ...(estimatedDuration !== undefined && { estimatedDuration: estimatedDuration ? Number(estimatedDuration) : null }),
+      ...(stageId !== undefined && { stageId: stageId || null }),
+      ...(testCompleted !== undefined && { testCompleted: Boolean(testCompleted) }),
     },
   });
 
@@ -100,6 +114,11 @@ export async function DELETE(
   }
 
   const { taskId } = await params;
+
+  // Only admins can delete tasks
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await prisma.task.delete({ where: { id: taskId } });
 

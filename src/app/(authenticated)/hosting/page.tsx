@@ -94,7 +94,7 @@ export default function HostingPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const [tab, setTab] = useState<Tab>("orders");
+  const [tab, setTab] = useState<Tab>("domain");
   const [orders, setOrders] = useState<HostingOrder[]>([]);
   const [products, setProducts] = useState<HostingProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -454,7 +454,7 @@ export default function HostingPage() {
         setDomainResult(null);
         setDomainQuery("");
         await fetchOrders();
-        setTab("orders");
+        setTab("domain");
       }
     } catch { /* ignore */ }
     setOrderSubmitting(false);
@@ -491,6 +491,16 @@ export default function HostingPage() {
     setActionLoading(orderId);
     try {
       await fetch(`/api/hosting/orders/${orderId}`, { method: "DELETE" });
+      await fetchOrders();
+    } catch { /* ignore */ }
+    setActionLoading("");
+  }
+
+  async function deleteOrder(orderId: string) {
+    if (!confirm("Delete this order permanently? This cannot be undone.")) return;
+    setActionLoading(orderId);
+    try {
+      await fetch(`/api/hosting/orders/${orderId}?mode=delete`, { method: "DELETE" });
       await fetchOrders();
     } catch { /* ignore */ }
     setActionLoading("");
@@ -556,6 +566,19 @@ export default function HostingPage() {
       }
     } catch { /* ignore */ }
     setEditProductSaving(false);
+  }
+
+  async function deleteProduct(productId: string, productName: string) {
+    if (!confirm(`Permanently delete "${productName}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/hosting/products/${productId}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchProducts();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete product");
+      }
+    } catch { /* ignore */ }
   }
 
   const hostingProducts = products.filter((p) => p.type === "HOSTING");
@@ -633,7 +656,7 @@ export default function HostingPage() {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-    { id: "orders", label: "My Orders", icon: <Package size={16} /> },
+    { id: "orders", label: "Orders", icon: <Package size={16} /> },
     { id: "domain", label: "New Domain", icon: <Globe size={16} /> },
     { id: "domains", label: "Domains Manager", icon: <Globe size={16} /> },
     { id: "dns", label: "DNS Manager", icon: <Globe size={16} /> },
@@ -702,6 +725,7 @@ export default function HostingPage() {
             <div className="space-y-3">
               {orders.map((order) => {
                 const statusInfo = ORDER_STATUS_STYLE[order.status] || ORDER_STATUS_STYLE.PENDING;
+                const canDeleteOrder = ["PENDING", "QUOTED", "FAILED", "CANCELLED"].includes(order.status);
                 return (
                   <div
                     key={order.id}
@@ -782,6 +806,16 @@ export default function HostingPage() {
                             className="p-1.5 rounded bg-red-50 text-red-500 hover:bg-red-100 transition"
                           >
                             <Trash2 size={14} />
+                          </button>
+                        )}
+                        {canDeleteOrder && (
+                          <button
+                            onClick={() => deleteOrder(order.id)}
+                            disabled={actionLoading === order.id}
+                            title="Delete order"
+                            className="p-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+                          >
+                            <X size={14} />
                           </button>
                         )}
                       </div>
@@ -1929,6 +1963,13 @@ export default function HostingPage() {
                             className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
                           >
                             <Edit3 size={14} />
+                          </button>
+                          <button
+                            title="Delete product"
+                            onClick={() => deleteProduct(p.id, p.name)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </td>
                       </>

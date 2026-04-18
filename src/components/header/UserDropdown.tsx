@@ -1,8 +1,9 @@
 "use client";
 import React, { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, UserCircle } from "lucide-react";
 
 export default function UserDropdown() {
   const { data: session } = useSession();
@@ -67,7 +68,18 @@ export default function UserDropdown() {
           )}
         </div>
 
-        <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800">
+        <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800 space-y-1">
+          <Link
+            href="/profile"
+            onClick={closeDropdown}
+            className="flex w-full items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+          >
+            <UserCircle
+              className="text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300"
+              size={24}
+            />
+            My Profile
+          </Link>
           <button
             onClick={() => {
               closeDropdown();

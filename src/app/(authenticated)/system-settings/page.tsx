@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck, Smartphone } from "lucide-react";
+import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck, Smartphone, Monitor } from "lucide-react";
 
-type Tab = "plesk" | "smtp" | "imap" | "digicert" | "googleplay" | "apple";
+type Tab = "plesk" | "smtp" | "imap" | "digicert" | "googleplay" | "apple" | "iis";
 
 interface PleskPlan {
   id: number;
@@ -56,6 +56,9 @@ export default function SystemSettingsPage() {
     APPLE_CONNECT_KEY_ID: "",
     APPLE_CONNECT_ISSUER_ID: "",
     APPLE_CONNECT_PRIVATE_KEY: "",
+    IIS_API_URL: "",
+    IIS_API_KEY: "",
+    IIS_SERVER_NAME: "",
   });
 
   const isAdmin = session?.user?.role === "ADMIN";
@@ -89,6 +92,7 @@ export default function SystemSettingsPage() {
       digicert: ["DIGICERT_API_KEY", "DIGICERT_ORG_ID"],
       googleplay: ["GOOGLE_PLAY_SERVICE_ACCOUNT_KEY"],
       apple: ["APPLE_CONNECT_KEY_ID", "APPLE_CONNECT_ISSUER_ID", "APPLE_CONNECT_PRIVATE_KEY"],
+      iis: ["IIS_API_URL", "IIS_API_KEY", "IIS_SERVER_NAME"],
     };
 
     const payload: Record<string, string> = {};
@@ -212,6 +216,7 @@ export default function SystemSettingsPage() {
     { key: "digicert", label: "DigiCert SSL", icon: <ShieldCheck size={16} /> },
     { key: "googleplay", label: "Google Play", icon: <Smartphone size={16} /> },
     { key: "apple", label: "Apple Connect", icon: <Smartphone size={16} /> },
+    { key: "iis", label: "IIS Server", icon: <Monitor size={16} /> },
   ];
 
   function renderInput(key: string, label: string, opts?: { type?: string; placeholder?: string; help?: string }) {
@@ -630,6 +635,65 @@ export default function SystemSettingsPage() {
                   <li>Download the .p8 private key file (only available once!)</li>
                   <li>Paste the Key ID, Issuer ID, and .p8 file contents above</li>
                   <li>Grant the key &quot;Admin&quot; or &quot;App Manager&quot; role for full access</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* IIS Server Tab */}
+          {activeTab === "iis" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">IIS Server Configuration</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Connect to Microsoft IIS Administration API to manage Windows hosting sites and application pools.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {renderInput("IIS_API_URL", "IIS API URL", { placeholder: "https://102.67.138.146:8890", help: "Base URL of the IIS Administration API (e.g. https://server:55539)" })}
+                {renderInput("IIS_API_KEY", "API Access Token", { placeholder: "Enter API key" })}
+                {renderInput("IIS_SERVER_NAME", "Server Display Name", { placeholder: "Windows Server", help: "Friendly name shown in the admin panel" })}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("iis")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+                <button
+                  onClick={async () => {
+                    setTesting(true);
+                    setTestResult(null);
+                    try {
+                      const res = await fetch("/api/hosting/iis/test", { method: "POST" });
+                      const data = await res.json();
+                      setTestResult({ success: data.success, message: data.message });
+                    } catch {
+                      setTestResult({ success: false, message: "Failed to test connection" });
+                    }
+                    setTesting(false);
+                  }}
+                  disabled={testing}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition disabled:opacity-50 text-sm"
+                >
+                  {testing ? <Loader2 size={16} className="animate-spin" /> : <TestTube size={16} />}
+                  Test Connection
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Setup Instructions</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Install the Microsoft IIS Administration API on your Windows server</li>
+                  <li>Download from <span className="font-mono">https://github.com/microsoft/IIS.Administration</span></li>
+                  <li>After installation, open the IIS Admin portal and generate an Access Token</li>
+                  <li>Enter the server URL (with port) and the access token above</li>
+                  <li>Click &quot;Test Connection&quot; to verify connectivity</li>
                 </ol>
               </div>
             </div>

@@ -77,7 +77,8 @@ export async function PATCH(
   }
 }
 
-// DELETE: deactivate a hosting product (admin only)
+// DELETE: remove a hosting product (admin only)
+// If the product has orders, it cannot be deleted (use PATCH isActive=false instead)
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -95,22 +96,27 @@ export async function DELETE(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    // Soft-delete: set isActive to false
-    await prisma.hostingProduct.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    // Check if any orders reference this product
+    const orderCount = await prisma.hostingOrder.count({ where: { productId: id } });
+    if (orderCount > 0) {
+      return NextResponse.json(
+        { error: `Cannot delete: ${orderCount} order(s) reference this product. Deactivate it instead.` },
+        { status: 409 }
+      );
+    }
+
+    await prisma.hostingProduct.delete({ where: { id } });
 
     logAudit({
       action: "DELETE",
       entity: "HOSTING_PRODUCT",
       entityId: id,
-      description: `Deactivated hosting product "${product.name}"`,
+      description: `Permanently deleted hosting product "${product.name}"`,
       userId: session.user.id,
       userName: session.user.name || undefined,
     });
 
-    return NextResponse.json({ message: "Product deactivated" });
+    return NextResponse.json({ message: "Product deleted" });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

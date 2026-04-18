@@ -32,8 +32,14 @@ export async function GET(
       lastName: true,
       phoneNumber: true,
       company: true,
+      companyRegNo: true,
+      companyVatNo: true,
+      companyAddress: true,
+      position: true,
       role: true,
       emailConfirmed: true,
+      totpEnabled: true,
+      oauthProvider: true,
       createdAt: true,
     },
   });
@@ -67,10 +73,25 @@ export async function PATCH(
   if (body.lastName) data.lastName = body.lastName;
   if (body.phoneNumber !== undefined) data.phoneNumber = body.phoneNumber;
   if (body.company !== undefined) data.company = body.company;
+  if (body.companyRegNo !== undefined) data.companyRegNo = body.companyRegNo;
+  if (body.companyVatNo !== undefined) data.companyVatNo = body.companyVatNo;
+  if (body.companyAddress !== undefined) data.companyAddress = body.companyAddress;
+  if (body.position !== undefined) data.position = body.position;
 
   // Only admin can change role
   if (body.role && session.user.role === "ADMIN") {
     data.role = body.role;
+    // Set or clear staffRoleId based on role
+    if (body.role === "EMPLOYEE") {
+      data.staffRoleId = body.staffRoleId || null;
+    } else {
+      data.staffRoleId = null;
+    }
+  }
+
+  // Admin can also update staffRoleId independently (for existing employees)
+  if (body.staffRoleId !== undefined && session.user.role === "ADMIN") {
+    data.staffRoleId = body.staffRoleId || null;
   }
 
   // Password change

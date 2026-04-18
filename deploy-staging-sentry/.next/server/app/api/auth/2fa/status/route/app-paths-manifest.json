@@ -1,0 +1,3 @@
+{
+  "/api/auth/2fa/status/route": "app/api/auth/2fa/status/route.js"
+}

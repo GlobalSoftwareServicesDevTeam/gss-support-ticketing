@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { Agent, fetch as undiciFetch } from "undici";
 
 const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
 const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
-
-// Invoice Ninja may be on a shared host with mismatched SSL cert
-const ninjaAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 async function ninjaFetch(endpoint: string) {
   if (!INVOICE_NINJA_URL || !INVOICE_NINJA_TOKEN) {
@@ -15,12 +11,11 @@ async function ninjaFetch(endpoint: string) {
   }
 
   const url = `${INVOICE_NINJA_URL}/api/v1/${endpoint}`;
-  const res = await undiciFetch(url, {
+  const res = await fetch(url, {
     headers: {
       "X-Api-Token": INVOICE_NINJA_TOKEN,
       "Content-Type": "application/json",
     },
-    dispatcher: ninjaAgent,
   });
 
   if (!res.ok) {
@@ -29,6 +24,14 @@ async function ninjaFetch(endpoint: string) {
   }
 
   return res.json() as Promise<{ data: unknown[] }>;
+}
+
+function isInvoiceNinjaAuthError(error: unknown): boolean {
+  const message = String(error || "").toLowerCase();
+  return message.includes("invoice ninja api 401") ||
+    message.includes("invoice ninja api 403") ||
+    message.includes("invalid token") ||
+    message.includes("unauthorized");
 }
 
 export async function GET(req: NextRequest) {
@@ -87,6 +90,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: (data as { data?: unknown[] } | null)?.data || [], configured: true });
   } catch (error) {
     console.error("Invoice API error:", error);
-    return NextResponse.json({ error: String(error), configured: true }, { status: 500 });
+    if (isInvoiceNinjaAuthError(error)) {
+      return NextResponse.json(
+        {
+          data: [],
+          configured: true,
+          integrationError: "Invoice Ninja authentication failed. Please update the API token.",
+        },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json({ error: "Failed to fetch Invoice Ninja data", configured: true }, { status: 502 });
   }
 }

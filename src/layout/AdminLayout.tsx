@@ -4,6 +4,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "./AppHeader";
 import AppSidebar from "./AppSidebar";
 import Backdrop from "./Backdrop";
+import GlobalGridReports from "@/components/common/global-grid-reports";
 
 export default function AdminLayout({
   children,
@@ -25,6 +26,7 @@ export default function AdminLayout({
       >
         <AppHeader />
         <main className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+          <GlobalGridReports />
           {children}
         </main>
       </div>

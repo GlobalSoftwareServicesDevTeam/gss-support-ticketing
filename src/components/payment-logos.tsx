@@ -6,8 +6,10 @@ export function PayFastLogo({ size = 24, className = "" }: { size?: number; clas
     <img
       src="/payment_gateways/payfast.png"
       alt="PayFast"
+      width={size * 3}
       height={size}
-      className={`inline-block object-contain w-auto ${className}`}
+      style={{ maxHeight: size, maxWidth: size * 3 }}
+      className={`inline-block object-contain ${className}`}
     />
   );
 }
@@ -18,8 +20,10 @@ export function OzowLogo({ size = 24, className = "" }: { size?: number; classNa
     <img
       src="/payment_gateways/ozow.png"
       alt="Ozow"
+      width={size * 3}
       height={size}
-      className={`inline-block object-contain w-auto ${className}`}
+      style={{ maxHeight: size, maxWidth: size * 3 }}
+      className={`inline-block object-contain ${className}`}
     />
   );
 }
@@ -30,8 +34,10 @@ export function EftIcon({ size = 24, className = "" }: { size?: number; classNam
     <img
       src="/payment_gateways/fnb.png"
       alt="FNB Bank Transfer"
+      width={size}
       height={size}
-      className={`inline-block object-contain w-auto ${className}`}
+      style={{ maxHeight: size, maxWidth: size }}
+      className={`inline-block object-contain ${className}`}
     />
   );
 }

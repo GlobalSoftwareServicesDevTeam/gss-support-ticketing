@@ -10,6 +10,14 @@ import {
   getClient,
 } from "@/lib/invoice-ninja";
 
+function isInvoiceNinjaAuthError(error: unknown): boolean {
+  const message = String(error || "").toLowerCase();
+  return message.includes("invoice ninja api 401") ||
+    message.includes("invoice ninja api 403") ||
+    message.includes("invalid token") ||
+    message.includes("unauthorized");
+}
+
 // GET: get billing account info for current user, or list all clients (admin)
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -30,7 +38,18 @@ export async function GET(req: NextRequest) {
       const clients = await listClients();
       return NextResponse.json({ configured: true, clients });
     } catch (error) {
-      return NextResponse.json({ error: String(error), configured: true }, { status: 500 });
+      if (isInvoiceNinjaAuthError(error)) {
+        return NextResponse.json(
+          {
+            configured: true,
+            clients: [],
+            integrationError: "Invoice Ninja authentication failed. Please update the API token.",
+          },
+          { status: 200 }
+        );
+      }
+
+      return NextResponse.json({ error: "Failed to load Invoice Ninja clients", configured: true }, { status: 502 });
     }
   }
 

@@ -12,7 +12,7 @@ export async function PUT(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { subId } = await params;
+  const { id, subId } = await params;
   const body = await req.json();
 
   const data: Record<string, unknown> = {};
@@ -29,9 +29,10 @@ export async function PUT(
       data: { subProjectId: null },
     });
     if (Array.isArray(body.repoIds) && body.repoIds.length > 0) {
+      // Also ensure repos are linked to the parent project
       await prisma.gitHubRepo.updateMany({
         where: { id: { in: body.repoIds } },
-        data: { subProjectId: subId },
+        data: { subProjectId: subId, projectId: id },
       });
     }
   }

@@ -82,7 +82,12 @@ function formatDate(dateStr: string): string {
 
 // ─── Component ──────────────────────────────────────────
 
-export default function PaymentArrangementsPage() {
+interface PaymentArrangementsPageProps {
+  hideHeader?: boolean;
+  compact?: boolean;
+}
+
+export default function PaymentArrangementsPage({ hideHeader = false, compact = false }: PaymentArrangementsPageProps = {}) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
 
@@ -196,26 +201,38 @@ export default function PaymentArrangementsPage() {
   // ─── Render ──────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
+    <div className={compact ? "" : "mx-auto max-w-6xl px-4 py-6"}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <CalendarClock className="text-brand-500" size={28} />
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Payment Arrangements</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Request a payment plan for outstanding invoices (max 3 months)
-            </p>
+      {!hideHeader && (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <CalendarClock className="text-brand-500" size={28} />
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Payment Arrangements</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Request a payment plan for outstanding invoices (max 3 months)
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => setShowNewForm(!showNewForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium"
+          >
+            <Plus size={16} />
+            New Arrangement
+          </button>
         </div>
+      )}
+
+      {hideHeader && (
         <button
           onClick={() => setShowNewForm(!showNewForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium"
+          className="mb-6 flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium"
         >
           <Plus size={16} />
           New Arrangement
         </button>
-      </div>
+      )}
 
       {/* Message */}
       {message && (

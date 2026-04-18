@@ -16,10 +16,34 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   const projectId = searchParams.get("projectId");
+  const customerId = searchParams.get("customerId");
+  const fromDate = searchParams.get("fromDate");
+  const toDate = searchParams.get("toDate");
+  const search = searchParams.get("search");
 
-  const where: Record<string, unknown> = {};
-  if (category) where.category = category;
-  if (projectId) where.projectId = projectId;
+  const andClauses: Record<string, unknown>[] = [];
+  if (category) andClauses.push({ category });
+  if (projectId) andClauses.push({ projectId });
+  if (customerId) andClauses.push({ project: { customerId } });
+
+  if (fromDate || toDate) {
+    const uploadedAt: Record<string, unknown> = {};
+    if (fromDate) uploadedAt.gte = new Date(`${fromDate}T00:00:00.000Z`);
+    if (toDate) uploadedAt.lte = new Date(`${toDate}T23:59:59.999Z`);
+    andClauses.push({ uploadedAt });
+  }
+
+  if (search) {
+    andClauses.push({
+      OR: [
+        { name: { contains: search } },
+        { fileName: { contains: search } },
+        { notes: { contains: search } },
+        { project: { projectName: { contains: search } } },
+        { project: { customer: { company: { contains: search } } } },
+      ],
+    });
+  }
 
   // Non-admin: filter documents to those uploaded by the user or their customer group,
   // or documents belonging to projects they have access to
@@ -27,17 +51,23 @@ export async function GET(
     const ctx = getCustomerContext(session);
     if (ctx && ctx.permissions.documents) {
       const customerUserIds = await getCustomerUserIds(ctx.customerId);
-      where.OR = [
-        { uploadedBy: { in: customerUserIds } },
-        { project: { assignments: { some: { userId: { in: customerUserIds } } } } },
-      ];
+      andClauses.push({
+        OR: [
+          { uploadedBy: { in: customerUserIds } },
+          { project: { assignments: { some: { userId: { in: customerUserIds } } } } },
+        ],
+      });
     } else {
-      where.OR = [
-        { uploadedBy: session.user.id },
-        { project: { assignments: { some: { userId: session.user.id } } } },
-      ];
+      andClauses.push({
+        OR: [
+          { uploadedBy: session.user.id },
+          { project: { assignments: { some: { userId: session.user.id } } } },
+        ],
+      });
     }
   }
+
+  const where = andClauses.length ? { AND: andClauses } : {};
 
   const documents = await prisma.document.findMany({
     where,
@@ -52,7 +82,13 @@ export async function GET(
       uploadedAt: true,
       uploadedBy: true,
       projectId: true,
-      project: { select: { id: true, projectName: true } },
+      project: {
+        select: {
+          id: true,
+          projectName: true,
+          customer: { select: { id: true, company: true } },
+        },
+      },
     },
     orderBy: { uploadedAt: "desc" },
   });

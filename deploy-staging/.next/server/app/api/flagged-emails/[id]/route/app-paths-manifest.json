@@ -1,0 +1,3 @@
+{
+  "/api/flagged-emails/[id]/route": "app/api/flagged-emails/[id]/route.js"
+}

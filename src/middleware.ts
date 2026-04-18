@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { routePermissionMap, hasStaffPermission } from "@/lib/permissions";
+import type { StaffPermissions } from "@/lib/permissions";
 
 const CORS_ALLOWED_ORIGINS = [
   "https://globalsoftwareservices.co.za",
@@ -38,7 +40,7 @@ export default auth((req) => {
   }
 
   // Public routes
-  const publicRoutes = ["/login", "/register", "/invite", "/sign", "/schedule", "/api/auth", "/api/users/invite/accept", "/api/signing/sign", "/api/schedule"];
+  const publicRoutes = ["/login", "/register", "/invite", "/sign", "/schedule", "/checkout", "/api/auth", "/api/users/invite/accept", "/api/signing/sign", "/api/schedule"];
   const isPublic = publicRoutes.some((route) => pathname.startsWith(route));
 
   if (isPublic) return NextResponse.next();
@@ -47,6 +49,8 @@ export default auth((req) => {
   if (pathname.startsWith("/api/cron")) return NextResponse.next();
   if (pathname.startsWith("/api/payments/payfast/notify")) return NextResponse.next();
   if (pathname.startsWith("/api/payments/ozow/notify")) return NextResponse.next();
+  if (pathname.startsWith("/api/webhooks/sentry")) return NextResponse.next();
+  if (pathname.startsWith("/api/contracts/backfill-documents")) return NextResponse.next();
 
   // Protect all other routes
   if (!req.auth) {
@@ -58,12 +62,34 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Admin-only routes
-  const adminRoutes = ["/users", "/email-settings", "/flagged-emails", "/signing", "/task-schedule", "/code-downloads", "/hosting-admin", "/audit-logs"];
-  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+  // Redirect primary contacts with unsigned contracts to the signing page
+  const user = req.auth.user as {
+    isPrimaryContact?: boolean;
+    hasUnsignedContracts?: boolean;
+  } | undefined;
+  if (
+    user?.isPrimaryContact &&
+    user?.hasUnsignedContracts &&
+    !pathname.startsWith("/contracts") &&
+    !pathname.startsWith("/api/")
+  ) {
+    return NextResponse.redirect(new URL("/contracts", req.url));
+  }
 
-  if (isAdminRoute && req.auth.user?.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  // Admin/Employee-only routes — check granular permissions
+  const staffRoutes = Object.keys(routePermissionMap);
+  const matchedRoute = staffRoutes.find((route) => pathname.startsWith(route));
+
+  if (matchedRoute) {
+    const requiredPermission = routePermissionMap[matchedRoute];
+    const sessionUser = req.auth.user as {
+      role?: string;
+      staffPermissions?: StaffPermissions;
+    } | undefined;
+
+    if (!hasStaffPermission(sessionUser, requiredPermission)) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
   }
 
   return NextResponse.next();
