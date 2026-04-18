@@ -44,6 +44,18 @@ export async function PUT(
   const body = await req.json();
   const { title, description, status, priority, startDate, dueDate, order, assigneeIds, startTime, estimatedDuration } = body;
 
+  const isAdmin = session.user.role === "ADMIN";
+
+  // Non-admin users can only update tasks they're assigned to
+  if (!isAdmin) {
+    const assignment = await prisma.taskAssignment.findFirst({
+      where: { taskId, userId: session.user.id },
+    });
+    if (!assignment) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -100,6 +112,11 @@ export async function DELETE(
   }
 
   const { taskId } = await params;
+
+  // Only admins can delete tasks
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await prisma.task.delete({ where: { id: taskId } });
 

@@ -352,11 +352,9 @@ export default function TaskBoard({ projectId, tasks, isAdmin, onRefresh }: Task
                           </div>
                         )}
                       </div>
+                        <button onClick={() => startEdit(task)} className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded">Edit</button>
                       {isAdmin && (
-                        <>
-                          <button onClick={() => startEdit(task)} className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded">Edit</button>
-                          <button onClick={() => handleDelete(task.id)} className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded">Del</button>
-                        </>
+                        <button onClick={() => handleDelete(task.id)} className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded">Del</button>
                       )}
                     </div>
                   </div>

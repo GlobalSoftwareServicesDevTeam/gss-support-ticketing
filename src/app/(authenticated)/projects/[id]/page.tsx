@@ -183,6 +183,9 @@ export default function ProjectDetailPage() {
   const [addingTask, setAddingTask] = useState(false);
   const [linkingRepoFor, setLinkingRepoFor] = useState<string | null>(null);
   const [linkingRepo, setLinkingRepo] = useState(false);
+  const [allRepos, setAllRepos] = useState<LinkedRepo[]>([]);
+  const [allReposLoaded, setAllReposLoaded] = useState(false);
+  const [repoSearch, setRepoSearch] = useState("");
 
   const fetchProject = useCallback(() => {
     fetch(`/api/projects/${id}`)
@@ -222,6 +225,24 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (tab === "sub-projects") fetchSubProjects();
   }, [tab, fetchSubProjects]);
+
+  const fetchAllRepos = useCallback(async () => {
+    if (allReposLoaded) return;
+    try {
+      const res = await fetch("/api/github/repos");
+      const data = await res.json();
+      setAllRepos(
+        (Array.isArray(data) ? data : []).map((r: { id: string; fullName: string; htmlUrl: string; isPrivate: boolean; language: string | null }) => ({
+          id: r.id,
+          fullName: r.fullName,
+          htmlUrl: r.htmlUrl,
+          isPrivate: r.isPrivate,
+          language: r.language,
+        }))
+      );
+      setAllReposLoaded(true);
+    } catch { /* ignore */ }
+  }, [allReposLoaded]);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -649,14 +670,17 @@ export default function ProjectDetailPage() {
                     {isExpanded && (
                       <div className="border-t border-slate-200 bg-slate-50/50">
                         {/* Linked Repos */}
-                        {(sub.repos.length > 0 || (isAdmin && project.repos.length > 0)) && (
-                          <div className="px-4 py-3 border-b border-slate-200">
+                        <div className="px-4 py-3 border-b border-slate-200">
                             <div className="flex items-center gap-2 mb-2">
                               <GitBranch size={14} className="text-slate-500" />
-                              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Linked Repos</span>
+                              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Linked Repos ({sub.repos.length})</span>
                               {isAdmin && (
                                 <button
-                                  onClick={() => setLinkingRepoFor(linkingRepoFor === sub.id ? null : sub.id)}
+                                  onClick={() => {
+                                    const toggling = linkingRepoFor === sub.id ? null : sub.id;
+                                    setLinkingRepoFor(toggling);
+                                    if (toggling) { fetchAllRepos(); setRepoSearch(""); }
+                                  }}
                                   className="ml-auto text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                                 >
                                   <Edit2 size={12} /> Manage
@@ -686,9 +710,18 @@ export default function ProjectDetailPage() {
                             {/* Repo linking dropdown */}
                             {linkingRepoFor === sub.id && (
                               <div className="mt-2 p-3 bg-white rounded-lg border border-slate-200">
-                                <p className="text-xs text-slate-500 mb-2">Select repos from the project to link:</p>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                  {project.repos.map((repo) => {
+                                <p className="text-xs text-slate-500 mb-2">Select repos to link to this sub-project:</p>
+                                <input
+                                  type="text"
+                                  placeholder="Search repos..."
+                                  value={repoSearch}
+                                  onChange={(e) => setRepoSearch(e.target.value)}
+                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm mb-2 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                                />
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                  {allRepos
+                                    .filter((r) => !repoSearch || r.fullName.toLowerCase().includes(repoSearch.toLowerCase()))
+                                    .map((repo) => {
                                     const isLinked = sub.repos.some((r) => r.id === repo.id);
                                     return (
                                       <label key={repo.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-50 cursor-pointer">
@@ -706,6 +739,7 @@ export default function ProjectDetailPage() {
                                               body: JSON.stringify({ repoIds: newRepoIds }),
                                             });
                                             fetchSubProjects();
+                                            fetchProject();
                                             setLinkingRepo(false);
                                           }}
                                           disabled={linkingRepo}
@@ -714,13 +748,14 @@ export default function ProjectDetailPage() {
                                         <Code2 size={12} className="text-slate-400" />
                                         <span className="text-sm text-slate-700">{repo.fullName}</span>
                                         {repo.isPrivate && <Lock size={10} className="text-yellow-500" />}
+                                        {repo.language && <span className="text-xs text-slate-400">· {repo.language}</span>}
                                       </label>
                                     );
                                   })}
+                                  {allRepos.length === 0 && (
+                                    <p className="text-xs text-slate-400">No repos available. Sync repos on the GitHub Repos page first.</p>
+                                  )}
                                 </div>
-                                {project.repos.length === 0 && (
-                                  <p className="text-xs text-slate-400">No repos linked to this project. Link repos on the GitHub Repos page first.</p>
-                                )}
                                 <button
                                   onClick={() => setLinkingRepoFor(null)}
                                   className="mt-2 text-xs text-slate-500 hover:text-slate-700"
@@ -730,7 +765,6 @@ export default function ProjectDetailPage() {
                               </div>
                             )}
                           </div>
-                        )}
                         {sub.stages.length === 0 && !addingStageFor ? (
                           <div className="px-6 py-6 text-center text-sm text-slate-400">
                             No stages yet.

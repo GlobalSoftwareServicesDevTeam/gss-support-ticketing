@@ -38,7 +38,7 @@ export default auth((req) => {
   }
 
   // Public routes
-  const publicRoutes = ["/login", "/register", "/invite", "/sign", "/schedule", "/api/auth", "/api/users/invite/accept", "/api/signing/sign", "/api/schedule"];
+  const publicRoutes = ["/login", "/register", "/invite", "/sign", "/schedule", "/checkout", "/api/auth", "/api/users/invite/accept", "/api/signing/sign", "/api/schedule"];
   const isPublic = publicRoutes.some((route) => pathname.startsWith(route));
 
   if (isPublic) return NextResponse.next();

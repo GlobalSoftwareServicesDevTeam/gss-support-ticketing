@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Wallet, Building2 } from "lucide-react";
+import { Wallet, Building2, ArrowRightLeft, X, Check, ShieldCheck, ShieldX } from "lucide-react";
 import { PayFastLogo, OzowLogo, EftIcon } from "@/components/payment-logos";
 
 interface Payment {
@@ -17,6 +17,7 @@ interface Payment {
   invoiceNumber: string | null;
   customerName: string | null;
   customerEmail: string | null;
+  metadata: string | null;
   createdAt: string;
 }
 
@@ -131,6 +132,86 @@ export default function PaymentsPage() {
     reference: "",
   });
   const [savingEft, setSavingEft] = useState(false);
+
+  // Allocation modal state (admin)
+  interface NinjaInvoice { id: string; number: string; amount: number; balance: number; status_id: string; date: string; client?: { display_name?: string; name?: string }; }
+  const [allocatePayment, setAllocatePayment] = useState<Payment | null>(null);
+  const [ninjaInvoices, setNinjaInvoices] = useState<NinjaInvoice[]>([]);
+  const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [allocating, setAllocating] = useState(false);
+  const [allocateLoading, setAllocateLoading] = useState(false);
+  const [allocateError, setAllocateError] = useState("");
+
+  const allocTotal = useMemo(() => Object.values(allocations).reduce((s, v) => s + (v || 0), 0), [allocations]);
+
+  const openAllocateModal = useCallback(async (payment: Payment) => {
+    setAllocatePayment(payment);
+    setAllocations({});
+    setAllocateError("");
+    setAllocateLoading(true);
+    try {
+      const res = await fetch("/api/invoices?type=invoices");
+      const data = await res.json();
+      const all = ((data.data || []) as NinjaInvoice[]).filter((inv) => Number(inv.balance) > 0);
+      setNinjaInvoices(all);
+    } catch {
+      setAllocateError("Failed to load invoices");
+    }
+    setAllocateLoading(false);
+  }, []);
+
+  async function handleAllocate() {
+    if (!allocatePayment) return;
+    const entries = Object.entries(allocations).filter(([, amt]) => amt > 0);
+    if (entries.length === 0) { setAllocateError("Select at least one invoice to allocate to"); return; }
+    if (allocTotal > Number(allocatePayment.amount)) { setAllocateError("Total allocation exceeds payment amount"); return; }
+
+    setAllocating(true);
+    setAllocateError("");
+    try {
+      const res = await fetch("/api/payments/allocate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: allocatePayment.id,
+          invoices: entries.map(([invoiceId, amount]) => ({
+            invoiceId,
+            amount,
+            invoiceNumber: ninjaInvoices.find((i) => i.id === invoiceId)?.number,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAllocateError(data.error || "Allocation failed"); setAllocating(false); return; }
+      setAllocatePayment(null);
+      refreshPayments();
+    } catch (err) {
+      setAllocateError(String(err));
+    }
+    setAllocating(false);
+  }
+
+  // EFT verify/reject state
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  async function handleVerifyReject(paymentId: string, action: "verify" | "reject") {
+    const label = action === "verify" ? "verify" : "reject";
+    if (!confirm(`Are you sure you want to ${label} this EFT payment?`)) return;
+    setVerifyingId(paymentId);
+    try {
+      const res = await fetch(`/api/payments/${paymentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || `Failed to ${label} payment`); setVerifyingId(null); return; }
+      refreshPayments();
+    } catch (err) {
+      alert(String(err));
+    }
+    setVerifyingId(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -397,9 +478,9 @@ export default function PaymentsPage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Payment Gateway *</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={32} />, enabled: gateways.payfast },
-                      { key: "OZOW", label: "Ozow", icon: <OzowLogo size={32} />, enabled: gateways.ozow },
-                      { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={32} />, enabled: true },
+                      { key: "PAYFAST", label: "PayFast", icon: <PayFastLogo size={40} />, enabled: gateways.payfast },
+                      { key: "OZOW", label: "Ozow", icon: <OzowLogo size={40} />, enabled: gateways.ozow },
+                      { key: "EFT", label: "EFT / Bank", icon: <EftIcon size={40} />, enabled: true },
                     ].map((gw) => (
                       <button
                         key={gw.key}
@@ -414,7 +495,7 @@ export default function PaymentsPage() {
                             : "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
                         }`}
                       >
-                        <span className="flex justify-center mb-1">{gw.icon}</span>
+                        <span className="flex justify-center items-center mb-1 h-10">{gw.icon}</span>
                         <span className="text-xs font-medium text-slate-700">{gw.label}</span>
                         {!gw.enabled && gw.key !== "EFT" && (
                           <span className="block text-xs text-slate-400 mt-0.5">Not configured</span>
@@ -722,13 +803,14 @@ export default function PaymentsPage() {
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Amount</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Status</th>
                 {isAdmin && <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Customer</th>}
+                {isAdmin && <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-8 text-center text-slate-400">Loading...</td></tr>
+                <tr><td colSpan={isAdmin ? 8 : 6} className="px-6 py-8 text-center text-slate-400">Loading...</td></tr>
               ) : payments.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 7 : 6} className="px-6 py-8 text-center text-slate-400">No payments yet.</td></tr>
+                <tr><td colSpan={isAdmin ? 8 : 6} className="px-6 py-8 text-center text-slate-400">No payments yet.</td></tr>
               ) : (
                 payments.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50">
@@ -751,6 +833,57 @@ export default function PaymentsPage() {
                     </td>
                     {isAdmin && (
                       <td className="px-6 py-4 text-sm text-slate-600">{p.customerName || p.customerEmail || "—"}</td>
+                    )}
+                    {isAdmin && (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1.5 flex-wrap">
+                          {/* Pending EFT: show Verify + Reject */}
+                          {p.status === "PENDING" && p.gateway === "EFT" && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyReject(p.id, "verify")}
+                                disabled={verifyingId === p.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-xs font-medium disabled:opacity-50"
+                              >
+                                <ShieldCheck size={12} />
+                                {verifyingId === p.id ? "..." : "Verify"}
+                              </button>
+                              <button
+                                onClick={() => handleVerifyReject(p.id, "reject")}
+                                disabled={verifyingId === p.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition text-xs font-medium disabled:opacity-50"
+                              >
+                                <ShieldX size={12} />
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {/* Complete + not yet allocated: show Allocate */}
+                          {p.status === "COMPLETE" && !p.metadata?.includes("ninjaPaymentId") && (
+                            <button
+                              onClick={() => openAllocateModal(p)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-xs font-medium"
+                            >
+                              <ArrowRightLeft size={12} />
+                              Allocate
+                            </button>
+                          )}
+                          {/* Already allocated */}
+                          {p.metadata?.includes("ninjaPaymentId") && (
+                            <span className="inline-flex items-center gap-1 text-xs text-green-600"><Check size={12} /> Allocated</span>
+                          )}
+                          {/* Other pending (non-EFT), processing, etc. */}
+                          {p.status === "PENDING" && p.gateway !== "EFT" && (
+                            <span className="text-xs text-yellow-600">Awaiting gateway</span>
+                          )}
+                          {["FAILED", "CANCELLED", "REFUNDED"].includes(p.status) && (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                          {p.status === "PROCESSING" && (
+                            <span className="text-xs text-blue-600">Processing</span>
+                          )}
+                        </div>
+                      </td>
                     )}
                   </tr>
                 ))
@@ -918,6 +1051,110 @@ export default function PaymentsPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Allocation Modal */}
+      {allocatePayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Allocate Payment to Invoices</h2>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Payment of {formatCurrency(Number(allocatePayment.amount))} from {allocatePayment.customerName || allocatePayment.customerEmail || "Unknown"}
+                </p>
+              </div>
+              <button title="Close" onClick={() => setAllocatePayment(null)} className="p-1 hover:bg-slate-100 rounded"><X size={20} /></button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {allocateError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{allocateError}</div>
+              )}
+              {allocateLoading ? (
+                <div className="text-center text-slate-400 py-8">Loading invoices...</div>
+              ) : ninjaInvoices.length === 0 ? (
+                <div className="text-center text-slate-400 py-8">No unpaid invoices found in Invoice Ninja.</div>
+              ) : (
+                <div className="space-y-3">
+                  {ninjaInvoices.map((inv) => {
+                    const alloc = allocations[inv.id] || 0;
+                    const isSelected = alloc > 0;
+                    return (
+                      <div key={inv.id} className={`rounded-lg border p-4 transition ${isSelected ? "border-indigo-300 bg-indigo-50" : "border-slate-200 bg-white"}`}>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-semibold text-slate-900">{inv.number}</span>
+                              {inv.client?.display_name && (
+                                <span className="text-xs text-slate-500 truncate">— {inv.client.display_name}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                              <span>Total: {formatCurrency(inv.amount)}</span>
+                              <span className="font-semibold text-slate-700">Balance: {formatCurrency(inv.balance)}</span>
+                              {inv.date && <span>{new Date(inv.date).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (alloc > 0) {
+                                  setAllocations((a) => { const n = { ...a }; delete n[inv.id]; return n; });
+                                } else {
+                                  const remaining = Number(allocatePayment.amount) - allocTotal;
+                                  const autoAmount = Math.min(inv.balance, remaining > 0 ? remaining : inv.balance);
+                                  setAllocations((a) => ({ ...a, [inv.id]: Math.round(autoAmount * 100) / 100 }));
+                                }
+                              }}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${isSelected ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"}`}
+                            >
+                              {isSelected ? "Remove" : "Select"}
+                            </button>
+                            {isSelected && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-500">R</span>
+                                <input
+                                  type="number"
+                                  title="Allocation amount"
+                                  value={alloc || ""}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, Math.min(Number(e.target.value), inv.balance));
+                                    setAllocations((a) => ({ ...a, [inv.id]: val }));
+                                  }}
+                                  min={0}
+                                  max={inv.balance}
+                                  step="0.01"
+                                  className="w-24 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-sm text-slate-600">
+                Allocating: <span className={`font-semibold ${allocTotal > Number(allocatePayment.amount) ? "text-red-600" : "text-slate-900"}`}>{formatCurrency(allocTotal)}</span>
+                {" "}of {formatCurrency(Number(allocatePayment.amount))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setAllocatePayment(null)} className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition">Cancel</button>
+                <button
+                  onClick={handleAllocate}
+                  disabled={allocating || allocTotal === 0 || allocTotal > Number(allocatePayment.amount)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50"
+                >
+                  {allocating ? "Allocating..." : "Allocate Payment"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
