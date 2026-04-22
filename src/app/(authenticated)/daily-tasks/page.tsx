@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
@@ -829,7 +829,7 @@ export default function DailyTasksPage() {
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-300 dark:text-gray-600">{newTask.projectId ? "No sub-projects" : "—"}</span>
+                      <span className="text-xs text-slate-300 dark:text-gray-600">{newTask.projectId ? "No sub-projects" : "â€”"}</span>
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -906,7 +906,7 @@ export default function DailyTasksPage() {
             </button>
           </div>
           <span className="text-xs text-slate-400 dark:text-gray-500">
-            {sortedTasks.length} task{sortedTasks.length !== 1 ? "s" : ""} · Click any cell to edit
+            {sortedTasks.length} task{sortedTasks.length !== 1 ? "s" : ""} Â· Click any cell to edit
           </span>
         </div>
       </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -813,7 +813,7 @@ export default function ProjectDetailPage() {
                       href={`/github-repos`}
                       className="text-xs text-blue-500 hover:text-blue-600 font-medium"
                     >
-                      Manage →
+                      Manage â†’
                     </Link>
                   </div>
                 ))}
@@ -1010,7 +1010,7 @@ export default function ProjectDetailPage() {
                                     <Code2 size={12} className="text-slate-400" />
                                     {repo.fullName}
                                     {repo.isPrivate && <Lock size={10} className="text-yellow-500" />}
-                                    {repo.language && <span className="text-slate-400">· {repo.language}</span>}
+                                    {repo.language && <span className="text-slate-400">Â· {repo.language}</span>}
                                   </a>
                                 ))}
                               </div>
@@ -1058,7 +1058,7 @@ export default function ProjectDetailPage() {
                                         <Code2 size={12} className="text-slate-400" />
                                         <span className="text-sm text-slate-700">{repo.fullName}</span>
                                         {repo.isPrivate && <Lock size={10} className="text-yellow-500" />}
-                                        {repo.language && <span className="text-xs text-slate-400">· {repo.language}</span>}
+                                        {repo.language && <span className="text-xs text-slate-400">Â· {repo.language}</span>}
                                       </label>
                                     );
                                   })}

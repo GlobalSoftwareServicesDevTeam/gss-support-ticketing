@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createPayment, isInvoiceNinjaConfigured } from "@/lib/invoice-ninja";
@@ -28,15 +28,15 @@ async function ninjaFetch(endpoint: string) {
  * Admin-only: allocate a local payment to Invoice Ninja invoice(s).
  *
  * Body: {
- *   paymentId: string          — local Payment record ID
- *   invoices: [{ invoiceId: string, amount: number }]  — IN invoice allocations
+ *   paymentId: string          â€” local Payment record ID
+ *   invoices: [{ invoiceId: string, amount: number }]  â€” IN invoice allocations
  * }
  *
  * OR for a direct allocation without a local payment:
  * Body: {
- *   clientId: string           — Invoice Ninja client ID
+ *   clientId: string           â€” Invoice Ninja client ID
  *   amount: number
- *   date?: string              — YYYY-MM-DD
+ *   date?: string              â€” YYYY-MM-DD
  *   transactionReference?: string
  *   invoices: [{ invoiceId: string, amount: number }]
  * }

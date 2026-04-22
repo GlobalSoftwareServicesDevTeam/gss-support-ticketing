@@ -17,6 +17,8 @@ import {
   CalendarClock,
   ArrowRight,
   MoreHorizontal,
+  PhoneCall,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import DailyPlanner from "@/components/daily-planner";
@@ -34,6 +36,12 @@ interface Task {
   description: string | null;
   status: string;
   priority: string;
+  completedAt: string | null;
+  completionClientNote: string | null;
+  completionPrivateNote: string | null;
+  followUpType: string | null;
+  followUpAt: string | null;
+  followUpNotes: string | null;
   startDate: string | null;
   dueDate: string | null;
   startTime: string | null;
@@ -138,6 +146,17 @@ export default function TaskSchedulePage() {
   const [rescheduleTask, setRescheduleTask] = useState<Task | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [postponeMenuId, setPostponeMenuId] = useState<string | null>(null);
+  const [endTask, setEndTask] = useState<Task | null>(null);
+  const [endingTask, setEndingTask] = useState(false);
+  const [endTaskError, setEndTaskError] = useState("");
+  const [endTaskForm, setEndTaskForm] = useState({
+    clientNote: "",
+    sendClientNote: false,
+    privateNote: "",
+    followUpType: "",
+    followUpAt: "",
+    followUpNotes: "",
+  });
 
   const [form, setForm] = useState({
     projectId: "",
@@ -374,12 +393,70 @@ export default function TaskSchedulePage() {
   }
 
   async function handleStatusChange(taskId: string, status: string) {
+    if (status === "DONE") {
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) {
+        setEndTask(task);
+        setEndTaskError("");
+        setEndTaskForm({
+          clientNote: task.completionClientNote || "",
+          sendClientNote: false,
+          privateNote: task.completionPrivateNote || "",
+          followUpType: task.followUpType || "",
+          followUpAt: toDateTimeLocal(task.followUpAt),
+          followUpNotes: task.followUpNotes || "",
+        });
+      }
+      return;
+    }
+
     await fetch(`/api/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
     fetchTasks();
+  }
+
+  async function handleEndTaskSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!endTask) return;
+
+    setEndingTask(true);
+    setEndTaskError("");
+
+    try {
+      const res = await fetch(`/api/tasks/${endTask.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "DONE",
+          completionClientNote: endTaskForm.clientNote || null,
+          completionPrivateNote: endTaskForm.privateNote || null,
+          completionSendClientNote: endTaskForm.sendClientNote,
+          followUpType: endTaskForm.followUpType || null,
+          followUpAt: endTaskForm.followUpAt || null,
+          followUpNotes: endTaskForm.followUpNotes || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to end task");
+      }
+
+      if (data.clientNotification && data.clientNotification.sent === false) {
+        setEndTaskError(`Task ended, but client note was not sent: ${data.clientNotification.reason || "unknown reason"}`);
+      } else {
+        setEndTask(null);
+      }
+
+      await fetchTasks();
+    } catch (err) {
+      setEndTaskError(err instanceof Error ? err.message : "Failed to end task");
+    } finally {
+      setEndingTask(false);
+    }
   }
 
   const today = new Date();
@@ -527,7 +604,7 @@ export default function TaskSchedulePage() {
               ) : (
                 <div className="space-y-1.5">
                   {dayTasks.map((t) => (
-                    <button
+                    <div
                       key={t.id}
                       onClick={() => openEdit(t)}
                       className={`w-full text-left p-2 rounded-lg border-l-4 bg-slate-50 dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 transition text-xs ${PRIORITY_COLORS[t.priority]} group relative`}
@@ -546,15 +623,36 @@ export default function TaskSchedulePage() {
                       <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLORS[t.status]}`}>
                         {STATUS_LABELS[t.status]}
                       </span>
-                      <span
-                        role="button"
+                      <button
+                        type="button"
                         title="Reschedule"
                         onClick={(e) => { e.stopPropagation(); setRescheduleTask(t); setRescheduleDate(toDateTimeLocal(t.dueDate)); }}
                         className="absolute top-2 right-1.5 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition"
                       >
                         <CalendarClock size={12} className="text-slate-500 dark:text-gray-400" />
-                      </span>
-                    </button>
+                      </button>
+                      {t.status !== "DONE" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEndTask(t);
+                            setEndTaskError("");
+                            setEndTaskForm({
+                              clientNote: t.completionClientNote || "",
+                              sendClientNote: false,
+                              privateNote: t.completionPrivateNote || "",
+                              followUpType: t.followUpType || "",
+                              followUpAt: toDateTimeLocal(t.followUpAt),
+                              followUpNotes: t.followUpNotes || "",
+                            });
+                          }}
+                          className="mt-2 text-[10px] text-green-700 dark:text-green-400 font-semibold hover:underline"
+                        >
+                          End Task
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -602,6 +700,26 @@ export default function TaskSchedulePage() {
                     <option value="IN_REVIEW">In Review</option>
                     <option value="DONE">Done</option>
                   </select>
+                  {t.status !== "DONE" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEndTask(t);
+                        setEndTaskError("");
+                        setEndTaskForm({
+                          clientNote: t.completionClientNote || "",
+                          sendClientNote: false,
+                          privateNote: t.completionPrivateNote || "",
+                          followUpType: t.followUpType || "",
+                          followUpAt: toDateTimeLocal(t.followUpAt),
+                          followUpNotes: t.followUpNotes || "",
+                        });
+                      }}
+                      className="text-xs text-green-700 dark:text-green-400 font-semibold hover:underline"
+                    >
+                      End Task
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -703,6 +821,26 @@ export default function TaskSchedulePage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 relative">
                       <button onClick={() => openEdit(t)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      {t.status !== "DONE" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEndTask(t);
+                            setEndTaskError("");
+                            setEndTaskForm({
+                              clientNote: t.completionClientNote || "",
+                              sendClientNote: false,
+                              privateNote: t.completionPrivateNote || "",
+                              followUpType: t.followUpType || "",
+                              followUpAt: toDateTimeLocal(t.followUpAt),
+                              followUpNotes: t.followUpNotes || "",
+                            });
+                          }}
+                          className="text-xs text-green-700 dark:text-green-400 hover:underline"
+                        >
+                          End Task
+                        </button>
+                      )}
                       <div className="relative">
                         <button
                           onClick={() => setPostponeMenuId(postponeMenuId === t.id ? null : t.id)}
@@ -752,6 +890,135 @@ export default function TaskSchedulePage() {
           </table>
         </div>
       </div>
+      )}
+
+      {/* End Task Modal */}
+      {endTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-slate-200 dark:border-gray-700 w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">End Task</h2>
+              <button
+                title="Close"
+                onClick={() => {
+                  setEndTask(null);
+                  setEndTaskError("");
+                }}
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+              >
+                <X size={18} className="text-slate-500" />
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-700 dark:text-gray-300 mb-4">
+              Complete <strong>{endTask.title}</strong> and capture client instructions, private completion notes, and follow-up.
+            </p>
+
+            {endTaskError && (
+              <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
+                {endTaskError}
+              </div>
+            )}
+
+            <form onSubmit={handleEndTaskSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
+                  Client Instruction Note
+                </label>
+                <textarea
+                  value={endTaskForm.clientNote}
+                  onChange={(e) => setEndTaskForm((prev) => ({ ...prev, clientNote: e.target.value }))}
+                  rows={4}
+                  placeholder="Explain to the client what to do next now that this task is completed..."
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                />
+                <label className="mt-2 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={endTaskForm.sendClientNote}
+                    onChange={(e) => setEndTaskForm((prev) => ({ ...prev, sendClientNote: e.target.checked }))}
+                    className="rounded border-slate-300 dark:border-gray-600"
+                  />
+                  Optionally send this note to the client by email now
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
+                  Private Admin Completion Notes
+                </label>
+                <textarea
+                  value={endTaskForm.privateNote}
+                  onChange={(e) => setEndTaskForm((prev) => ({ ...prev, privateNote: e.target.value }))}
+                  rows={3}
+                  placeholder="Private notes visible to admins only..."
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                />
+              </div>
+
+              <div className="rounded-lg border border-slate-200 dark:border-gray-700 p-4">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                  <PhoneCall size={16} /> Schedule Follow-Up Call or Meeting
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Follow-Up Type</label>
+                    <select
+                      title="Follow-up type"
+                      value={endTaskForm.followUpType}
+                      onChange={(e) => setEndTaskForm((prev) => ({ ...prev, followUpType: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    >
+                      <option value="">No follow-up scheduled</option>
+                      <option value="CALL">Client Call</option>
+                      <option value="MEETING">Client Meeting</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Follow-Up Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      title="Follow-up date and time"
+                      value={endTaskForm.followUpAt}
+                      onChange={(e) => setEndTaskForm((prev) => ({ ...prev, followUpAt: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Follow-Up Notes</label>
+                  <textarea
+                    value={endTaskForm.followUpNotes}
+                    onChange={(e) => setEndTaskForm((prev) => ({ ...prev, followUpNotes: e.target.value }))}
+                    rows={2}
+                    placeholder="Agenda or preparation notes for the call/meeting"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEndTask(null);
+                    setEndTaskError("");
+                  }}
+                  className="px-4 py-2 text-sm border border-slate-300 dark:border-gray-600 rounded-lg text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={endingTask}
+                  className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 inline-flex items-center gap-1"
+                >
+                  <UsersRound size={14} /> {endingTask ? "Ending..." : "End Task"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Add/Edit Task Modal */}

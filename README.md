@@ -60,6 +60,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+### 5. Run Development Server with SSL (HTTPS on localhost)
+
+For local HTTPS, run:
+
+```bash
+npm run dev:https
+```
+
+Open [https://localhost:3000](https://localhost:3000)
+
+Notes:
+
+- This uses Next.js built-in HTTPS support and generates a local self-signed certificate.
+- If you already have your own cert/key files, place them in `certs/` and run:
+
+```bash
+npm run dev:https:cert
+```
+
 ## Email Ticketing System
 
 ### How It Works
@@ -92,6 +111,8 @@ Set up a cron service (Vercel Cron, cron-job.org, etc.) to call this endpoint at
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start development server |
+| `npm run dev:https` | Start development server on `https://localhost:3000` with generated local cert |
+| `npm run dev:https:cert` | Start development server on HTTPS using `certs/localhost.pem` and `certs/localhost-key.pem` |
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run db:generate` | Regenerate Prisma client |

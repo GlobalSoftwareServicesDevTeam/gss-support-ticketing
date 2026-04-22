@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
@@ -463,19 +463,19 @@ export default function InvoicesPage() {
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{item.number || "—"}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{item.number || "â€”"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {item.client?.display_name || item.client?.name || "—"}
+                      {item.client?.display_name || item.client?.name || "â€”"}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {type === "recurring_invoices"
                         ? (FREQUENCY_LABELS[item.frequency_id || ""] || `Freq ${item.frequency_id}`)
-                        : (item.date ? new Date(item.date).toLocaleDateString() : "—")}
+                        : (item.date ? new Date(item.date).toLocaleDateString() : "â€”")}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(item.amount)}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {type === "recurring_invoices"
-                        ? (item.next_send_date ? new Date(item.next_send_date).toLocaleDateString() : "—")
+                        ? (item.next_send_date ? new Date(item.next_send_date).toLocaleDateString() : "â€”")
                         : formatCurrency(item.balance)}
                     </td>
                     <td className="px-6 py-4">
@@ -524,7 +524,7 @@ export default function InvoicesPage() {
                           )}
                           {!isPayable && !isAdmin && (
                             <span className="text-xs text-slate-400">
-                              {item.status_id === "4" ? "Paid" : item.status_id === "5" ? "Cancelled" : "—"}
+                              {item.status_id === "4" ? "Paid" : item.status_id === "5" ? "Cancelled" : "â€”"}
                             </span>
                           )}
                         </div>
@@ -559,7 +559,7 @@ export default function InvoicesPage() {
                               disabled={actionLoading === `convert_quote-${item.id}`}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition text-xs font-medium disabled:opacity-50"
                             >
-                              <ArrowRightLeft size={11} /> {actionLoading === `convert_quote-${item.id}` ? "..." : "→ Invoice"}
+                              <ArrowRightLeft size={11} /> {actionLoading === `convert_quote-${item.id}` ? "..." : "â†’ Invoice"}
                             </button>
                           )}
                           {item.status_id === "4" && (
@@ -569,10 +569,10 @@ export default function InvoicesPage() {
                       </td>
                     )}
 
-                    {/* Credit notes — no actions needed but keep column */}
+                    {/* Credit notes â€” no actions needed but keep column */}
                     {type === "credits" && isAdmin && (
                       <td className="px-6 py-4">
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-slate-400">â€”</span>
                       </td>
                     )}
                   </tr>
@@ -624,7 +624,7 @@ export default function InvoicesPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900"
                   required
                 >
-                  <option value="">— Select a client —</option>
+                  <option value="">â€” Select a client â€”</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>{c.display_name || c.name}</option>
                   ))}

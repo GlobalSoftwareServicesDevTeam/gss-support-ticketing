@@ -54,5 +54,14 @@ export async function GET(req: NextRequest) {
     orderBy: [{ dueDate: "asc" }, { priority: "desc" }, { order: "asc" }],
   });
 
+  if (!isAdmin) {
+    return NextResponse.json(
+      tasks.map((task) => ({
+        ...task,
+        completionPrivateNote: null,
+      }))
+    );
+  }
+
   return NextResponse.json(tasks);
 }

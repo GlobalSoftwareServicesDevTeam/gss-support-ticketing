@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
@@ -115,6 +115,9 @@ export default function GitHubReposPage() {
   const [transferSource, setTransferSource] = useState("");
   const [transferSourceOwner, setTransferSourceOwner] = useState("");
   const [transferTarget, setTransferTarget] = useState("");
+  const [transferTargetOptions, setTransferTargetOptions] = useState<string[]>([]);
+  const [loadingTransferTargets, setLoadingTransferTargets] = useState(false);
+  const [transferTargetOptionsError, setTransferTargetOptionsError] = useState<string | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [transferResult, setTransferResult] = useState<{
     message?: string;
@@ -124,6 +127,25 @@ export default function GitHubReposPage() {
     failuresByStatus?: Record<string, number>;
     failedRepos?: Array<{ sourceRepo: string; error?: string; status?: number }>;
   } | null>(null);
+
+  const transferOwnerOptions = useMemo(() => {
+    const uniqueOwners = new Set<string>();
+    for (const account of accounts) {
+      if (account.owner?.trim()) uniqueOwners.add(account.owner.trim());
+    }
+    for (const repo of repos) {
+      if (repo.owner?.trim()) uniqueOwners.add(repo.owner.trim());
+    }
+    return Array.from(uniqueOwners).sort((a, b) => a.localeCompare(b));
+  }, [accounts, repos]);
+
+  const isValidTransferTarget = useMemo(() => {
+    if (transferMode !== "all") return true;
+    if (!transferTarget.trim()) return false;
+    return transferTargetOptions.some(
+      (owner) => owner.toLowerCase() === transferTarget.trim().toLowerCase()
+    );
+  }, [transferMode, transferTarget, transferTargetOptions]);
 
   const fetchRepos = useCallback(async () => {
     const res = await fetch(`/api/github/repos?search=${encodeURIComponent(search)}`);
@@ -166,6 +188,59 @@ export default function GitHubReposPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (transferMode !== "all") {
+      setTransferTargetOptions([]);
+      setTransferTargetOptionsError(null);
+      setLoadingTransferTargets(false);
+      return;
+    }
+
+    const owner = transferSourceOwner.trim();
+    if (!owner) {
+      setTransferTargetOptions([]);
+      setTransferTargetOptionsError(null);
+      setLoadingTransferTargets(false);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setLoadingTransferTargets(true);
+      setTransferTargetOptionsError(null);
+      try {
+        const res = await fetch(`/api/github/repos/transfer?sourceOwner=${encodeURIComponent(owner)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setTransferTargetOptions([]);
+          setTransferTargetOptionsError(data.error || "Failed to load target owners");
+          return;
+        }
+        setTransferTargetOptions(Array.isArray(data.targetOwners) ? data.targetOwners : []);
+        setTransferTarget((prev) => {
+          if (!prev.trim()) return prev;
+          const hasPrev = (Array.isArray(data.targetOwners) ? data.targetOwners : []).some(
+            (v: string) => v.toLowerCase() === prev.trim().toLowerCase()
+          );
+          return hasPrev ? prev : "";
+        });
+      } catch {
+        if (!cancelled) {
+          setTransferTargetOptions([]);
+          setTransferTargetOptionsError("Failed to load target owners");
+        }
+      } finally {
+        if (!cancelled) setLoadingTransferTargets(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [transferMode, transferSourceOwner]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -686,13 +761,19 @@ export default function GitHubReposPage() {
             </p>
             <div className="flex gap-2 mb-4 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
               <button
-                onClick={() => setTransferMode("single")}
+                onClick={() => {
+                  setTransferMode("single");
+                  setTransferResult(null);
+                }}
                 className={`flex-1 px-3 py-1.5 text-xs rounded-md transition ${transferMode === "single" ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}
               >
                 Single Repo
               </button>
               <button
-                onClick={() => setTransferMode("all")}
+                onClick={() => {
+                  setTransferMode("all");
+                  setTransferResult(null);
+                }}
                 className={`flex-1 px-3 py-1.5 text-xs rounded-md transition ${transferMode === "all" ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}
               >
                 All Repos
@@ -716,24 +797,60 @@ export default function GitHubReposPage() {
                   <input
                     type="text"
                     value={transferSourceOwner}
-                    onChange={(e) => setTransferSourceOwner(e.target.value)}
+                    onChange={(e) => {
+                      setTransferSourceOwner(e.target.value);
+                      setTransferTarget("");
+                    }}
+                    list="transfer-owner-options"
                     placeholder="source-account-owner"
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
                   />
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">All repos currently synced for this owner will be transferred.</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Choose from the dropdown (existing accounts/synced owners) or type an owner. All synced repos for this owner will be transferred.</p>
                 </div>
               )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Target Owner/Org {transferMode === "all" ? "*" : "(leave blank for PAT owner)"}</label>
-                <input
-                  type="text"
-                  value={transferTarget}
-                  onChange={(e) => setTransferTarget(e.target.value)}
-                  placeholder="GlobalWebServe"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
-                />
+                  {transferMode === "all" ? (
+                    <select
+                      title="Target owner/org"
+                      value={transferTarget}
+                      onChange={(e) => setTransferTarget(e.target.value)}
+                      disabled={loadingTransferTargets || !transferSourceOwner.trim() || transferTargetOptions.length === 0}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none disabled:opacity-60"
+                    >
+                      <option value="">
+                        {loadingTransferTargets
+                          ? "Loading target owners..."
+                          : transferSourceOwner.trim()
+                            ? (transferTargetOptions.length > 0 ? "Select target owner/org" : "No accessible target owners found")
+                            : "Select source owner first"}
+                      </option>
+                      {transferTargetOptions.map((owner) => (
+                        <option key={owner} value={owner}>{owner}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={transferTarget}
+                      onChange={(e) => setTransferTarget(e.target.value)}
+                      list="transfer-owner-options"
+                      placeholder="GlobalWebServe"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 outline-none"
+                    />
+                  )}
+                  {transferMode === "all" && transferTargetOptionsError && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{transferTargetOptionsError}</p>
+                  )}
               </div>
             </div>
+            {transferOwnerOptions.length > 0 && (
+              <datalist id="transfer-owner-options">
+                {transferOwnerOptions.map((owner) => (
+                  <option key={owner} value={owner} />
+                ))}
+              </datalist>
+            )}
             {transferResult && (
               <div className={`text-sm mt-4 p-3 rounded-lg ${transferResult.message ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400" : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"}`}>
                 {transferResult.message || transferResult.error}
@@ -771,7 +888,9 @@ export default function GitHubReposPage() {
                 onClick={handleTransfer}
                 disabled={
                   transferring ||
-                  (transferMode === "single" ? !transferSource.trim() : (!transferSourceOwner.trim() || !transferTarget.trim()))
+                  (transferMode === "single"
+                    ? !transferSource.trim()
+                    : (!transferSourceOwner.trim() || !transferTarget.trim() || !isValidTransferTarget || loadingTransferTargets))
                 }
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition disabled:opacity-50"
               >

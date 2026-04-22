@@ -184,6 +184,12 @@ model Task {
   description       String?          @db.NVarChar(Max)
   status            String           @default("TODO")
   priority          String           @default("MEDIUM")
+  completedAt       DateTime?
+  completionClientNote String?       @db.NVarChar(Max)
+  completionPrivateNote String?      @db.NVarChar(Max)
+  followUpType      String?
+  followUpAt        DateTime?
+  followUpNotes     String?          @db.NVarChar(Max)
   dueDate           DateTime?
   order             Int              @default(0)
   createdAt         DateTime         @default(now())

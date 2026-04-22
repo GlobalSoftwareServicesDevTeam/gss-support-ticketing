@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
@@ -465,7 +465,7 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
       return;
     }
 
-    // EFT — just show confirmation and switch to history
+    // EFT â€” just show confirmation and switch to history
     alert("EFT payment recorded. Please transfer the funds using the bank details shown.");
     setPayForm({ gateway: "PAYFAST", amount: "", description: "", invoiceNumber: "" });
     refreshPayments();
@@ -584,11 +584,11 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                       onChange={(e) => handleInvoiceSelect(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 bg-white"
                     >
-                      <option value="">— None / Ad-hoc payment —</option>
+                      <option value="">â€” None / Ad-hoc payment â€”</option>
                       {unpaidInvoices.map((inv) => (
                         <option key={inv.id} value={inv.id}>
-                          {inv.number} — Balance: {formatCurrency(Number(inv.balance))}
-                          {inv.due_date ? ` · Due ${new Date(inv.due_date).toLocaleDateString("en-ZA")}` : ""}
+                          {inv.number} â€” Balance: {formatCurrency(Number(inv.balance))}
+                          {inv.due_date ? ` Â· Due ${new Date(inv.due_date).toLocaleDateString("en-ZA")}` : ""}
                         </option>
                       ))}
                     </select>
@@ -636,7 +636,7 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                             <div className="text-right shrink-0">
                               <span className="text-sm font-medium text-slate-900">{formatCurrency(Number(li.line_total))}</span>
                               {Number(li.quantity) !== 1 && (
-                                <span className="text-xs text-slate-400 block">{li.quantity} × {formatCurrency(Number(li.cost))}</span>
+                                <span className="text-xs text-slate-400 block">{li.quantity} Ã— {formatCurrency(Number(li.cost))}</span>
                               )}
                             </div>
                           </label>
@@ -742,9 +742,9 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                         >
                           {savedCards.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.cardBrand || "Card"} •••• {c.last4 || "????"}{" "}
+                              {c.cardBrand || "Card"} â€¢â€¢â€¢â€¢ {c.last4 || "????"}{" "}
                               {c.nickname ? `(${c.nickname})` : ""}{" "}
-                              {c.isDefault ? "★ Default" : ""}
+                              {c.isDefault ? "â˜… Default" : ""}
                             </option>
                           ))}
                         </select>
@@ -939,8 +939,8 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                         {p.gateway}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">{p.description || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 font-mono">{p.invoiceNumber || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-900">{p.description || "â€”"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 font-mono">{p.invoiceNumber || "â€”"}</td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(Number(p.amount))}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[p.status] || "bg-gray-100 text-gray-700"}`}>
@@ -948,7 +948,7 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                       </span>
                     </td>
                     {isAdmin && (
-                      <td className="px-6 py-4 text-sm text-slate-600">{p.customerName || p.customerEmail || "—"}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{p.customerName || p.customerEmail || "â€”"}</td>
                     )}
                     {isAdmin && (
                       <td className="px-6 py-4">
@@ -993,7 +993,7 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                             <span className="text-xs text-yellow-600">Awaiting gateway</span>
                           )}
                           {["FAILED", "CANCELLED", "REFUNDED"].includes(p.status) && (
-                            <span className="text-xs text-slate-400">—</span>
+                            <span className="text-xs text-slate-400">â€”</span>
                           )}
                           {p.status === "PROCESSING" && (
                             <span className="text-xs text-blue-600">Processing</span>
@@ -1204,7 +1204,7 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-sm font-semibold text-slate-900">{inv.number}</span>
                               {inv.client?.display_name && (
-                                <span className="text-xs text-slate-500 truncate">— {inv.client.display_name}</span>
+                                <span className="text-xs text-slate-500 truncate">â€” {inv.client.display_name}</span>
                               )}
                             </div>
                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">

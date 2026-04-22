@@ -38,6 +38,8 @@ import {
   Contact,
   Mail,
   Monitor,
+  Download,
+  Smartphone,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -82,10 +84,12 @@ const adminOtherItems: NavItem[] = [
   { icon: <Users size={24} />, name: "Staff Roles", path: "/staff-roles", permission: "manageUsers" },
   { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule", permission: "manageTasks" },
   { icon: <CalendarClock size={24} />, name: "Daily Tasks", path: "/daily-tasks", permission: "manageTasks" },
+  { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads", permission: "manageCode" },
   { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos", permission: "manageCode" },
   { icon: <ScrollText size={24} />, name: "Audit Logs", path: "/audit-logs", permission: "viewAuditLogs" },
   { icon: <Flag size={24} />, name: "Flagged Emails", path: "/flagged-emails", permission: "manageSettings" },
   { icon: <Send size={24} />, name: "Bulk Email", path: "/bulk-email", permission: "bulkEmail" },
+  { icon: <Smartphone size={24} />, name: "Mobile Apps", path: "/mobile-apps", permission: "manageSettings" },
   { icon: <Shield size={24} />, name: "Two-Factor Auth", path: "/two-factor" },
   { icon: <Wrench size={24} />, name: "System Settings", path: "/system-settings", permission: "manageSettings" },
 ];

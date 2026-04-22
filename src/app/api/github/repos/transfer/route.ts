@@ -5,6 +5,10 @@ import { decrypt } from "@/lib/encryption";
 
 const GITHUB_API = "https://api.github.com";
 
+function normalizeOwner(value: string): string {
+  return value.trim();
+}
+
 async function readGitHubError(res: Response): Promise<string> {
   const text = await res.text();
   if (!text) return `HTTP ${res.status}`;
@@ -25,14 +29,107 @@ async function readGitHubError(res: Response): Promise<string> {
 
 async function getTokenForOwner(owner: string): Promise<string | null> {
   // Find a GitHub account whose label or username matches the owner
+  const normalizedOwner = normalizeOwner(owner).toLowerCase();
   const accounts = await prisma.gitHubAccount.findMany();
   for (const acc of accounts) {
-    if (acc.label.toLowerCase() === owner.toLowerCase() ||
-        acc.owner.toLowerCase() === owner.toLowerCase()) {
+    if (acc.label.toLowerCase() === normalizedOwner ||
+        acc.owner.toLowerCase() === normalizedOwner) {
       return decrypt(acc.patEncrypted);
     }
   }
   return process.env.GITHUB_PAT || null;
+}
+
+async function resolveOwnerAlias(ownerInput: string): Promise<string> {
+  const normalized = normalizeOwner(ownerInput);
+  const normalizedLower = normalized.toLowerCase();
+  const accounts = await prisma.gitHubAccount.findMany({
+    select: { owner: true, label: true },
+  });
+
+  const matched = accounts.find((acc) => {
+    return (
+      acc.owner.toLowerCase() === normalizedLower ||
+      acc.label.toLowerCase() === normalizedLower
+    );
+  });
+
+  return matched?.owner || normalized;
+}
+
+async function canTokenTransferToOwner(token: string, targetOwner: string): Promise<{ ok: boolean; reason?: string }> {
+  const targetLower = targetOwner.toLowerCase();
+
+  const userRes = await fetch(`${GITHUB_API}/user`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
+
+  if (!userRes.ok) {
+    return { ok: false, reason: "Could not verify source token against GitHub /user endpoint" };
+  }
+
+  const userData = await userRes.json() as { login?: string };
+  if ((userData.login || "").toLowerCase() === targetLower) {
+    return { ok: true };
+  }
+
+  const orgsRes = await fetch(`${GITHUB_API}/user/orgs?per_page=100`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
+
+  if (!orgsRes.ok) {
+    return {
+      ok: false,
+      reason: "Source token cannot list org memberships; it may not have rights to transfer to the target owner",
+    };
+  }
+
+  const orgs = await orgsRes.json() as Array<{ login?: string }>;
+  const hasOrg = orgs.some((org) => (org.login || "").toLowerCase() === targetLower);
+  if (hasOrg) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: `Source token user is not the '${targetOwner}' owner and is not a visible member of that org`,
+  };
+}
+
+async function getAccessibleOwnersForToken(token: string): Promise<string[]> {
+  const owners = new Set<string>();
+
+  const userRes = await fetch(`${GITHUB_API}/user`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
+  if (userRes.ok) {
+    const userData = await userRes.json() as { login?: string };
+    if (userData.login?.trim()) owners.add(userData.login.trim());
+  }
+
+  const orgsRes = await fetch(`${GITHUB_API}/user/orgs?per_page=100`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
+  if (orgsRes.ok) {
+    const orgs = await orgsRes.json() as Array<{ login?: string }>;
+    for (const org of orgs) {
+      if (org.login?.trim()) owners.add(org.login.trim());
+    }
+  }
+
+  return Array.from(owners).sort((a, b) => a.localeCompare(b));
 }
 
 async function transferSingleRepo(
@@ -145,6 +242,43 @@ async function transferSingleRepo(
   };
 }
 
+// GET: list verified target owners/orgs available to the selected source token
+export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const sourceOwner = req.nextUrl.searchParams.get("sourceOwner")?.trim();
+  if (!sourceOwner) {
+    return NextResponse.json({ error: "sourceOwner query parameter is required" }, { status: 400 });
+  }
+
+  const resolvedSourceOwner = await resolveOwnerAlias(sourceOwner);
+  const srcToken = await getTokenForOwner(resolvedSourceOwner);
+  if (!srcToken) {
+    return NextResponse.json(
+      { error: `No GitHub account found for source owner '${resolvedSourceOwner}'. Add the account in GitHub Accounts first.` },
+      { status: 400 }
+    );
+  }
+
+  const targetOwners = await getAccessibleOwnersForToken(srcToken);
+  if (targetOwners.length === 0) {
+    return NextResponse.json(
+      {
+        error: "Could not determine accessible target owners/orgs for this source token.",
+      },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({
+    sourceOwner: resolvedSourceOwner,
+    targetOwners,
+  });
+}
+
 // POST: transfer a repo from another GitHub account to the main account
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -169,23 +303,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (sourceOwner.toLowerCase() === targetOwner.toLowerCase()) {
+    const resolvedSourceOwner = await resolveOwnerAlias(sourceOwner);
+    const resolvedTargetOwner = await resolveOwnerAlias(targetOwner);
+
+    if (resolvedSourceOwner.toLowerCase() === resolvedTargetOwner.toLowerCase()) {
       return NextResponse.json(
         { error: "Source and target owners are the same" },
         { status: 400 }
       );
     }
 
-    const srcToken = await getTokenForOwner(sourceOwner);
+    const srcToken = await getTokenForOwner(resolvedSourceOwner);
     if (!srcToken) {
       return NextResponse.json(
-        { error: `No GitHub account found for source owner '${sourceOwner}'. Add the account in GitHub Accounts first.` },
+        { error: `No GitHub account found for source owner '${resolvedSourceOwner}'. Add the account in GitHub Accounts first.` },
+        { status: 400 }
+      );
+    }
+
+    const transferAccess = await canTokenTransferToOwner(srcToken, resolvedTargetOwner);
+    if (!transferAccess.ok) {
+      return NextResponse.json(
+        {
+          error: `Cannot transfer to '${resolvedTargetOwner}' with the source token. ${transferAccess.reason || "Check that the source token user has transfer rights to the target owner/org."}`,
+        },
         { status: 400 }
       );
     }
 
     const repos = await prisma.gitHubRepo.findMany({
-      where: { owner: sourceOwner },
+      where: { owner: resolvedSourceOwner },
       select: { name: true },
       orderBy: { name: "asc" },
     });
@@ -200,19 +347,19 @@ export async function POST(req: NextRequest) {
     const results: Array<{ sourceRepo: string; ok: boolean; newFullName?: string; error?: string; status?: number }> = [];
     for (const repo of repos) {
       const result = await transferSingleRepo(
-        `${sourceOwner}/${repo.name}`,
-        targetOwner,
+        `${resolvedSourceOwner}/${repo.name}`,
+        resolvedTargetOwner,
         srcToken
       );
       if (result.ok) {
         results.push({
-          sourceRepo: `${sourceOwner}/${repo.name}`,
+          sourceRepo: `${resolvedSourceOwner}/${repo.name}`,
           ok: true,
           newFullName: result.newFullName,
         });
       } else {
         results.push({
-          sourceRepo: `${sourceOwner}/${repo.name}`,
+          sourceRepo: `${resolvedSourceOwner}/${repo.name}`,
           ok: false,
           error: result.error,
           status: result.status,
@@ -232,7 +379,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: failedCount === 0,
-      message: `Transfer complete: ${successCount}/${results.length} repos moved from ${sourceOwner} to ${targetOwner}`,
+      message: `Transfer complete: ${successCount}/${results.length} repos moved from ${resolvedSourceOwner} to ${resolvedTargetOwner}`,
       summary: { total: results.length, success: successCount, failed: failedCount },
       failuresByStatus,
       results,
@@ -255,21 +402,23 @@ export async function POST(req: NextRequest) {
   }
 
   const [parsedSourceOwner] = sourceRepo.split("/");
+  const resolvedSourceOwner = await resolveOwnerAlias(parsedSourceOwner);
+  const resolvedTargetOwner = targetOwner ? await resolveOwnerAlias(targetOwner) : null;
 
   // Look up tokens from saved GitHub accounts by owner name
-  const srcToken = await getTokenForOwner(parsedSourceOwner);
+  const srcToken = await getTokenForOwner(resolvedSourceOwner);
   if (!srcToken) {
     return NextResponse.json(
-      { error: `No GitHub account found for source owner '${parsedSourceOwner}'. Add the account in GitHub Accounts first.` },
+      { error: `No GitHub account found for source owner '${resolvedSourceOwner}'. Add the account in GitHub Accounts first.` },
       { status: 400 }
     );
   }
 
-  const tgtOwner = targetOwner || null;
+  const tgtOwner = resolvedTargetOwner || null;
   const tgtToken = tgtOwner ? await getTokenForOwner(tgtOwner) : srcToken;
 
   // Determine target owner/org - default to the authenticated user
-  let newOwner = targetOwner;
+  let newOwner = resolvedTargetOwner;
 
   if (!newOwner && tgtToken) {
     // Get the authenticated user for the target token
@@ -292,7 +441,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const transferResult = await transferSingleRepo(sourceRepo, newOwner, srcToken);
+  const transferAccess = await canTokenTransferToOwner(srcToken, newOwner);
+  if (!transferAccess.ok) {
+    return NextResponse.json(
+      {
+        error: `Cannot transfer to '${newOwner}' with the source token. ${transferAccess.reason || "Check that the source token user has transfer rights to the target owner/org."}`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const sourceRepoWithResolvedOwner = `${resolvedSourceOwner}/${sourceRepo.split("/")[1]}`;
+  const transferResult = await transferSingleRepo(sourceRepoWithResolvedOwner, newOwner, srcToken);
   if (!transferResult.ok) {
     return NextResponse.json(
       { error: transferResult.error },
