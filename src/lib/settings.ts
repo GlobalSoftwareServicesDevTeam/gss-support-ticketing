@@ -11,6 +11,8 @@ const SENSITIVE_KEYS = new Set([
   "APPLE_CONNECT_PRIVATE_KEY",
   "SENTRY_WEBHOOK_SECRET",
   "IIS_API_KEY",
+  "MS_GRAPH_CLIENT_SECRET",
+  "INVOICE_NINJA_TOKEN",
 ]);
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -38,19 +40,20 @@ export async function getSettings(keys: string[]): Promise<Record<string, string
   const foundKeys = new Set<string>();
 
   for (const row of rows) {
-    foundKeys.add(row.key);
     if (row.encrypted) {
       try {
         result[row.key] = decrypt(row.value);
+        foundKeys.add(row.key);
       } catch {
-        // skip corrupted
+        // decryption failed — do NOT add to foundKeys so env fallback can apply
       }
     } else {
       result[row.key] = row.value;
+      foundKeys.add(row.key);
     }
   }
 
-  // Fallback to env for missing keys
+  // Fallback to env for missing or corrupted keys
   for (const key of keys) {
     if (!foundKeys.has(key) && process.env[key]) {
       result[key] = process.env[key]!;
@@ -104,7 +107,7 @@ export async function getSmtpConfig() {
 export async function getImapConfig() {
   return getSettings([
     "IMAP_HOST", "IMAP_PORT", "IMAP_TLS",
-    "IMAP_USER", "IMAP_PASSWORD",
+    "IMAP_USER", "IMAP_PASSWORD", "IMAP_AUTH_METHOD",
   ]);
 }
 
@@ -126,4 +129,13 @@ export async function getAppleConnectConfig() {
 
 export async function getIisServerConfig() {
   return getSettings(["IIS_API_URL", "IIS_API_KEY", "IIS_SERVER_NAME"]);
+}
+
+export async function getMicrosoftGraphConfig() {
+  return getSettings([
+    "MS_GRAPH_TENANT_ID",
+    "MS_GRAPH_CLIENT_ID",
+    "MS_GRAPH_CLIENT_SECRET",
+    "MS_GRAPH_MAILBOX_USER",
+  ]);
 }

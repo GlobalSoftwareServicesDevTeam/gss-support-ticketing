@@ -1,12 +1,20 @@
-const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
-const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
+import { getSettings } from "@/lib/settings";
 
+async function getInvoiceNinjaConfig() {
+  const settings = await getSettings(["INVOICE_NINJA_URL", "INVOICE_NINJA_TOKEN"]);
+  const url = (settings.INVOICE_NINJA_URL || process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
+  const token = settings.INVOICE_NINJA_TOKEN || process.env.INVOICE_NINJA_TOKEN || "";
+  return { url, token };
+}
+
+// Sync check using env vars — use for feature-flag guards
 export function isInvoiceNinjaConfigured(): boolean {
-  return !!(INVOICE_NINJA_URL && INVOICE_NINJA_TOKEN);
+  return !!(process.env.INVOICE_NINJA_URL && process.env.INVOICE_NINJA_TOKEN);
 }
 
 async function ninjaFetch(endpoint: string, options: RequestInit = {}) {
-  if (!isInvoiceNinjaConfigured()) throw new Error("Invoice Ninja not configured");
+  const { url: INVOICE_NINJA_URL, token: INVOICE_NINJA_TOKEN } = await getInvoiceNinjaConfig();
+  if (!INVOICE_NINJA_URL || !INVOICE_NINJA_TOKEN) throw new Error("Invoice Ninja not configured");
 
   const url = `${INVOICE_NINJA_URL}/api/v1/${endpoint}`;
   const res = await fetch(url, {

@@ -871,13 +871,15 @@ export default function PaymentsPage({ embeddedTab, hideHeader = false, hideTabs
               placeholder="Search description/invoice/customer..."
               className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
             />
-            <input
-              type="text"
-              value={historyClient}
-              onChange={(e) => setHistoryClient(e.target.value)}
-              placeholder="Client filter"
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
-            />
+            {isAdmin && (
+              <input
+                type="text"
+                value={historyClient}
+                onChange={(e) => setHistoryClient(e.target.value)}
+                placeholder="Client filter"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+              />
+            )}
             <input
               type="text"
               value={historyProject}

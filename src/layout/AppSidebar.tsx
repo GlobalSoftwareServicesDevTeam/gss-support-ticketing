@@ -40,6 +40,7 @@ import {
   Monitor,
   Download,
   Smartphone,
+  Wallet,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -63,8 +64,9 @@ const adminNavItems: NavItem[] = [
     ],
   },
   { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects", permission: "manageProjects" },
-  { icon: <FileText size={24} />, name: "Documents", path: "/documents", permission: "manageDocuments" },
+  // { icon: <FileText size={24} />, name: "Documents", path: "/documents", permission: "manageDocuments" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices", permission: "manageBilling" },
+  { icon: <Wallet size={24} />, name: "Expense / Income", path: "/expense-income" },
   { icon: <Server size={24} />, name: "Hosting", path: "/hosting", permission: "manageHosting" },
   { icon: <Server size={24} />, name: "Client Hosting", path: "/hosting-clients", permission: "manageHosting" },
   { icon: <Mail size={24} />, name: "Email Accounts", path: "/email-accounts", permission: "manageHosting" },
@@ -83,6 +85,7 @@ const adminOtherItems: NavItem[] = [
   { icon: <Users size={24} />, name: "Users", path: "/users", permission: "manageUsers" },
   { icon: <Users size={24} />, name: "Staff Roles", path: "/staff-roles", permission: "manageUsers" },
   { icon: <ClipboardList size={24} />, name: "Task Schedule", path: "/task-schedule", permission: "manageTasks" },
+  { icon: <CalendarClock size={24} />, name: "Meetings Scheduler", path: "/meetings", permission: "manageTasks" },
   { icon: <CalendarClock size={24} />, name: "Daily Tasks", path: "/daily-tasks", permission: "manageTasks" },
   { icon: <Download size={24} />, name: "Code Downloads", path: "/code-downloads", permission: "manageCode" },
   { icon: <GitHubIcon size={24} />, name: "GitHub Repos", path: "/github-repos", permission: "manageCode" },
@@ -107,8 +110,9 @@ const userNavItems: NavItem[] = [
   },
   { icon: <FolderKanban size={24} />, name: "Projects", path: "/projects" },
   { icon: <ClipboardList size={24} />, name: "My Tasks", path: "/my-tasks" },
+  { icon: <CalendarClock size={24} />, name: "Meetings", path: "/meetings" },
   { icon: <CalendarClock size={24} />, name: "Daily Tasks", path: "/daily-tasks" },
-  { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
+  // { icon: <FileText size={24} />, name: "Documents", path: "/documents" },
   { icon: <PenLine size={24} />, name: "Contracts", path: "/contracts" },
   { icon: <Receipt size={24} />, name: "Invoices", path: "/invoices" },
   { icon: <FileEdit size={24} />, name: "Request a Quote", path: "/request-quote" },
@@ -144,9 +148,12 @@ const AppSidebar: React.FC = () => {
   }, [isAdmin, sessionUser]);
 
   const navItems = useMemo(() => {
-    if (isInternalStaff) return filterByPermission(adminNavItems);
+    if (isInternalStaff) {
+      const filtered = filterByPermission(adminNavItems);
+      return isAdmin ? filtered : filtered.filter((item) => item.path !== "/expense-income");
+    }
     return userNavItems;
-  }, [isInternalStaff, filterByPermission]);
+  }, [isInternalStaff, filterByPermission, isAdmin]);
 
   const othersItems = useMemo(() => {
     if (isInternalStaff) return filterByPermission(adminOtherItems);

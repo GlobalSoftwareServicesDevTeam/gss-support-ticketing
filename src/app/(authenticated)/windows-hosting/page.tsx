@@ -1,6 +1,8 @@
-"use client";
 
-import { useEffect, useState, useCallback } from "react";
+"use client";
+import * as React from "react";
+
+// ...existing code...
 import { useSession } from "next-auth/react";
 import {
   Monitor,
@@ -69,29 +71,29 @@ export default function IisManagerPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
 
-  const [sites, setSites] = useState<IisSite[]>([]);
-  const [pools, setPools] = useState<AppPool[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingPools, setLoadingPools] = useState(false);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"sites" | "pools">("sites");
-  const [filter, setFilter] = useState<"all" | "linked" | "unlinked">("all");
+  const [sites, setSites] = React.useState<IisSite[]>([]);
+  const [pools, setPools] = React.useState<AppPool[]>([]);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadingPools, setLoadingPools] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [activeTab, setActiveTab] = React.useState<"sites" | "pools">("sites");
+  const [filter, setFilter] = React.useState<"all" | "linked" | "unlinked">("all");
 
   // Action states
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [actionLoading, setActionLoading] = React.useState<Record<string, boolean>>({});
 
   // Link modal
-  const [linkTarget, setLinkTarget] = useState<IisSite | null>(null);
-  const [linkCustomerId, setLinkCustomerId] = useState("");
-  const [linkNotes, setLinkNotes] = useState("");
-  const [linking, setLinking] = useState(false);
+  const [linkTarget, setLinkTarget] = React.useState<IisSite | null>(null);
+  const [linkCustomerId, setLinkCustomerId] = React.useState("");
+  const [linkNotes, setLinkNotes] = React.useState("");
+  const [linking, setLinking] = React.useState(false);
 
   // Expanded site
-  const [expandedSite, setExpandedSite] = useState<string | null>(null);
+  const [expandedSite, setExpandedSite] = React.useState<string | null>(null);
 
-  const fetchSites = useCallback(async () => {
+  const fetchSites = React.useCallback(async () => {
     try {
       const res = await fetch("/api/hosting/iis");
       if (!res.ok) {
@@ -108,7 +110,7 @@ export default function IisManagerPage() {
     }
   }, []);
 
-  const fetchPools = useCallback(async () => {
+  const fetchPools = React.useCallback(async () => {
     setLoadingPools(true);
     try {
       const res = await fetch("/api/hosting/iis/pools");
@@ -121,7 +123,7 @@ export default function IisManagerPage() {
     }
   }, []);
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = React.useCallback(async () => {
     try {
       const res = await fetch("/api/customers");
       if (res.ok) {
@@ -133,12 +135,12 @@ export default function IisManagerPage() {
     }
   }, []);
 
-  useEffect(() => {
+  React.useEffect(() => {
     fetchSites();
     fetchCustomers();
   }, [fetchSites, fetchCustomers]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (activeTab === "pools" && pools.length === 0) {
       fetchPools();
     }

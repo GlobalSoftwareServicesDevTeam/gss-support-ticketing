@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
-const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
+import { getSettings } from "@/lib/settings";
+
+async function getNinjaConfig() {
+  const s = await getSettings(["INVOICE_NINJA_URL", "INVOICE_NINJA_TOKEN"]);
+  return {
+    url: (s.INVOICE_NINJA_URL || process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, ""),
+    token: s.INVOICE_NINJA_TOKEN || process.env.INVOICE_NINJA_TOKEN || "",
+  };
+}
 
 async function ninjaFetch(endpoint: string) {
+  const { url: INVOICE_NINJA_URL, token: INVOICE_NINJA_TOKEN } = await getNinjaConfig();
   if (!INVOICE_NINJA_URL || !INVOICE_NINJA_TOKEN) {
     return null;
   }
@@ -41,6 +49,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { url: INVOICE_NINJA_URL, token: INVOICE_NINJA_TOKEN } = await getNinjaConfig();
     if (!INVOICE_NINJA_URL || !INVOICE_NINJA_TOKEN) {
       return NextResponse.json({ error: "Invoice Ninja not configured", configured: false }, { status: 200 });
     }

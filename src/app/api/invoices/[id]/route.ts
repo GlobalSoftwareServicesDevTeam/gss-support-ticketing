@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-const INVOICE_NINJA_URL = (process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
-const INVOICE_NINJA_TOKEN = process.env.INVOICE_NINJA_TOKEN || "";
+import { getSettings } from "@/lib/settings";
 
 export async function GET(
   _req: NextRequest,
@@ -13,6 +12,10 @@ export async function GET(
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const s = await getSettings(["INVOICE_NINJA_URL", "INVOICE_NINJA_TOKEN"]);
+    const INVOICE_NINJA_URL = (s.INVOICE_NINJA_URL || process.env.INVOICE_NINJA_URL || "").replace(/\/+$/, "");
+    const INVOICE_NINJA_TOKEN = s.INVOICE_NINJA_TOKEN || process.env.INVOICE_NINJA_TOKEN || "";
 
     if (!INVOICE_NINJA_URL || !INVOICE_NINJA_TOKEN) {
       return NextResponse.json({ error: "Invoice Ninja not configured" }, { status: 400 });

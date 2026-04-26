@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck, Smartphone, Monitor } from "lucide-react";
+import { Settings, Server, Mail, Inbox, TestTube, Loader2, CheckCircle2, XCircle, Save, RefreshCw, Eye, EyeOff, ShieldCheck, Smartphone, Monitor, Receipt } from "lucide-react";
 
-type Tab = "plesk" | "smtp" | "imap" | "digicert" | "googleplay" | "apple" | "iis";
+type Tab = "plesk" | "smtp" | "imap" | "digicert" | "googleplay" | "apple" | "iis" | "microsoft" | "invoiceninja";
 
 interface PleskPlan {
   id: number;
@@ -50,6 +50,7 @@ export default function SystemSettingsPage() {
     IMAP_TLS: "",
     IMAP_USER: "",
     IMAP_PASSWORD: "",
+    IMAP_AUTH_METHOD: "",
     DIGICERT_API_KEY: "",
     DIGICERT_ORG_ID: "",
     GOOGLE_PLAY_SERVICE_ACCOUNT_KEY: "",
@@ -59,6 +60,12 @@ export default function SystemSettingsPage() {
     IIS_API_URL: "",
     IIS_API_KEY: "",
     IIS_SERVER_NAME: "",
+    MS_GRAPH_TENANT_ID: "",
+    MS_GRAPH_CLIENT_ID: "",
+    MS_GRAPH_CLIENT_SECRET: "",
+    MS_GRAPH_MAILBOX_USER: "",
+    INVOICE_NINJA_URL: "",
+    INVOICE_NINJA_TOKEN: "",
   });
 
   const isAdmin = session?.user?.role === "ADMIN";
@@ -88,11 +95,13 @@ export default function SystemSettingsPage() {
     const keysBySection: Record<Tab, string[]> = {
       plesk: ["PLESK_API_URL", "PLESK_API_LOGIN", "PLESK_API_PASSWORD"],
       smtp: ["SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME"],
-      imap: ["IMAP_HOST", "IMAP_PORT", "IMAP_TLS", "IMAP_USER", "IMAP_PASSWORD"],
+      imap: ["IMAP_HOST", "IMAP_PORT", "IMAP_TLS", "IMAP_USER", "IMAP_PASSWORD", "IMAP_AUTH_METHOD"],
       digicert: ["DIGICERT_API_KEY", "DIGICERT_ORG_ID"],
       googleplay: ["GOOGLE_PLAY_SERVICE_ACCOUNT_KEY"],
       apple: ["APPLE_CONNECT_KEY_ID", "APPLE_CONNECT_ISSUER_ID", "APPLE_CONNECT_PRIVATE_KEY"],
       iis: ["IIS_API_URL", "IIS_API_KEY", "IIS_SERVER_NAME"],
+      microsoft: ["MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_MAILBOX_USER"],
+      invoiceninja: ["INVOICE_NINJA_URL", "INVOICE_NINJA_TOKEN"],
     };
 
     const payload: Record<string, string> = {};
@@ -150,10 +159,13 @@ export default function SystemSettingsPage() {
     try {
       const res = await fetch("/api/email/poll", { method: "POST" });
       const data = await res.json();
-      setTestResult({
-        success: res.ok,
-        message: res.ok ? `Success! Processed ${data.processed} email(s).` : (data.error || "Test failed"),
-      });
+      if (!res.ok) {
+        setTestResult({ success: false, message: data.error || "Test failed" });
+      } else if (data.errors?.length) {
+        setTestResult({ success: false, message: data.message || data.errors.join("; ") });
+      } else {
+        setTestResult({ success: true, message: `Success! Processed ${data.processed} email(s).` });
+      }
     } catch {
       setTestResult({ success: false, message: "IMAP test failed" });
     }
@@ -217,6 +229,8 @@ export default function SystemSettingsPage() {
     { key: "googleplay", label: "Google Play", icon: <Smartphone size={16} /> },
     { key: "apple", label: "Apple Connect", icon: <Smartphone size={16} /> },
     { key: "iis", label: "IIS Server", icon: <Monitor size={16} /> },
+    { key: "microsoft", label: "Outlook / Teams", icon: <Mail size={16} /> },
+    { key: "invoiceninja", label: "Invoice Ninja", icon: <Receipt size={16} /> },
   ];
 
   function renderInput(key: string, label: string, opts?: { type?: string; placeholder?: string; help?: string }) {
@@ -454,6 +468,7 @@ export default function SystemSettingsPage() {
                 {renderInput("IMAP_TLS", "Use TLS", { placeholder: "true", help: "'true' or 'false'" })}
                 {renderInput("IMAP_USER", "Username / Email", { placeholder: "support@example.com" })}
                 {renderInput("IMAP_PASSWORD", "Password", { placeholder: "Enter password" })}
+                {renderInput("IMAP_AUTH_METHOD", "Auth Method", { placeholder: "LOGIN", help: "LOGIN, PLAIN, or CRAM-MD5. Default: LOGIN" })}
               </div>
 
               <div className="flex items-center gap-3 pt-2">
@@ -694,6 +709,107 @@ export default function SystemSettingsPage() {
                   <li>After installation, open the IIS Admin portal and generate an Access Token</li>
                   <li>Enter the server URL (with port) and the access token above</li>
                   <li>Click &quot;Test Connection&quot; to verify connectivity</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Microsoft Graph Calendar Tab */}
+          {activeTab === "microsoft" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Outlook / Teams Calendar (Microsoft Graph)</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Configure Microsoft Graph app credentials to fetch meetings from Outlook and Teams calendars.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {renderInput("MS_GRAPH_TENANT_ID", "Tenant ID", { placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" })}
+                {renderInput("MS_GRAPH_CLIENT_ID", "Client ID", { placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" })}
+                {renderInput("MS_GRAPH_CLIENT_SECRET", "Client Secret", { placeholder: "Enter Azure app client secret" })}
+                {renderInput("MS_GRAPH_MAILBOX_USER", "Mailbox User", { placeholder: "support@yourdomain.com", help: "UPN/email of the mailbox to read calendar events from" })}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("microsoft")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Required Azure Permissions</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Register an app in Azure Entra ID</li>
+                  <li>Add Microsoft Graph application permission: <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded text-xs">Calendars.Read</code></li>
+                  <li>Grant admin consent for the tenant</li>
+                  <li>Create a client secret and paste it above</li>
+                  <li>Set mailbox user to the account that owns the calendar</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Invoice Ninja Tab */}
+          {activeTab === "invoiceninja" && (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Invoice Ninja Configuration</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Configure the Invoice Ninja API connection for billing, invoices, and client management.
+                  Changes here take effect immediately without restarting the server.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {renderInput("INVOICE_NINJA_URL", "Invoice Ninja URL", { placeholder: "https://invoicing.example.com", help: "Base URL of your Invoice Ninja instance (no trailing slash needed)" })}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">API Token</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords["INVOICE_NINJA_TOKEN"] ? "text" : "password"}
+                      value={settings.INVOICE_NINJA_TOKEN || ""}
+                      onChange={(e) => updateSetting("INVOICE_NINJA_TOKEN", e.target.value)}
+                      placeholder="Paste your Invoice Ninja API token"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white dark:bg-gray-800 text-sm pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePassword("INVOICE_NINJA_TOKEN")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      title={showPasswords["INVOICE_NINJA_TOKEN"] ? "Hide" : "Show"}
+                    >
+                      {showPasswords["INVOICE_NINJA_TOKEN"] ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Generate a token in Invoice Ninja &gt; Settings &gt; API Tokens.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleSave("invoiceninja")}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How to get your API Token</h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                  <li>Log into your Invoice Ninja instance as admin</li>
+                  <li>Go to <strong>Settings</strong> &gt; <strong>API Tokens</strong></li>
+                  <li>Click &quot;New Token&quot;, give it a name (e.g. &quot;GSS Support Portal&quot;), and save</li>
+                  <li>Copy the generated token and paste it above</li>
+                  <li>Click Save — changes take effect immediately with no server restart needed</li>
                 </ol>
               </div>
             </div>

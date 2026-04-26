@@ -37,6 +37,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  HardDrive,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 
@@ -1399,6 +1400,17 @@ export default function CustomerDetailPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Google Drive Document Portal Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+          <HardDrive size={20} className="text-green-600" /> Google Drive Documents
+        </h2>
+        {/* GoogleDriveManager expects isAdmin and currentUserId props */}
+        {session?.user?.id && (
+          <GoogleDriveManager isAdmin={isAdmin} currentUserId={session.user.id} />
         )}
       </div>
 

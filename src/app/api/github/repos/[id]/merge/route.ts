@@ -7,9 +7,12 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
+// Allow up to 5 minutes for git clone + merge operations
+export const maxDuration = 300;
+
 const GITHUB_API = "https://api.github.com";
 
-// In-memory merge job tracker
+// In-memory merge job tracker (legacy, kept for any in-flight poll requests)
 type MergeJob = {
   status: "running" | "success" | "error";
   message?: string;
@@ -70,7 +73,7 @@ export async function GET(
   return NextResponse.json(job);
 }
 
-// POST: start an async merge of another repo's history into this repo
+// POST: merge another repo's history into this repo (synchronous — awaits git completion)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -97,15 +100,6 @@ export async function POST(
     );
   }
 
-  // Check if a merge is already running for this repo
-  const existing = mergeJobs.get(id);
-  if (existing?.status === "running") {
-    return NextResponse.json(
-      { error: "A merge is already in progress for this repo." },
-      { status: 409 }
-    );
-  }
-
   const repo = await prisma.gitHubRepo.findUnique({ where: { id } });
   if (!repo) {
     return NextResponse.json({ error: "Repo not found" }, { status: 404 });
@@ -127,19 +121,12 @@ export async function POST(
   const [srcOwner] = sourceRepo.split("/");
   const srcToken = await getTokenForOwner(srcOwner) || ghToken;
 
-  // Mark job as running and return immediately
-  cleanOldJobs();
-  mergeJobs.set(id, { status: "running", startedAt: Date.now() });
-
-  // Create temp dir and script, then run in background
   const tmpDir = mkdtempSync(join(tmpdir(), "merge-"));
   const scriptPath = join(tmpDir, "merge.sh");
 
   const targetUrl = `https://x-access-token:${ghToken}@github.com/${targetFullName}.git`;
   const sourceUrl = `https://x-access-token:${srcToken}@github.com/${sourceRepo}.git`;
 
-  // Write a shell script that performs the merge
-  // Auto-detect source branch if it doesn't exist (e.g. main vs master)
   const script = `#!/bin/bash
 set -e
 cd "${tmpDir.replace(/\\/g, "/")}"
@@ -150,10 +137,8 @@ git config user.name "gss-support-bot"
 git config user.email "support@globalwebserve.com"
 git remote add source "${sourceUrl}"
 
-# Try the requested branch first, fall back to detecting default branch
 SRC_BRANCH="${srcBranch}"
 if ! git ls-remote --exit-code --heads source "$SRC_BRANCH" > /dev/null 2>&1; then
-  # Detect the default branch from the remote HEAD
   DEFAULT=$(git remote show source 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
   if [ -n "$DEFAULT" ]; then
     SRC_BRANCH="$DEFAULT"
@@ -172,82 +157,60 @@ echo "MERGE_SUCCESS"
 
   writeFileSync(scriptPath, script, { mode: 0o755 });
 
-  // Spawn git bash to run the script (works on Windows with Git installed)
   const gitBash = process.platform === "win32" ? "C:\\Program Files\\Git\\bin\\bash.exe" : "/bin/bash";
-  const child = spawn(gitBash, [scriptPath.replace(/\\/g, "/")], {
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
+
+  // Run synchronously — await the child process to complete
+  const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn(gitBash, [scriptPath.replace(/\\/g, "/")], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
   });
 
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-  child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-
-  child.on("close", async (code) => {
-    try {
-      if (code === 0 && stdout.includes("MERGE_SUCCESS")) {
-        // Delete source repo on GitHub
-        let sourceDeleted = false;
-        try {
-          const delRes = await fetch(`${GITHUB_API}/repos/${sourceRepo}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${srcToken}`,
-              Accept: "application/vnd.github+json",
-            },
-          });
-          sourceDeleted = delRes.ok || delRes.status === 204;
-        } catch {
-          // ignore delete failures
-        }
-
-        // Delete source repo from local database
-        try {
-          const [sOwner, sName] = sourceRepo.split("/");
-          const localSource = await prisma.gitHubRepo.findFirst({
-            where: { owner: sOwner, name: sName },
-          });
-          if (localSource) {
-            await prisma.customerRepo.deleteMany({ where: { repoId: localSource.id } });
-            await prisma.gitHubRepo.delete({ where: { id: localSource.id } });
-          }
-        } catch {
-          // ignore DB cleanup failures
-        }
-
-        mergeJobs.set(id, {
-          status: "success",
-          message: `Successfully merged ${sourceRepo}/${srcBranch} into ${repo.fullName}/${tgtBranch}${sourceDeleted ? ". Source repo deleted." : ". Note: could not delete source repo on GitHub."}`,
-          sourceDeleted,
-          startedAt: Date.now(),
+  try {
+    if (result.code === 0 && result.stdout.includes("MERGE_SUCCESS")) {
+      // Delete source repo on GitHub
+      let sourceDeleted = false;
+      try {
+        const delRes = await fetch(`${GITHUB_API}/repos/${sourceRepo}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${srcToken}`,
+            Accept: "application/vnd.github+json",
+          },
         });
-      } else {
-        // Extract useful error from stderr
-        const errMsg = stderr.split("\n").filter(l => l.includes("fatal:") || l.includes("error:")).join("; ") || stderr.slice(-500) || `Exit code ${code}`;
-        mergeJobs.set(id, {
-          status: "error",
-          message: `Merge failed: ${errMsg}`,
-          startedAt: Date.now(),
-        });
+        sourceDeleted = delRes.ok || delRes.status === 204;
+      } catch {
+        // ignore delete failures
       }
-    } catch (err) {
-      mergeJobs.set(id, {
-        status: "error",
-        message: `Merge post-processing error: ${err instanceof Error ? err.message : String(err)}`,
-        startedAt: Date.now(),
+
+      // Delete source repo from local DB (cascade handles linked records)
+      try {
+        const [sOwner, sName] = sourceRepo.split("/");
+        const localSource = await prisma.gitHubRepo.findFirst({ where: { owner: sOwner, name: sName } });
+        if (localSource) {
+          await prisma.gitHubRepo.delete({ where: { id: localSource.id } });
+        }
+      } catch {
+        // ignore DB cleanup failures
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully merged ${sourceRepo}/${srcBranch} into ${targetFullName}/${tgtBranch}.${sourceDeleted ? " Source repo deleted." : " Note: could not delete source repo on GitHub."}`,
+        sourceDeleted,
       });
+    } else {
+      const errMsg = result.stderr.split("\n")
+        .filter(l => l.includes("fatal:") || l.includes("error:"))
+        .join("; ") || result.stderr.slice(-500) || `Exit code ${result.code}`;
+      return NextResponse.json({ error: `Merge failed: ${errMsg}` }, { status: 500 });
     }
-
-    // Clean up temp directory
+  } finally {
     try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
-  });
-
-  child.unref();
-
-  return NextResponse.json({
-    success: true,
-    message: "Merge started. Polling for status...",
-    jobId: id,
-  });
+  }
 }

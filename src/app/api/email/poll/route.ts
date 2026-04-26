@@ -11,8 +11,11 @@ export async function POST() {
   const result = await pollEmails();
 
   return NextResponse.json({
-    success: true,
+    success: result.errors.length === 0,
     processed: result.processed,
     errors: result.errors,
+    message: result.errors.length
+      ? `Processed ${result.processed} email(s). Errors: ${result.errors.join("; ")}`
+      : `Processed ${result.processed} email(s).`,
   });
 }

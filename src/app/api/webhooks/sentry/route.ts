@@ -26,6 +26,42 @@ function verifySentrySignature(
   }
 }
 
+function normalizeForKey(input: string): string {
+  return input.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function extractIssueIdFromLink(link: string): string | null {
+  const match = link.match(/\/issues\/(\d+)/i);
+  return match?.[1] || null;
+}
+
+function buildSentryGroupKey(params: {
+  sentryProject: string;
+  errorTitle: string;
+  errorMessage: string;
+  sentryLink: string;
+  sentryIssueId?: string | null;
+  sentryFingerprint?: string | null;
+  sentryCulprit?: string | null;
+}): string {
+  const project = normalizeForKey(params.sentryProject || "unknown");
+  const byId = params.sentryIssueId || extractIssueIdFromLink(params.sentryLink || "");
+  if (byId) return `sentry:${project}:issue:${byId}`;
+
+  const fingerprint = normalizeForKey(params.sentryFingerprint || "").replace(/[^a-z0-9]+/g, "-");
+  if (fingerprint) return `sentry:${project}:fp:${fingerprint.slice(0, 80)}`;
+
+  const title = normalizeForKey(params.errorTitle || "application error");
+  const culprit = normalizeForKey(params.sentryCulprit || "");
+  const message = normalizeForKey(params.errorMessage || "").slice(0, 180);
+  const digest = crypto
+    .createHash("sha1")
+    .update(`${project}|${title}|${culprit}|${message}`)
+    .digest("hex")
+    .slice(0, 20);
+  return `sentry:${project}:sig:${digest}`;
+}
+
 // POST /api/webhooks/sentry — receive Sentry issue alerts
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -96,16 +132,22 @@ export async function POST(req: NextRequest) {
   let sentryLink = "";
   let sentryProject = "";
   let platform = "";
+  let sentryIssueId = "";
+  let sentryFingerprint = "";
+  let sentryCulprit = "";
 
   if (hookResource === "issue" || hookResource === "error") {
     // Issue webhook (legacy/integration hook)
     const issue = data.issue || data;
-    errorTitle = issue.title || issue.culprit || "Sentry Issue";
+    errorTitle = issue.title || issue.culprit || "Application Error";
     errorMessage = issue.metadata?.value || issue.message || issue.culprit || "";
     errorLevel = issue.level || "error";
     sentryLink = issue.permalink || issue.web_url || "";
     sentryProject = issue.project?.name || issue.project?.slug || "";
     platform = issue.platform || "";
+    sentryIssueId = String(issue.id || issue.issue_id || "");
+    sentryCulprit = issue.culprit || "";
+    sentryFingerprint = Array.isArray(issue.fingerprint) ? issue.fingerprint.join(":") : "";
   } else if (hookResource === "event_alert" || hookResource === "metric_alert") {
     // Alert rule triggered
     const event = data.event || {};
@@ -129,6 +171,13 @@ export async function POST(req: NextRequest) {
       issue.project?.name ||
       "";
     platform = event.platform || "";
+    sentryIssueId = String(issue.id || event.groupID || event.groupId || "");
+    sentryCulprit = issue.culprit || event.culprit || "";
+    sentryFingerprint = Array.isArray(event.fingerprint)
+      ? event.fingerprint.join(":")
+      : Array.isArray(issue.fingerprint)
+        ? issue.fingerprint.join(":")
+        : "";
   } else {
     // Unknown hook type — still try best effort
     errorTitle = payload.message || data.title || "Sentry Notification";
@@ -136,19 +185,71 @@ export async function POST(req: NextRequest) {
       data.message ||
       JSON.stringify(data).substring(0, 500);
     sentryLink = data.url || "";
+    sentryIssueId = String(data.issue_id || data.group_id || "");
   }
 
-  // Don't create duplicate tickets for same Sentry issue — use sentryLink as dedup key
+  const sentryGroupKey = buildSentryGroupKey({
+    sentryProject,
+    errorTitle,
+    errorMessage,
+    sentryLink,
+    sentryIssueId,
+    sentryFingerprint,
+    sentryCulprit,
+  });
+
+  // Group similar incidents into an existing ticket instead of opening many duplicates.
+  const groupedExisting = await prisma.issue.findFirst({
+    where: {
+      emailThreadId: sentryGroupKey,
+    },
+    select: { id: true, priority: true },
+  });
+
+  if (groupedExisting) {
+    if (groupedExisting.priority !== "CRITICAL") {
+      await prisma.issue.update({
+        where: { id: groupedExisting.id },
+        data: { priority: "CRITICAL" },
+      });
+    }
+
+    await prisma.message.create({
+      data: {
+        issueId: groupedExisting.id,
+        content: [
+          `Sentry recurrence detected: ${new Date().toISOString()}`,
+          errorMessage ? `Message: ${errorMessage}` : "",
+          sentryLink ? `Sentry Link: ${sentryLink}` : "",
+          `Grouping key: ${sentryGroupKey}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        isFromEmail: false,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      grouped: true,
+      message: "Grouped into existing Sentry ticket",
+      issueId: groupedExisting.id,
+    });
+  }
+
+  // Backward-compatible dedup for older tickets created before grouping-key support.
   if (sentryLink) {
     const existing = await prisma.issue.findFirst({
       where: {
         initialNotes: { contains: sentryLink },
       },
+      select: { id: true },
     });
     if (existing) {
       return NextResponse.json({
         ok: true,
-        message: "Duplicate — ticket already exists",
+        grouped: true,
+        message: "Grouped by existing Sentry link",
         issueId: existing.id,
       });
     }
@@ -172,7 +273,8 @@ export async function POST(req: NextRequest) {
     platform ? `**Platform:** ${platform}` : "",
     errorLevel ? `**Level:** ${errorLevel}` : "",
     sentryLink ? `**Sentry Link:** ${sentryLink}` : "",
-    ``,
+    `**Sentry Group Key:** ${sentryGroupKey}`,
+    "",
     `*This ticket was automatically created from a Sentry alert.*`,
   ]
     .filter(Boolean)
@@ -246,10 +348,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Create ticket
+  const subjectTitle = (errorTitle || "Application Error").trim();
   const issue = await prisma.issue.create({
     data: {
-      subject: `[Sentry] ${errorTitle}`.substring(0, 255),
+      subject: subjectTitle.substring(0, 255),
       initialNotes: notes,
+      emailThreadId: sentryGroupKey,
       priority: ticketPriority,
       kind: "BUG",
       projectId: projectId || null,
@@ -296,6 +400,7 @@ export async function POST(req: NextRequest) {
       source: "sentry",
       sentryProject,
       sentryLink,
+      sentryGroupKey,
       errorLevel,
       forcedProjectId,
       taskId,
@@ -306,5 +411,6 @@ export async function POST(req: NextRequest) {
     ok: true,
     issueId: issue.id,
     taskId,
+    grouped: false,
   });
 }

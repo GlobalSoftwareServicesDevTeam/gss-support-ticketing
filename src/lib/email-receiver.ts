@@ -2,6 +2,7 @@ import imaps from "imap-simple";
 import { simpleParser, ParsedMail } from "mailparser";
 import prisma from "./prisma";
 import { sendEmail, ticketReceivedTemplate, newIssueAdminTemplate } from "./email";
+import { getImapConfig as getImapSettings } from "./settings";
 
 // Regex to find ticket ID in subject line: [GSS-<uuid>]
 const TICKET_PATTERN = /\[GSS-([a-f0-9-]+)\]/i;
@@ -55,25 +56,28 @@ interface ImapConfig {
     tls: boolean;
     authTimeout: number;
     tlsOptions: { rejectUnauthorized: boolean };
+    authMethod?: string;
   };
 }
 
-function getImapConfig(): ImapConfig {
+async function buildImapConfig(): Promise<ImapConfig> {
+  const s = await getImapSettings();
+  const user = s.IMAP_USER || process.env.IMAP_USER || "";
+  const password = s.IMAP_PASSWORD || process.env.IMAP_PASSWORD || "";
+  const host = s.IMAP_HOST || process.env.IMAP_HOST || "";
+  const port = parseInt(s.IMAP_PORT || process.env.IMAP_PORT || "993");
+  const tls = (s.IMAP_TLS ?? process.env.IMAP_TLS) !== "false";
+  const authMethod = s.IMAP_AUTH_METHOD || process.env.IMAP_AUTH_METHOD || "LOGIN";
+
+  console.log(`[IMAP] Connecting to ${host}:${port} tls=${tls} authMethod=${authMethod} user=${user} password=${password ? "***set***" : "EMPTY"}`);
+
   return {
-    imap: {
-      user: process.env.IMAP_USER || "",
-      password: process.env.IMAP_PASSWORD || "",
-      host: process.env.IMAP_HOST || "",
-      port: parseInt(process.env.IMAP_PORT || "993"),
-      tls: process.env.IMAP_TLS !== "false",
-      authTimeout: 10000,
-      tlsOptions: { rejectUnauthorized: false },
-    },
+    imap: { user, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false }, authMethod },
   };
 }
 
 export async function pollEmails(): Promise<{ processed: number; errors: string[] }> {
-  const config = getImapConfig();
+  const config = await buildImapConfig();
   let connection: imaps.ImapSimple | null = null;
   const errors: string[] = [];
   let processed = 0;
