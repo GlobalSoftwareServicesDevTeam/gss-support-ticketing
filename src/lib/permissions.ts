@@ -22,6 +22,7 @@ export const routePermissionMap: Record<string, StaffPermission> = {
   "/flagged-emails": "manageSettings",
   "/signing": "manageDocuments",
   "/task-schedule": "manageTasks",
+  "/meetings": "manageTasks",
   "/code-downloads": "manageCode",
   "/hosting-admin": "manageHosting",
   "/audit-logs": "viewAuditLogs",

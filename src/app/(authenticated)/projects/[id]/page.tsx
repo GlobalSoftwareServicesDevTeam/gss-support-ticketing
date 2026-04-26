@@ -158,6 +158,7 @@ interface Project {
   documents: Document[];
   issues: Issue[];
   repos: LinkedRepo[];
+  customer: { id: string; company: string } | null;
   _count: { issues: number; tasks: number; documents: number };
 }
 
@@ -261,6 +262,17 @@ export default function ProjectDetailPage() {
   const [allRepos, setAllRepos] = useState<LinkedRepo[]>([]);
   const [allReposLoaded, setAllReposLoaded] = useState(false);
   const [repoSearch, setRepoSearch] = useState("");
+
+  // Create GitHub repo state
+  const [createRepoForSub, setCreateRepoForSub] = useState<string | null>(null);
+  const [createRepoName, setCreateRepoName] = useState("");
+  const [createRepoAccountId, setCreateRepoAccountId] = useState("");
+  const [createRepoPrivate, setCreateRepoPrivate] = useState(true);
+  const [createRepoDesc, setCreateRepoDesc] = useState("");
+  const [creatingRepo, setCreatingRepo] = useState(false);
+  const [createRepoError, setCreateRepoError] = useState<string | null>(null);
+  const [ghAccounts, setGhAccounts] = useState<{ id: string; label: string; owner: string }[]>([]);
+  const [ghAccountsLoaded, setGhAccountsLoaded] = useState(false);
 
   // Project ideas tab state
   const [ideas, setIdeas] = useState<ProjectIdea[]>([]);
@@ -549,6 +561,75 @@ export default function ProjectDetailPage() {
       setAllReposLoaded(true);
     } catch { /* ignore */ }
   }, [allReposLoaded]);
+
+  const fetchGhAccounts = useCallback(async () => {
+    if (ghAccountsLoaded) return;
+    try {
+      const res = await fetch("/api/github/accounts");
+      const data = await res.json();
+      setGhAccounts(Array.isArray(data) ? data : []);
+      setGhAccountsLoaded(true);
+    } catch { /* ignore */ }
+  }, [ghAccountsLoaded]);
+
+  function slugify(text: string) {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 100);
+  }
+
+  function openCreateRepoModal(subProjectId: string, subProjectName: string) {
+    const clientName = project?.customer?.company ?? "";
+    const projectName = project?.projectName ?? "";
+    const suggested = [clientName, projectName, subProjectName]
+      .map(slugify)
+      .filter(Boolean)
+      .join("-");
+    setCreateRepoForSub(subProjectId);
+    setCreateRepoName(suggested);
+    setCreateRepoDesc(`${clientName ? clientName + " / " : ""}${projectName} / ${subProjectName}`);
+    setCreateRepoError(null);
+    fetchGhAccounts();
+  }
+
+  async function handleCreateRepo() {
+    if (!createRepoForSub || !createRepoName.trim() || !createRepoAccountId) return;
+    setCreatingRepo(true);
+    setCreateRepoError(null);
+    try {
+      const res = await fetch("/api/github/repos/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: createRepoAccountId,
+          repoName: createRepoName.trim(),
+          isPrivate: createRepoPrivate,
+          description: createRepoDesc.trim() || undefined,
+          projectId: id,
+          subProjectId: createRepoForSub,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateRepoError(data.error || "Failed to create repository.");
+      } else {
+        setCreateRepoForSub(null);
+        setCreateRepoName("");
+        setCreateRepoDesc("");
+        setCreateRepoAccountId("");
+        // Refresh sub-projects to show new linked repo
+        fetchSubProjects();
+        setAllReposLoaded(false);
+      }
+    } catch {
+      setCreateRepoError("Network error. Please try again.");
+    }
+    setCreatingRepo(false);
+  }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -985,16 +1066,24 @@ export default function ProjectDetailPage() {
                               <GitBranch size={14} className="text-slate-500" />
                               <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Linked Repos ({sub.repos.length})</span>
                               {isAdmin && (
-                                <button
-                                  onClick={() => {
-                                    const toggling = linkingRepoFor === sub.id ? null : sub.id;
-                                    setLinkingRepoFor(toggling);
-                                    if (toggling) { fetchAllRepos(); setRepoSearch(""); }
-                                  }}
-                                  className="ml-auto text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                >
-                                  <Edit2 size={12} /> Manage
-                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                  <button
+                                    onClick={() => openCreateRepoModal(sub.id, sub.name)}
+                                    className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1"
+                                  >
+                                    <Plus size={12} /> Create Repo
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const toggling = linkingRepoFor === sub.id ? null : sub.id;
+                                      setLinkingRepoFor(toggling);
+                                      if (toggling) { fetchAllRepos(); setRepoSearch(""); }
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                  >
+                                    <Edit2 size={12} /> Manage
+                                  </button>
+                                </div>
                               )}
                             </div>
                             {sub.repos.length > 0 ? (
@@ -1387,7 +1476,7 @@ export default function ProjectDetailPage() {
             </div>
           ) : ideas.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-              <p className="text-sm text-slate-500">No project ideas found for this project's customer.</p>
+              <p className="text-sm text-slate-500">No project ideas found for this project&apos;s customer.</p>
               <Link href="/project-ideas" className="inline-block mt-3 text-sm text-blue-600 hover:underline">
                 View all Project Ideas
               </Link>
@@ -1818,7 +1907,7 @@ export default function ProjectDetailPage() {
             </div>
           ) : mobileApps.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-              <p className="text-sm text-slate-500">No mobile apps found for this project's customer.</p>
+              <p className="text-sm text-slate-500">No mobile apps found for this project&apos;s customer.</p>
               <Link href="/mobile-apps" className="inline-block mt-3 text-sm text-blue-600 hover:underline">
                 View all Mobile Apps
               </Link>
@@ -1998,6 +2087,113 @@ export default function ProjectDetailPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Create GitHub Repo Modal */}
+      {createRepoForSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <GitBranch size={18} className="text-green-600" />
+                Create GitHub Repository
+              </h2>
+              <button
+                onClick={() => { setCreateRepoForSub(null); setCreateRepoError(null); }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-4">
+              Repository will be named <span className="font-mono font-semibold text-slate-700">[ClientName]-[ProjectName]-[SubProject]</span> and automatically linked to this sub-project.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">GitHub Account *</label>
+                <select
+                  value={createRepoAccountId}
+                  onChange={(e) => setCreateRepoAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-green-500/30 focus:border-green-500 outline-none"
+                >
+                  <option value="">Select account...</option>
+                  {ghAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>{acc.label} ({acc.owner})</option>
+                  ))}
+                </select>
+                {ghAccounts.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No GitHub accounts configured. <a href="/github-repos" className="underline">Add one first.</a></p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Repository Name *</label>
+                <input
+                  type="text"
+                  value={createRepoName}
+                  onChange={(e) => setCreateRepoName(e.target.value)}
+                  placeholder="e.g. client-project-subproject"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 focus:ring-2 focus:ring-green-500/30 focus:border-green-500 outline-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">Letters, numbers, hyphens, underscores, and dots only.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  value={createRepoDesc}
+                  onChange={(e) => setCreateRepoDesc(e.target.value)}
+                  placeholder="Short description..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-green-500/30 focus:border-green-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createRepoPrivate}
+                    onChange={(e) => setCreateRepoPrivate(e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  Private repository
+                </label>
+              </div>
+
+              {createRepoAccountId && (
+                <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-600">
+                  Will create: <span className="font-mono font-semibold text-slate-800">
+                    {ghAccounts.find((a) => a.id === createRepoAccountId)?.owner}/{createRepoName || "..."}
+                  </span>
+                </div>
+              )}
+
+              {createRepoError && (
+                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{createRepoError}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleCreateRepo}
+                disabled={creatingRepo || !createRepoName.trim() || !createRepoAccountId}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {creatingRepo && <Loader2 size={14} className="animate-spin" />}
+                {creatingRepo ? "Creating..." : "Create Repository"}
+              </button>
+              <button
+                onClick={() => { setCreateRepoForSub(null); setCreateRepoError(null); }}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

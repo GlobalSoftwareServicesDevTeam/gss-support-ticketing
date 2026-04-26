@@ -21,6 +21,7 @@ import {
   ArrowRightLeft,
   UserCircle2,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
 import Link from "next/link";
@@ -364,6 +365,27 @@ export default function GitHubReposPage() {
     if (res.ok) fetchRepos();
   };
 
+  const handlePermanentDeleteRepo = async (repoId: string, repoFullName: string) => {
+    if (
+      !confirm(
+        `PERMANENTLY DELETE "${repoFullName}" from GitHub?\n\nThis cannot be undone. The repository and all its code, issues, and history will be gone forever.`
+      )
+    )
+      return;
+    const confirmName = window.prompt(`Type the repository name "${repoFullName}" to confirm:`);
+    if (confirmName !== repoFullName) {
+      alert("Name did not match. Deletion cancelled.");
+      return;
+    }
+    const res = await fetch(`/api/github/repos/${repoId}/delete`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      fetchRepos();
+    } else {
+      alert(data.error || "Failed to permanently delete repository.");
+    }
+  };
+
   const handleLinkProject = async (repoId: string, projectId: string) => {
     await fetch(`/api/github/repos/${repoId}`, {
       method: "PATCH",
@@ -424,7 +446,7 @@ export default function GitHubReposPage() {
     setMerging(true);
     setMergeResult(null);
     try {
-      // Start the merge (returns immediately)
+      setMergeResult({ message: "Merge in progress... cloning and merging repos. This may take a minute." });
       const res = await fetch(`/api/github/repos/${mergeRepoId}/merge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -436,37 +458,11 @@ export default function GitHubReposPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setMergeResult({ error: data.error });
-        setMerging(false);
-        return;
-      }
-
-      // Poll for completion
-      setMergeResult({ message: "Merge in progress... cloning and merging repos." });
-      const jobId = data.jobId;
-      const maxPoll = 300_000; // 5 min
-      const start = Date.now();
-      while (Date.now() - start < maxPoll) {
-        await new Promise((r) => setTimeout(r, 3000));
-        try {
-          const pollRes = await fetch(`/api/github/repos/${jobId}/merge`);
-          const job = await pollRes.json();
-          if (job.status === "success") {
-            setMergeResult({ message: job.message });
-            fetchRepos();
-            break;
-          } else if (job.status === "error") {
-            setMergeResult({ error: job.message });
-            break;
-          }
-          // still running — keep polling
-        } catch {
-          // network hiccup, keep trying
-        }
-      }
-      if (Date.now() - start >= maxPoll) {
-        setMergeResult({ message: "Merge is still running in the background. Refresh the page to check status." });
+      if (res.ok) {
+        setMergeResult({ message: data.message });
+        fetchRepos();
+      } else {
+        setMergeResult({ error: data.error || "Merge failed" });
       }
     } catch {
       setMergeResult({ error: "Failed to start merge. Check your connection." });
@@ -1172,9 +1168,16 @@ export default function GitHubReposPage() {
                     <button
                       onClick={() => handleDeleteRepo(repo.id)}
                       className="text-slate-400 hover:text-red-500 transition p-1"
-                      title="Remove repo"
+                      title="Remove from system (keeps repo on GitHub)"
                     >
                       <Trash2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => handlePermanentDeleteRepo(repo.id, repo.fullName)}
+                      className="text-slate-400 hover:text-red-700 transition p-1"
+                      title="Permanently delete from GitHub"
+                    >
+                      <AlertTriangle size={16} />
                     </button>
                   </div>
                 </div>

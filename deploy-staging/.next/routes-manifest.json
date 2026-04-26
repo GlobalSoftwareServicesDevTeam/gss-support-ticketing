@@ -366,6 +366,14 @@
       "namedRegex": "^/api/issues/(?<nxtPid>[^/]+?)/messages(?:/)?$"
     },
     {
+      "page": "/api/meetings/[meetingId]",
+      "regex": "^/api/meetings/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPmeetingId": "nxtPmeetingId"
+      },
+      "namedRegex": "^/api/meetings/(?<nxtPmeetingId>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/mobile-apps/[id]",
       "regex": "^/api/mobile\\-apps/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -893,6 +901,36 @@
       "namedRegex": "^/api/email/test(?:/)?$"
     },
     {
+      "page": "/api/expense-income/expenses",
+      "regex": "^/api/expense\\-income/expenses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expense\\-income/expenses(?:/)?$"
+    },
+    {
+      "page": "/api/expense-income/income",
+      "regex": "^/api/expense\\-income/income(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expense\\-income/income(?:/)?$"
+    },
+    {
+      "page": "/api/expense-income/invoiceninja",
+      "regex": "^/api/expense\\-income/invoiceninja(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expense\\-income/invoiceninja(?:/)?$"
+    },
+    {
+      "page": "/api/expense-income/months",
+      "regex": "^/api/expense\\-income/months(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expense\\-income/months(?:/)?$"
+    },
+    {
+      "page": "/api/expense-income/rollover",
+      "regex": "^/api/expense\\-income/rollover(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/expense\\-income/rollover(?:/)?$"
+    },
+    {
       "page": "/api/flagged-emails",
       "regex": "^/api/flagged\\-emails(?:/)?$",
       "routeKeys": {},
@@ -1113,6 +1151,18 @@
       "regex": "^/api/issues(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/issues(?:/)?$"
+    },
+    {
+      "page": "/api/meetings",
+      "regex": "^/api/meetings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/meetings(?:/)?$"
+    },
+    {
+      "page": "/api/meetings/outlook",
+      "regex": "^/api/meetings/outlook(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/meetings/outlook(?:/)?$"
     },
     {
       "page": "/api/mobile-apps",
@@ -1445,6 +1495,12 @@
       "namedRegex": "^/email\\-settings(?:/)?$"
     },
     {
+      "page": "/expense-income",
+      "regex": "^/expense\\-income(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/expense\\-income(?:/)?$"
+    },
+    {
       "page": "/favicon.ico",
       "regex": "^/favicon\\.ico(?:/)?$",
       "routeKeys": {},
@@ -1527,6 +1583,12 @@
       "regex": "^/login(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/meetings",
+      "regex": "^/meetings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/meetings(?:/)?$"
     },
     {
       "page": "/mobile-apps",

@@ -40,6 +40,7 @@ export async function GET(
         select: { id: true, fullName: true, htmlUrl: true, isPrivate: true, language: true },
         orderBy: { fullName: "asc" },
       },
+      customer: { select: { id: true, company: true } },
     },
   });
 

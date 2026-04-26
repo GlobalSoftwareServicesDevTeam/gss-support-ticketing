@@ -49,6 +49,7 @@ model User {
   paymentArrangements  PaymentArrangement[]
   projectAssignments   ProjectAssignment[]
   assignments          TaskAssignment[]
+  meetingAssignments   MeetingAttendee[]
   trustedDevices       TrustedDevice[]
 
   @@map("users")
@@ -251,6 +252,36 @@ model TaskAssignment {
 
   @@unique([taskId, userId])
   @@map("task_assignments")
+}
+
+model Meeting {
+  id          String            @id @default(uuid())
+  title       String
+  description String?           @db.NVarChar(Max)
+  status      String            @default("SCHEDULED")
+  type        String            @default("CALL")
+  location    String?
+  meetingUrl  String?
+  startsAt    DateTime
+  endsAt      DateTime
+  notes       String?           @db.NVarChar(Max)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  attendees   MeetingAttendee[]
+
+  @@map("meetings")
+}
+
+model MeetingAttendee {
+  id         String   @id @default(uuid())
+  meetingId  String
+  userId     String
+  assignedAt DateTime @default(now())
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User     @relation(fields: [userId], references: [id], onUpdate: NoAction)
+
+  @@unique([meetingId, userId])
+  @@map("meeting_attendees")
 }
 
 model Document {
