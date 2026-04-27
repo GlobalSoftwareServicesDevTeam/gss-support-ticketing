@@ -7,6 +7,8 @@
     "dev:https": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next dev --experimental-https --hostname localhost --port 3000",
     "dev:https:cert": "next dev --experimental-https --experimental-https-key ./certs/localhost-key.pem --experimental-https-cert ./certs/localhost.pem --hostname localhost --port 3000",
     "build": "npx prisma generate && next build",
+    "build:out": "cross-env NEXT_DIST_DIR=out npm run build",
+    "build:export": "cross-env NEXT_OUTPUT_MODE=export npm run build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "npx prisma generate",
