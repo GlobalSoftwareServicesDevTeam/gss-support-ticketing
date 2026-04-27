@@ -40,6 +40,7 @@ import {
   HardDrive,
 } from "lucide-react";
 import { GitHubIcon } from "@/components/icons";
+import GoogleDriveManager from "@/components/google-drive-manager";
 
 interface NotificationPref {
   id: string;

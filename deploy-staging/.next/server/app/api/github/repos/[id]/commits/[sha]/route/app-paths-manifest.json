@@ -1,3 +1,0 @@
-{
-  "/api/github/repos/[id]/commits/[sha]/route": "app/api/github/repos/[id]/commits/[sha]/route.js"
-}

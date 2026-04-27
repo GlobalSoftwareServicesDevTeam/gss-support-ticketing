@@ -1,3 +1,0 @@
-{
-  "/api/customers/[id]/contacts/[contactId]/notifications/route": "app/api/customers/[id]/contacts/[contactId]/notifications/route.js"
-}

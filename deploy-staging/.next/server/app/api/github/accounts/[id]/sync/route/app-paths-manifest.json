@@ -1,3 +1,0 @@
-{
-  "/api/github/accounts/[id]/sync/route": "app/api/github/accounts/[id]/sync/route.js"
-}

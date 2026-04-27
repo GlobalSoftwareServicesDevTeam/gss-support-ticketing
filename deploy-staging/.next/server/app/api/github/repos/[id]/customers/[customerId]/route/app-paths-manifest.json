@@ -1,3 +1,0 @@
-{
-  "/api/github/repos/[id]/customers/[customerId]/route": "app/api/github/repos/[id]/customers/[customerId]/route.js"
-}

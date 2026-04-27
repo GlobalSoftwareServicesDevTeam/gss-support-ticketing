@@ -1,3 +1,0 @@
-{
-  "/(authenticated)/projects/[id]/page": "app/(authenticated)/projects/[id]/page.js"
-}
